@@ -1,0 +1,6 @@
+-keepattributes Signature,RuntimeVisibleAnnotations
+-keep class com.drkkr.strategos.domain.model.** { *; }
+-keep class com.drkkr.strategos.domain.framework.** { *; }
+-keep class kotlinx.serialization.** { *; }
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.concurrent.**
