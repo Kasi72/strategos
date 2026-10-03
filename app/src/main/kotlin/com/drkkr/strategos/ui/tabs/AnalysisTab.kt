@@ -151,6 +151,20 @@ fun AnalysisTab(vm: StrategosViewModel) {
             }
         }
 
+        // Relational Repair card — shown when that module ran successfully
+        val repairResult = state.moduleRunResults
+            .firstOrNull { it.moduleId == "relational-repair" && it.status == ModuleRunStatus.SUCCESS }
+            ?.result
+            ?: state.analysisResults.firstOrNull { it.moduleId == "relational-repair" }
+        repairResult?.let { rr ->
+            item {
+                com.drkkr.strategos.ui.components.RelationalRepairCard(
+                    result = rr,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        }
+
         if (state.moduleRunResults.isNotEmpty()) {
             item { SectionHeader("Framework Results") }
             items(state.moduleRunResults) { run ->

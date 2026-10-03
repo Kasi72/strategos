@@ -149,6 +149,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         .register(BayesianUpdatingModule())
         .register(DynamicSimulationModule())
         .register(StakeholderTrustDynamicsModule())
+        .register(com.drkkr.strategos.framework.behavioral.RelationalRepairModule())
 
     fun parseAndCreateScenario(rawText: String) {
         val parsed = ScenarioParser.parse(rawText)
