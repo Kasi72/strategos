@@ -56,6 +56,7 @@ import com.drkkr.strategos.framework.strategic.SignallingModule
 import com.drkkr.strategos.framework.strategic.StackelbergModule
 import com.drkkr.strategos.framework.strategic.ValueOfInformationModule
 import com.drkkr.strategos.framework.behavioral.PublicGoodsModule
+import com.drkkr.strategos.framework.behavioral.RelationalRepairModule
 import com.drkkr.strategos.framework.behavioral.StagHuntModule
 import com.drkkr.strategos.framework.behavioral.StakeholderTrustDynamicsModule
 import com.drkkr.strategos.framework.behavioral.TrustGameModule
@@ -128,6 +129,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         .register(SensitivityModule())
         .register(PrisonersDilemmaModule())
         .register(StagHuntModule())
+        .register(RelationalRepairModule())
         .register(VirtualBargainingModule())
         .register(UltimatumModule())
         .register(TrustGameModule())

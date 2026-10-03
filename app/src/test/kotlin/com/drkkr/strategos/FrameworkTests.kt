@@ -16,6 +16,7 @@ import com.drkkr.strategos.domain.model.AnalysisSnapshot
 import com.drkkr.strategos.domain.recommendation.CandidateType
 import com.drkkr.strategos.domain.recommendation.DecisionCandidate
 import com.drkkr.strategos.domain.recommendation.FeasibilityStatus
+import com.drkkr.strategos.framework.behavioral.RelationalRepairModule
 import com.drkkr.strategos.framework.dominant.DominantStrategyModule
 import com.drkkr.strategos.framework.minimax.MinimaxModule
 import com.drkkr.strategos.framework.nash.MixedNash2x2Module
@@ -1118,5 +1119,141 @@ class WorkflowOrchestratorTest {
             decisions = decisions
         )
         assertEquals(ApprovalStatus.REJECTED, stage.effectiveStatus())
+    }
+}
+
+// --- Relational Repair Game ---
+
+/**
+ * Two parties, each with INVEST (reach/show up) and WITHDRAW (fade). Stag-hunt payoffs:
+ * mutual INVEST is payoff-dominant; the sucker cell (you invest, they withdraw) is worst,
+ * so mutual WITHDRAW is risk-dominant. Repeated, so melting-prize dynamics apply.
+ */
+private fun relationalRepairScenario(
+    sharedHistory: Double? = null,
+    selfAuthority: Double? = null,
+    exitFriction: Double? = null,
+    alternative: Double? = null,
+    renewalProb: Double? = null,
+    prizeDecay: Double? = null,
+    horizon: Int = 24
+): Scenario {
+    val a = Stakeholder(id = "a", name = "Asha", credibility = 7)
+    val b = Stakeholder(id = "b", name = "Ben", credibility = 7)
+    val invA = Action(id = "invA", stakeholderId = "a", label = "Invest")
+    val wdA = Action(id = "wdA", stakeholderId = "a", label = "Withdraw")
+    val invB = Action(id = "invB", stakeholderId = "b", label = "Invest")
+    val wdB = Action(id = "wdB", stakeholderId = "b", label = "Withdraw")
+
+    // Stag-hunt payoffs (index 0 = Invest, 1 = Withdraw):
+    //  (Inv,Inv)=4  (Inv,Wd)=0  (Wd,Inv)=3  (Wd,Wd)=3   for each symmetric player
+    //  a>d? 4>3 yes (payoff dominant). Sucker (Inv,Wd)=0 is worst → risk-dominant Withdraw.
+    val payoffs = listOf(
+        PayoffEntry("a", mapOf("a" to "invA", "b" to "invB"), payoff(4.0)),
+        PayoffEntry("a", mapOf("a" to "invA", "b" to "wdB"), payoff(0.0)),
+        PayoffEntry("a", mapOf("a" to "wdA", "b" to "invB"), payoff(3.0)),
+        PayoffEntry("a", mapOf("a" to "wdA", "b" to "wdB"), payoff(3.0)),
+        PayoffEntry("b", mapOf("a" to "invA", "b" to "invB"), payoff(4.0)),
+        PayoffEntry("b", mapOf("a" to "invA", "b" to "wdB"), payoff(3.0)),
+        PayoffEntry("b", mapOf("a" to "wdA", "b" to "invB"), payoff(0.0)),
+        PayoffEntry("b", mapOf("a" to "wdA", "b" to "wdB"), payoff(3.0))
+    )
+
+    val beliefs = buildList {
+        sharedHistory?.let { add(Belief("shared_history", it)) }
+        selfAuthority?.let { add(Belief("self_authority", it)) }
+        exitFriction?.let { add(Belief("exit_friction", it)) }
+        alternative?.let { add(Belief("alternative", it)) }
+        renewalProb?.let { add(Belief("renewal_prob", it)) }
+        prizeDecay?.let { add(Belief("prize_decay", it)) }
+    }
+
+    return Scenario(
+        id = UUID.randomUUID().toString(),
+        title = "Drifting friendship — should Asha reach out to reconnect?",
+        description = "Two old friends have gradually fallen silent and may repair or fade.",
+        stakeholders = listOf(a, b),
+        actions = listOf(invA, wdA, invB, wdB),
+        payoffs = payoffs,
+        beliefs = beliefs,
+        repeated = true,
+        timeHorizon = horizon
+    )
+}
+
+class RelationalRepairTest {
+
+    @Test
+    fun `applies to a repeated two-party relational stag hunt`() {
+        val app = RelationalRepairModule().canAnalyze(relationalRepairScenario())
+        assertTrue("Should be applicable to a relational repair scenario: ${app.reasons}", app.score >= 0.5)
+    }
+
+    @Test
+    fun `does not apply to a three-party scenario`() {
+        val scn = prisoner().copy(
+            stakeholders = prisoner().stakeholders + Stakeholder(id = "p3", name = "P3")
+        )
+        assertEquals(0.0, RelationalRepairModule().canAnalyze(scn).score, 1e-9)
+    }
+
+    @Test
+    fun `computes a trust threshold p-star from the stag-hunt matrix`() {
+        val res = RelationalRepairModule().analyze(relationalRepairScenario())
+        val p = res.calculations["trust_threshold_p_star"] as? Double
+        assertNotNull("Trust threshold should be computed for a 2x2 stag hunt", p)
+        // With a=4,b=0,c=3,d=3: p* = (d-b)/(a-b-c+d) = 3/4 = 0.75
+        assertEquals(0.75, p!!, 1e-6)
+    }
+
+    @Test
+    fun `faster prize decay produces an earlier melting-prize threshold`() {
+        val slow = RelationalRepairModule().analyze(
+            relationalRepairScenario(prizeDecay = 0.03, horizon = 60)
+        ).calculations["t_star"] as Int
+        val fast = RelationalRepairModule().analyze(
+            relationalRepairScenario(prizeDecay = 0.30, horizon = 60)
+        ).calculations["t_star"] as Int
+        assertTrue("Faster decay ($fast) should melt the prize no later than slow decay ($slow)", fast <= slow)
+        assertTrue("Fast decay should hit t* within the horizon", fast in 1..60)
+    }
+
+    @Test
+    fun `renewal survival follows q to the power T`() {
+        val res = RelationalRepairModule().analyze(
+            relationalRepairScenario(renewalProb = 0.9, horizon = 12)
+        )
+        val survival = res.calculations["renewal_survival_qT"] as Double
+        assertEquals(Math.pow(0.9, 12.0), survival, 1e-6)  // ~0.282
+    }
+
+    @Test
+    fun `low self-authority flips the maintenance inequality to failing`() {
+        val mod = RelationalRepairModule()
+        // Strong bond, high authorship -> clears the bar.
+        val high = mod.analyze(
+            relationalRepairScenario(
+                sharedHistory = 0.9, selfAuthority = 0.9, exitFriction = 0.1,
+                alternative = 0.3, renewalProb = 0.9
+            )
+        )
+        // Same bond, present-tense sovereignty (S -> low) -> fails, even with the same history.
+        val low = mod.analyze(
+            relationalRepairScenario(
+                sharedHistory = 0.9, selfAuthority = 0.1, exitFriction = 0.1,
+                alternative = 0.3, renewalProb = 0.9
+            )
+        )
+        assertTrue("High self-authority should clear the maintenance bar", high.calculations["survives_now"] as Boolean)
+        assertFalse("Low self-authority should fail the maintenance bar despite high H", low.calculations["survives_now"] as Boolean)
+    }
+
+    @Test
+    fun `emits the core interventions as recommended actions`() {
+        val res = RelationalRepairModule().analyze(relationalRepairScenario())
+        val ids = res.recommendedActions.mapNotNull { it.actionId }.toSet()
+        assertTrue("Should recommend building a rhythm", "intervention-rhythm" in ids)
+        assertTrue("Should recommend reaching before the prize melts", "intervention-repair-early" in ids)
+        assertTrue("Should recommend re-instrumentalizing the bond", "intervention-reinstrumentalize" in ids)
     }
 }
