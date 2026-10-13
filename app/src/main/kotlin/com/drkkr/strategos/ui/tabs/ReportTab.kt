@@ -895,12 +895,12 @@ fun ExecutiveView(report: DecisionReport, vm: StrategosViewModel) {
                         }
                         SemanticChip(topRisk.likelihood, riskColor)
                         Spacer(Modifier.width(8.dp))
-                        Text(topRisk.failureMode, style = MaterialTheme.typography.titleSmall)
+                        Text(topRisk.failureMode, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(6.dp))
                     Text("Actor: ${topRisk.actor}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Early signal: ${topRisk.earlySignal}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Mitigation: ${topRisk.mitigation.take(150)}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+                    Text("Mitigation: ${topRisk.mitigation}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -915,7 +915,7 @@ fun ExecutiveView(report: DecisionReport, vm: StrategosViewModel) {
                         Spacer(Modifier.width(6.dp))
                         Text(topVoi.missingFact, style = MaterialTheme.typography.titleSmall)
                     }
-                    Text(topVoi.whyItMatters.take(200), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(topVoi.whyItMatters, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (topVoi.percentageScenariosChanged > 0) {
                         Spacer(Modifier.height(6.dp))
                         SemanticChip("Changes decision in ${topVoi.percentageScenariosChanged}% of scenarios", MaterialTheme.colorScheme.tertiary)
@@ -951,7 +951,7 @@ fun ExecutiveView(report: DecisionReport, vm: StrategosViewModel) {
                 ImmediateActionRow("Owner", report.scenario.decisionOwner.ifBlank { "Not assigned" })
                 ImmediateActionRow("First action", recommended?.action?.take(80) ?: "Define pathway first")
                 ImmediateActionRow("Required approval", report.scenario.decisionRule.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() })
-                ImmediateActionRow("Key condition", report.pathways.firstOrNull { it.label == "Recommended" }?.rationale?.take(80) ?: "—")
+                ImmediateActionRow("Key condition", report.pathways.firstOrNull { it.label == "Recommended" }?.rationale ?: "—")
                 if (nextAction != null) {
                     Spacer(Modifier.height(6.dp))
                     Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(10.dp)) {
@@ -1465,9 +1465,9 @@ fun ReportConfidenceBadge(confidence: Double) {
 
 @Composable
 fun ImmediateActionRow(label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 3.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(110.dp))
-        Text(value, style = MaterialTheme.typography.bodySmall)
+        Text(value, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
     }
 }
 

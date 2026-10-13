@@ -175,13 +175,19 @@ class RelationalRepairModule : FrameworkModule {
                     actionId = "intervention-reinstrumentalize"))
         }
 
+        val initialPrize = inputs.H + inputs.eH
+        val prizeTraj = (0..horizon).map { t ->
+            initialPrize * (1.0 - inputs.prizeDecay).pow(t.toDouble())
+        }
+
         val calcs: Map<String, Any?> = mapOf(
             "left_now"               to outputs.left,
             "right_now"              to outputs.right,
             "survives_now"           to outputs.survives,
             "trust_threshold_p_star" to outputs.pStar,
             "t_star"                 to outputs.tStar,
-            "prize_at_t_star"        to if (outputs.tStar in 1 until outputs.historyPath.size) outputs.historyPath[outputs.tStar] else null,
+            "prize_at_t_star"        to if (outputs.tStar in 1..horizon) prizeTraj.getOrNull(outputs.tStar) else null,
+            "prize_trajectory"       to prizeTraj,
             "history_trajectory"     to outputs.historyPath,
             "horizon"                to horizon,
             "renewal_survival_qT"    to outputs.renewalSurvival,

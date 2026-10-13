@@ -54,6 +54,8 @@ fun RelationalRepairCard(
     @Suppress("UNCHECKED_CAST")
     val historyPath = (result.calculations["history_trajectory"] as? List<Double>) ?: emptyList()
     @Suppress("UNCHECKED_CAST")
+    val prizePath = (result.calculations["prize_trajectory"] as? List<Double>) ?: emptyList()
+    @Suppress("UNCHECKED_CAST")
     val termsRaw = result.calculations["terms"] as? Map<String, Double> ?: emptyMap()
 
     val outcomeColor = when {
@@ -168,7 +170,7 @@ fun RelationalRepairCard(
             Spacer(Modifier.height(14.dp))
 
             // ── Melting-prize chart ─────────────────────────────────
-            if (historyPath.size > 1) {
+            if (prizePath.size > 1) {
                 Text(
                     "Melting-Prize Trajectory",
                     style = MaterialTheme.typography.labelSmall,
@@ -176,7 +178,7 @@ fun RelationalRepairCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 MeltingPrizeChart(
-                    path = historyPath,
+                    path = prizePath,
                     tStar = tStar,
                     horizon = horizon,
                     modifier = Modifier
@@ -202,7 +204,7 @@ fun RelationalRepairCard(
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    label = "Prize half-life",
+                    label = "Renewal half-life",
                     value = if (halflife.isInfinite()) "∞" else "${halflife.toInt()} per",
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
