@@ -39,6 +39,8 @@ fun ModelEditorTab(vm: StrategosViewModel) {
         return
     }
 
+    var showAddEvidenceDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
@@ -191,7 +193,50 @@ fun ModelEditorTab(vm: StrategosViewModel) {
             }
         }
 
+        // Evidence Sources
+        item { SectionHeader("Evidence Sources") }
+        if (scenario.evidenceSources.isEmpty()) {
+            item {
+                StratCard(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Text(
+                        "No evidence sources recorded. Add sources to establish decision readiness.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            itemsIndexed(scenario.evidenceSources) { idx, evidence ->
+                EvidenceSourceCard(
+                    evidence = evidence,
+                    onDelete = {
+                        vm.updateActiveScenario(scenario.copy(evidenceSources = scenario.evidenceSources.filterIndexed { i, _ -> i != idx }))
+                    }
+                )
+            }
+        }
+        item {
+            TextButton(
+                onClick = { showAddEvidenceDialog = true },
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Add Evidence Source")
+            }
+        }
+
         item { Spacer(Modifier.height(80.dp)) }
+    }
+
+    if (showAddEvidenceDialog) {
+        AddEvidenceSourceDialog(
+            onDismiss = { showAddEvidenceDialog = false },
+            onSave = { newEvidence ->
+                vm.updateActiveScenario(scenario.copy(evidenceSources = scenario.evidenceSources + newEvidence))
+                showAddEvidenceDialog = false
+            }
+        )
     }
 }
 
@@ -726,6 +771,133 @@ fun SliderField(label: String, value: Float, min: Float, max: Float, onValueChan
         Spacer(Modifier.width(6.dp))
         Text("${value.toInt()}", style = MaterialTheme.typography.labelSmall.copy(), modifier = Modifier.width(20.dp))
     }
+}
+
+// ── Evidence Source Card ──────────────────────────────────────────────────────
+
+@Composable
+fun EvidenceSourceCard(
+    evidence: EvidenceSource,
+    onDelete: () -> Unit
+) {
+    StratCard(modifier = Modifier.padding(vertical = 3.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(evidence.label, style = MaterialTheme.typography.bodySmall)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SemanticChip(
+                        evidence.kind.name.replace("_", " "),
+                        MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        "Quality: ${evidence.quality}/5",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (evidence.url.isNotBlank()) {
+                    Text(
+                        evidence.url,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                }
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Default.Delete, null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun AddEvidenceSourceDialog(
+    onDismiss: () -> Unit,
+    onSave: (EvidenceSource) -> Unit
+) {
+    var label by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf(EvidenceSource.Kind.EXPERT_OPINION) }
+    var url by remember { mutableStateOf("") }
+    var quality by remember { mutableStateOf(3) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("Add Evidence Source", style = MaterialTheme.typography.titleSmall) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text("Source label / title") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Text(
+                    "Evidence kind",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    EvidenceSource.Kind.entries.forEach { k ->
+                        FilterChip(
+                            selected = kind == k,
+                            onClick = { kind = k },
+                            label = {
+                                Text(
+                                    k.name.replace("_", " "),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("URL (optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                SliderField("Evidence quality", quality.toFloat(), 1f, 5f) { quality = it.toInt() }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (label.isNotBlank()) {
+                        onSave(
+                            EvidenceSource(
+                                label = label.trim(),
+                                kind = kind,
+                                url = url.trim(),
+                                quality = quality
+                            )
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(12.dp),
+                enabled = label.isNotBlank()
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable
