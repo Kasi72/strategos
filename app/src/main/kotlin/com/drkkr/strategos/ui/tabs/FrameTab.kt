@@ -473,16 +473,16 @@ private fun ActionRow(
     onAddImage: () -> Unit,
     onDictate: () -> Unit
 ) {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             "Add context",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(ICON_BTN_GAP)) {
             ActionIconButton(
                 icon = Icons.Default.ContentPaste,
