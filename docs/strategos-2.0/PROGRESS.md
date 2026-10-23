@@ -20,7 +20,8 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 0.3 | done | 1 (TC_PURE_01) | Verified it fails when `import android.util.Log` is added to domain/, then reverted. |
 | 1.1 | done | 2 (TC_PROV_01/02) | factStatus + provenanceNote on Stakeholder, Action, Constraint, PayoffEntry. gameRole assertion added in 1.2. |
 | 1.2 | done | 1 (players_excludesInfluencers) + TC_PROV gameRole assertions | GameRole enum, Stakeholder.gameRole, Scenario.players(); Fx.pdWithInfluencer added. |
+| 1.3 | done | 3 (TC_MATRIX_01/02/03) | MatrixSupport.buildChecked and FrameworkSelector use scenario.players(). Tests 01/02 failed before the edit as expected; 03 already passed. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
-Next step: Phase 1.3 (MatrixSupport/FrameworkSelector).
+Next step: Phase 1.4 (AnalysisPipeline).

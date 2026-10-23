@@ -58,8 +58,9 @@ object MatrixSupport {
      * Callers must check calculationStatus before trusting equilibrium results.
      */
     fun buildChecked(scenario: Scenario, weights: Map<PayoffDimension, Double> = scenario.weights): MatrixResult? {
-        if (scenario.stakeholders.size < 2 || scenario.payoffs.isEmpty()) return null
-        val players = scenario.stakeholders.map { it.id }
+        val playerList = scenario.players()
+        if (playerList.size < 2 || scenario.payoffs.isEmpty()) return null
+        val players = playerList.map { it.id }
         val strategies = players.associateWith { sid -> scenario.actionsFor(sid).map { it.id } }
         if (strategies.any { it.value.isEmpty() }) return null
         val count = strategies.values.fold(1) { a, s -> a * s.size }
