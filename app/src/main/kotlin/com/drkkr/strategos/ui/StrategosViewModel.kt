@@ -71,6 +71,8 @@ import com.drkkr.strategos.framework.sensitivity.SensitivityModule
 import com.drkkr.strategos.framework.tree.BackwardInductionModule
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
+import com.drkkr.strategos.domain.analysis.AnalysisPipeline
+import com.drkkr.strategos.domain.analysis.PipelineResult
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -104,8 +106,7 @@ data class UiState(
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = ScenarioRepository(app)
-    private val registry = buildRegistry()
-    private val engine = RecommendationEngine()
+    private val pipeline = AnalysisPipeline()
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -118,40 +119,6 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
     }
-
-    private fun buildRegistry() = FrameworkRegistry()
-        .register(DominantStrategyModule())
-        .register(PureNashModule())
-        .register(MixedNash2x2Module())
-        .register(ExpectedUtilityModule())
-        .register(MinimaxModule())
-        .register(BackwardInductionModule())
-        .register(ParetoModule())
-        .register(SensitivityModule())
-        .register(PrisonersDilemmaModule())
-        .register(StagHuntModule())
-        .register(VirtualBargainingModule())
-        .register(UltimatumModule())
-        .register(TrustGameModule())
-        .register(PublicGoodsModule())
-        .register(LevelKModule())
-        .register(IteratedDominanceModule())
-        .register(AuctionModule())
-        .register(ChickenGameModule())
-        .register(PrincipalAgentModule())
-        .register(CommonPoolResourceModule())
-        .register(RedTeamModule())
-        .register(RobustDecisionFrontierModule())
-        .register(ValueOfInformationModule())
-        .register(BehavioralResponseModule())
-        .register(CoalitionAnalysisModule())
-        .register(SignallingModule())
-        .register(StackelbergModule())
-        .register(ScenarioEnsembleModule())
-        .register(BayesianUpdatingModule())
-        .register(DynamicSimulationModule())
-        .register(StakeholderTrustDynamicsModule())
-        .register(com.drkkr.strategos.framework.behavioral.RelationalRepairModule())
 
     fun parseAndCreateScenario(rawText: String) {
         val parsed = ScenarioParser.parse(rawText)
@@ -188,11 +155,15 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun analyze() {
-        val scenario = _state.value.activeScenario ?: return
+        viewModelScope.launch { analyzeAndAwait() }
+    }
+
+    suspend fun analyzeAndAwait(): PipelineResult? {
+        val scenario = _state.value.activeScenario ?: return null
         val validity = ModelValidator.validate(scenario)
         if (validity.blocksAnalysis) {
             _state.update { it.copy(modelValidityReport = validity, errorMessage = validity.issues.first().message) }
-            return
+            return null
         }
         _state.update { it.copy(
             isAnalyzing = true, errorMessage = null, analysisPlan = null,
@@ -200,136 +171,131 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
             debugEntries = emptyList(), modelValidityReport = validity,
             snapshot = null, snapshotInvalidated = false
         ) }
-        viewModelScope.launch {
-            try {
-                val plan = withContext(Dispatchers.Default) {
-                    FrameworkSelector.classify(scenario, registry.modules())
-                }
-                _state.update { it.copy(analysisPlan = plan) }
+        return try {
+            val pr = withContext(Dispatchers.Default) { pipeline.run(scenario) }
+            val plan = pr.plan!!
+            val selectedIds = plan.selected().map { it.moduleId }.toSet()
+            val moduleRuns = pr.moduleRuns
 
-                val selectedIds = plan.selected().map { it.moduleId }.toSet()
-                val moduleRuns = withContext(Dispatchers.Default) { registry.runAll(scenario, selectedIds) }
-
-                // Build debug entries from FAILED modules only — no raw stack traces in state
-                val debugEntries = moduleRuns
-                    .filter { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
-                    .map { run ->
-                        DebugEntry(
-                            source = run.moduleId,
-                            level = DebugEntry.Level.ERROR,
-                            message = run.userMessage ?: "${run.moduleName} could not run.",
-                            detail = buildString {
-                                appendLine("Diagnostic ID: ${run.diagnosticId ?: "n/a"}")
-                                appendLine("Module: ${run.moduleName}")
-                                run.result?.calculations?.let { calc ->
-                                    appendLine("Class: ${calc["errorClass"] ?: "unknown"}")
-                                    appendLine("Message: ${calc["errorMessage"] ?: "unknown"}")
-                                }
+            // Build debug entries from FAILED modules only — no raw stack traces in state
+            val debugEntries = moduleRuns
+                .filter { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
+                .map { run ->
+                    DebugEntry(
+                        source = run.moduleId,
+                        level = DebugEntry.Level.ERROR,
+                        message = run.userMessage ?: "${run.moduleName} could not run.",
+                        detail = buildString {
+                            appendLine("Diagnostic ID: ${run.diagnosticId ?: "n/a"}")
+                            appendLine("Module: ${run.moduleName}")
+                            run.result?.calculations?.let { calc ->
+                                appendLine("Class: ${calc["errorClass"] ?: "unknown"}")
+                                appendLine("Message: ${calc["errorMessage"] ?: "unknown"}")
                             }
-                        )
-                    }
-
-                val analysisResults = registry.analysisResultsFrom(moduleRuns)
-                val report = withContext(Dispatchers.Default) {
-                    engine.combine(scenario, analysisResults).copy(analysisPlan = plan)
-                }
-
-                // Determine run status from ModuleRunStatus — never string matching
-                val requiredFailed = moduleRuns.any {
-                    it.status == ModuleRunStatus.FAILED_RECOVERABLY && it.isRequired()
-                }
-                val requiredSkipped = moduleRuns.any {
-                    it.status == ModuleRunStatus.SKIPPED_INSUFFICIENT_INPUT && it.isRequired()
-                }
-                val anyFailed = moduleRuns.any { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
-
-                val runStatus = when {
-                    requiredFailed || requiredSkipped -> AnalysisRunStatus.FAILED
-                    anyFailed -> AnalysisRunStatus.PARTIAL
-                    else -> AnalysisRunStatus.COMPLETE
-                }
-
-                // Lifecycle gate: structured status, not string matching
-                val targetStage = when (runStatus) {
-                    AnalysisRunStatus.FAILED -> scenario.lifecycleStage  // keep current, don't advance
-                    AnalysisRunStatus.PARTIAL -> LifecycleStage.ANALYSED // partial allowed
-                    AnalysisRunStatus.COMPLETE -> LifecycleStage.ANALYSED
-                    AnalysisRunStatus.NOT_RUN -> scenario.lifecycleStage
-                }
-
-                // Only persist a new snapshot for PARTIAL or COMPLETE runs
-                val snapshot = if (runStatus != AnalysisRunStatus.FAILED) {
-                    val scenarioJson = try { snapshotJson.encodeToString(scenario) } catch (e: Exception) { scenario.id }
-                    val fullPayload = buildString {
-                        append(scenarioJson)
-                        append("|policy=").append(scenario.selectedPolicyOption?.actionId ?: "none")
-                        append("|exec=").append(report.executiveStatus.name)
-                        append("|conf=").append(report.overallConfidence)
-                        append("|modules=").append(selectedIds.toList().sorted().joinToString(","))
-                        append("|constraints=").append(scenario.constraints.size)
-                        append("|runStatus=").append(runStatus.name)
-                    }
-                    AnalysisSnapshot(
-                        scenarioId = scenario.id,
-                        scenarioVersion = scenario.version,
-                        scenarioHash = AnalysisSnapshot.hashString(fullPayload),
-                        selectedModuleIds = selectedIds.toList().sorted(),
-                        executiveStatus = report.executiveStatus.name,
-                        candidateCount = report.candidates.size,
-                        overallConfidence = report.overallConfidence,
-                        reportHash = AnalysisSnapshot.hashString(fullPayload),
-                        scenarioJson = scenarioJson
-                    ).also { repo.saveSnapshot(it) }
-                } else {
-                    _state.value.snapshot // preserve last valid snapshot on failure
-                }
-
-                val analysedScenario = scenario.copy(
-                    lifecycleStage = targetStage,
-                    snapshotId = snapshot?.snapshotId ?: scenario.snapshotId
-                )
-                repo.save(analysedScenario)
-
-                val readiness = buildDecisionReadiness(
-                    scenario = analysedScenario,
-                    report = report,
-                    moduleRuns = moduleRuns,
-                    runStatus = runStatus,
-                    snapshot = snapshot
-                )
-
-                _state.update { st ->
-                    st.copy(
-                        isAnalyzing = false,
-                        analysisResults = analysisResults,
-                        moduleRunResults = moduleRuns,
-                        decisionReadiness = readiness,
-                        report = report,
-                        analysisPlan = plan,
-                        debugEntries = debugEntries,
-                        snapshot = snapshot,
-                        activeScenario = analysedScenario,
-                        scenarios = st.scenarios.map { if (it.id == analysedScenario.id) analysedScenario else it }
+                        }
                     )
                 }
-            } catch (e: Exception) {
-                val fatalEntry = DebugEntry(
-                    source = "analysis-pipeline",
-                    level = DebugEntry.Level.ERROR,
-                    message = "Analysis pipeline error. Please try again.",
-                    detail = buildString {
-                        appendLine("Pipeline exception")
-                        appendLine(e.stackTraceToString().take(4000))
-                    }
-                )
-                _state.update {
-                    it.copy(
-                        isAnalyzing = false,
-                        errorMessage = "Analysis could not complete. Please try again.",
-                        debugEntries = listOf(fatalEntry)
-                    )
-                }
+
+            val analysisResults = pr.results
+            val report = pr.report!!
+
+            // Determine run status from ModuleRunStatus — never string matching
+            val requiredFailed = moduleRuns.any {
+                it.status == ModuleRunStatus.FAILED_RECOVERABLY && it.isRequired()
             }
+            val requiredSkipped = moduleRuns.any {
+                it.status == ModuleRunStatus.SKIPPED_INSUFFICIENT_INPUT && it.isRequired()
+            }
+            val anyFailed = moduleRuns.any { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
+
+            val runStatus = when {
+                requiredFailed || requiredSkipped -> AnalysisRunStatus.FAILED
+                anyFailed -> AnalysisRunStatus.PARTIAL
+                else -> AnalysisRunStatus.COMPLETE
+            }
+
+            // Lifecycle gate: structured status, not string matching
+            val targetStage = when (runStatus) {
+                AnalysisRunStatus.FAILED -> scenario.lifecycleStage  // keep current, don't advance
+                AnalysisRunStatus.PARTIAL -> LifecycleStage.ANALYSED // partial allowed
+                AnalysisRunStatus.COMPLETE -> LifecycleStage.ANALYSED
+                AnalysisRunStatus.NOT_RUN -> scenario.lifecycleStage
+            }
+
+            // Only persist a new snapshot for PARTIAL or COMPLETE runs
+            val snapshot = if (runStatus != AnalysisRunStatus.FAILED) {
+                val scenarioJson = try { snapshotJson.encodeToString(scenario) } catch (e: Exception) { scenario.id }
+                val fullPayload = buildString {
+                    append(scenarioJson)
+                    append("|policy=").append(scenario.selectedPolicyOption?.actionId ?: "none")
+                    append("|exec=").append(report.executiveStatus.name)
+                    append("|conf=").append(report.overallConfidence)
+                    append("|modules=").append(selectedIds.toList().sorted().joinToString(","))
+                    append("|constraints=").append(scenario.constraints.size)
+                    append("|runStatus=").append(runStatus.name)
+                }
+                AnalysisSnapshot(
+                    scenarioId = scenario.id,
+                    scenarioVersion = scenario.version,
+                    scenarioHash = AnalysisSnapshot.hashString(fullPayload),
+                    selectedModuleIds = selectedIds.toList().sorted(),
+                    executiveStatus = report.executiveStatus.name,
+                    candidateCount = report.candidates.size,
+                    overallConfidence = report.overallConfidence,
+                    reportHash = AnalysisSnapshot.hashString(fullPayload),
+                    scenarioJson = scenarioJson
+                ).also { repo.saveSnapshot(it) }
+            } else {
+                _state.value.snapshot // preserve last valid snapshot on failure
+            }
+
+            val analysedScenario = scenario.copy(
+                lifecycleStage = targetStage,
+                snapshotId = snapshot?.snapshotId ?: scenario.snapshotId
+            )
+            repo.save(analysedScenario)
+
+            val readiness = buildDecisionReadiness(
+                scenario = analysedScenario,
+                report = report,
+                moduleRuns = moduleRuns,
+                runStatus = runStatus,
+                snapshot = snapshot
+            )
+
+            _state.update { st ->
+                st.copy(
+                    isAnalyzing = false,
+                    analysisResults = analysisResults,
+                    moduleRunResults = moduleRuns,
+                    decisionReadiness = readiness,
+                    report = report,
+                    analysisPlan = plan,
+                    debugEntries = debugEntries,
+                    snapshot = snapshot,
+                    activeScenario = analysedScenario,
+                    scenarios = st.scenarios.map { if (it.id == analysedScenario.id) analysedScenario else it }
+                )
+            }
+            pr
+        } catch (e: Exception) {
+            val fatalEntry = DebugEntry(
+                source = "analysis-pipeline",
+                level = DebugEntry.Level.ERROR,
+                message = "Analysis pipeline error. Please try again.",
+                detail = buildString {
+                    appendLine("Pipeline exception")
+                    appendLine(e.stackTraceToString().take(4000))
+                }
+            )
+            _state.update {
+                it.copy(
+                    isAnalyzing = false,
+                    errorMessage = "Analysis could not complete. Please try again.",
+                    debugEntries = listOf(fatalEntry)
+                )
+            }
+            null
         }
     }
 
