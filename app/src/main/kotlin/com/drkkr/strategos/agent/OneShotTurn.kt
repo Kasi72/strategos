@@ -13,6 +13,7 @@ import com.drkkr.strategos.domain.agent.ModelSketch
 import com.drkkr.strategos.domain.agent.OpNormalizer
 import com.drkkr.strategos.domain.agent.PlainResult
 import com.drkkr.strategos.domain.agent.ReportDigest
+import com.drkkr.strategos.domain.agent.SketchGaps
 import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
@@ -66,47 +67,42 @@ class OneShotTurn(
         }
     }
 
+    private class Applied(val result: ApplyResult, val accepted: List<com.drkkr.strategos.domain.agent.ChangeOp>)
+
     private suspend fun turn(cid: String, sid: String, turnId: String, onActivity: (String) -> Unit): TurnResult {
         val scenario = gateway.activeScenario() ?: return fail(cid, turnId, "Save the scenario first.", retryable = false)
-        val messages = conversations.messages(cid)
-        val userTexts = messages.filter { it.role == MessageRole.USER.name }.map { it.text }
+        val userTexts = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }
         val text = userTexts.lastOrNull() ?: return TurnResult.Done
 
         onActivity("Reading your situation…")
-        val request = LlmRequest(
-            settings.model(), input(scenario.let(LiveDigest::build), userTexts.dropLast(1).takeLast(RECENT), text), tools = null,
-            maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS, purpose = "TURN", conversationId = cid, turnId = turnId
-        )
-        var sketch: ModelSketch? = null
-        repeat(2) {                                       // one retry when the reply isn't usable JSON
-            if (sketch != null) return@repeat
-            when (val r = llm.create(request)) {
-                is LlmResult.Ok -> sketch = SketchParser.parse(r.output.assistantText())
-                else -> return fail(cid, turnId, LlmErrors.userMessage(r), retryable = r !is LlmResult.Unauthorized)
-            }
+        val first = askModel(input(LiveDigest.build(scenario, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
+        val parsed = when (first) {
+            is Reply.Sketch -> first.sketch
+            is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
         }
-        val parsed = sketch ?: return fail(cid, turnId, COULD_NOT_READ, retryable = true)
-
         val converted = SketchConverter.toOps(parsed, scenario)
         if (converted.support) onSupport()
         if (converted.ops.isEmpty()) {
             conversations.append(cid, turnId, MessageRole.ASSISTANT, converted.ask ?: COULD_NOT_READ)
             return TurnResult.Done
         }
+        val applied = apply(cid, sid, scenario, converted.ops)
+            ?: return fail(cid, turnId, COULD_NOT_READ, retryable = true)
+        if (applied.result.applied == 0) return fail(cid, turnId, COULD_NOT_READ, retryable = true)
+        val understood = PlainResult.understood(applied.accepted, scenario).toMutableList()
 
-        val ops = OpNormalizer.normalize(converted.ops, scenario)
-        val validated = ChangeSetValidator.validate(scenario, ops)
-        if (validated.accepted.isEmpty()) return fail(cid, turnId, COULD_NOT_READ, retryable = true)
-        val accepted = validated.accepted.map { it.op }
-        val changeSet = changeSets.create(
-            scenarioId = sid, conversationId = cid, summary = "From your message",
-            opsJson = Args.encodeOps(accepted),
-            refIdsJson = Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), validated.refIds),
-            baseScenarioVersion = scenario.version
-        )
-        val applied = autoApply(changeSet.id) ?: return fail(cid, turnId, "I couldn't save that. Try again.", retryable = true)
-        if (applied.applied == 0) return fail(cid, turnId, COULD_NOT_READ, retryable = true)
-        val understood = PlainResult.understood(accepted, scenario)
+        // One targeted follow-up request when options or outcome scores are missing (best effort: a failure here still
+        // leaves a saved model and an honest answer).
+        gateway.activeScenario()?.let { saved ->
+            SketchGaps.describe(saved)?.let { gaps ->
+                onActivity("Filling in what's missing…")
+                val repair = askModel(input(LiveDigest.build(saved, forSketch = true), emptyList(), "$REPAIR_HEADER\n$gaps"), cid, turnId)
+                if (repair is Reply.Sketch) {
+                    val more = SketchConverter.toOps(repair.sketch, saved)
+                    if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let { understood += PlainResult.understood(it.accepted, saved) }
+                }
+            }
+        }
 
         onActivity("Running the analysis on your device…")
         val started = System.currentTimeMillis()
@@ -129,6 +125,40 @@ class OneShotTurn(
         return TurnResult.Done
     }
 
+    private sealed class Reply {
+        class Sketch(val sketch: ModelSketch) : Reply()
+        class Failed(val text: String, val retryable: Boolean) : Reply()
+    }
+
+    /** One request; a second try when the reply isn't usable JSON. */
+    private suspend fun askModel(input: JsonArray, cid: String, turnId: String): Reply {
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS,
+            purpose = "TURN", conversationId = cid, turnId = turnId
+        )
+        repeat(2) {
+            when (val r = llm.create(request)) {
+                is LlmResult.Ok -> SketchParser.parse(r.output.assistantText())?.let { return Reply.Sketch(it) }
+                else -> return Reply.Failed(LlmErrors.userMessage(r), retryable = r !is LlmResult.Unauthorized)
+            }
+        }
+        return Reply.Failed(COULD_NOT_READ, retryable = true)
+    }
+
+    /** Normalise, validate, save as a change set and apply it through the normal path. Null when nothing could be saved. */
+    private suspend fun apply(cid: String, sid: String, scenario: com.drkkr.strategos.domain.model.Scenario, rawOps: List<com.drkkr.strategos.domain.agent.ChangeOp>): Applied? {
+        val validated = ChangeSetValidator.validate(scenario, OpNormalizer.normalize(rawOps, scenario))
+        if (validated.accepted.isEmpty()) return null
+        val accepted = validated.accepted.map { it.op }
+        val changeSet = changeSets.create(
+            scenarioId = sid, conversationId = cid, summary = "From your message",
+            opsJson = Args.encodeOps(accepted),
+            refIdsJson = Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), validated.refIds),
+            baseScenarioVersion = scenario.version
+        )
+        return autoApply(changeSet.id)?.let { Applied(it, accepted) }
+    }
+
     private suspend fun fail(cid: String, turnId: String, text: String, retryable: Boolean): TurnResult {
         conversations.append(cid, turnId, MessageRole.ERROR, text)
         return TurnResult.Failed(text, retryable)
@@ -148,25 +178,24 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."
 
-        /** The whole prompt (~600 tokens). Reply is one JSON object; the app does everything else. */
+        /** The whole prompt (~800 tokens). The reply is one JSON object; the app does everything else. */
         const val PROMPT = """You turn a person's situation into a small decision model. Reply with ONE JSON object and nothing else.
-{"goal":"what a good outcome looks like, short",
- "people":[{"name":"You","role":"PLAYER","veto":false,"wants":"short","fears":"short"}],
- "options":[{"for":"You","label":"short action"}],
- "dims":["WELLBEING","RELATIONSHIPS","COST"],
- "outcomes":[{"picks":{"You":"label","Brother":"label"},"scores":{"You":[0-10 per dim],"Brother":[0-10 per dim]}}],
- "limits":[{"label":"something that must not happen","kind":"ETHICAL"}],
- "ask":"ONLY if the story is too thin to model: one short question",
- "support":false}
+Keys: goal, people (name, role PLAYER or INFLUENCER, veto, wants, fears), options (for, label), dims, outcomes (picks, scores), limits (label, kind), ask, support.
 Rules:
-- "You" is the user and a PLAYER. Add the ONE other person whose choice matters most as PLAYER (3 players at most). Everyone else is INFLUENCER (veto true if they can stop it).
-- Each PLAYER gets 2-3 options including waiting. Only players have options.
-- dims: 3 of SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE. COST 10 = very costly. If the app context already has dims, use exactly those, and give scores in the order listed there.
-- outcomes: one entry per combination of the players' options; scores are 0-10 per dim from that person's view, in dims order.
-- limits kind: LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL or RESOURCE.
-- App context shows what is saved. Do not repeat people or options already there; return only what is new or changed, using the same names. For a follow-up ("I did X and he reacted Y"), add or change what that implies and give outcomes for any new combinations.
-- Use the user's own words. Never invent facts. support true only if the user mentions self-harm, harm to others, abuse or danger."""
+- List EVERY person the user mentions (partner, parents, boss, friends...), plus "You". Never skip anyone.
+- "You" is the user, a PLAYER. Make the ONE other person whose choice matters most a PLAYER too (3 players at most). Everyone else is an INFLUENCER; set veto true if they can stop it.
+- Give EVERY PLAYER (including the other person) 2-3 options, one of them waiting or doing nothing. Influencers have no options.
+- dims: pick 3 of SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE (COST 10 = very costly). If the app context lists dims, use exactly those.
+- outcomes: one entry for EVERY combination of the players' options. In scores, give each player 3 numbers 0-10 (one per dim, in dims order) for how that combination is for them.
+- limits: things that must not happen. kind is LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL or RESOURCE.
+- Only fill wants, fears and limits when the user said or clearly implied them; otherwise leave them out. Never write placeholder text.
+- ask: leave out unless the story is far too thin to model; then ONE short question and nothing else.
+- support: true only if the user mentions self-harm, harming someone, abuse or danger.
+- The app context shows what is saved. Do not repeat saved people or options; return only what is new or changed, with the same names. For a follow-up ("I did X and he reacted Y"), add or change what that implies, and give outcomes for any new combinations.
+Example for "My manager wants me on night shift. My partner hates that idea." (a different situation):
+{"goal":"Keep my job without hurting my home life","people":[{"name":"You","role":"PLAYER","fears":"Losing sleep and time with my partner"},{"name":"Manager","role":"PLAYER","wants":"Night cover"},{"name":"Partner","role":"INFLUENCER","veto":true,"fears":"Never seeing me"}],"options":[{"for":"You","label":"Accept nights"},{"for":"You","label":"Refuse"},{"for":"Manager","label":"Insist"},{"for":"Manager","label":"Offer a swap"}],"dims":["WELLBEING","RELATIONSHIPS","COST"],"outcomes":[{"picks":{"You":"Accept nights","Manager":"Insist"},"scores":{"You":[3,4,5],"Manager":[8,6,2]}},{"picks":{"You":"Accept nights","Manager":"Offer a swap"},"scores":{"You":[5,5,4],"Manager":[7,7,3]}},{"picks":{"You":"Refuse","Manager":"Insist"},"scores":{"You":[6,5,7],"Manager":[3,3,6]}},{"picks":{"You":"Refuse","Manager":"Offer a swap"},"scores":{"You":[8,8,3],"Manager":[6,7,4]}}],"limits":[{"label":"No night work during my partner's treatment","kind":"ETHICAL"}]}"""
     }
 }

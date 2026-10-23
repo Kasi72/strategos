@@ -23,8 +23,12 @@ object PlainResult {
                 understood.take(MAX_UNDERSTOOD).forEach { appendLine("• $it") }
                 appendLine()
             }
+            val cov = PayoffCoverage.of(s)
+            val noOutcomes = cov.filled == 0
             appendLine("Here's what I see")
-            append(statusLine(report.executiveStatus))
+            append(if (noOutcomes) "I can't compare your options yet, because I don't know enough about how each person would feel about each outcome."
+                   else statusLine(report.executiveStatus))
+            if (!noOutcomes && cov.filled < cov.expected) append(" Some combinations are still missing, so this may change.")
             if (pr.provenance.payoffsAi > 0) append(" Some of this rests on my own guesses about how each person would feel.")
             appendLine()
             appendLine()
@@ -32,7 +36,10 @@ object PlainResult {
             val open = report.pathways.filter { !it.excluded && it.actionId != null }
             val ordered = open.filter { it.label == "Recommended" } + open.filter { it.label == "Safe Fallback" } +
                 open.filter { it.label != "Recommended" && it.label != "Safe Fallback" }
-            if (ordered.isNotEmpty()) {
+            if (noOutcomes) {
+                val mine = ownerOf(s)?.let { o -> s.actionsFor(o.id).map { it.label } }.orEmpty()
+                if (mine.isNotEmpty()) appendLine("Your options so far: ${mine.joinToString(", ")}.")
+            } else if (ordered.isNotEmpty()) {
                 appendLine("Options to consider")
                 ordered.take(MAX_OPTIONS).forEachIndexed { i, p ->
                     val tag = when (p.label) {
@@ -54,7 +61,7 @@ object PlainResult {
             val owner = ownerOf(s)
             val ranked = open.mapNotNull { it.actionId }.toSet()
             val others = owner?.let { o -> s.actionsFor(o.id).filter { it.id !in ranked }.map { it.label } }.orEmpty()
-            if (others.isNotEmpty() && ordered.isNotEmpty()) appendLine("Other options you have: ${others.joinToString(", ")}.")
+            if (others.isNotEmpty() && ordered.isNotEmpty() && !noOutcomes) appendLine("Other options you have: ${others.joinToString(", ")}.")
 
             val watch = watchFor(s, owner?.id)
             if (watch.isNotEmpty()) {

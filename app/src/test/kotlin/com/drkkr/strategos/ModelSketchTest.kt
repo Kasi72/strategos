@@ -83,6 +83,29 @@ class ModelSketchTest {
     }
 
     @Test
+    fun nearDuplicateOptionsAreMerged() {
+        val json = """{"people":[{"name":"You","role":"PLAYER"},{"name":"Brother","role":"PLAYER"}],
+            "options":[{"for":"You","label":"Propose a different financial arrangement"},
+                       {"for":"You","label":"Propose a different financial arrangement (e.g., a smaller loan)"},
+                       {"for":"You","label":"Wait"},{"for":"You","label":"Wait and see"}]}"""
+        val (s, _) = apply(json, Scenario(title = "t"))
+        // Long near-duplicates merge; short labels ("Wait" vs "Wait and see") need an exact match, so both stay.
+        assertEquals(listOf("Propose a different financial arrangement", "Wait", "Wait and see"), s.actions.map { it.label })
+    }
+
+    @Test
+    fun gapsAreDescribedForTheRepairRequest() {
+        val (s, _) = apply(Sketches.loanStoryIncomplete, Scenario(title = "t"))
+        val gaps = com.drkkr.strategos.domain.agent.SketchGaps.describe(s)!!
+        assertTrue(gaps, gaps.contains("Brother has fewer than 2 options"))
+        val (full, _) = apply(Sketches.loanStory, Scenario(title = "t"))
+        assertNull(com.drkkr.strategos.domain.agent.SketchGaps.describe(full))
+        // Options complete but some outcomes missing → the combinations are listed by name.
+        val partial = full.copy(payoffs = full.payoffs.drop(4))
+        assertTrue(com.drkkr.strategos.domain.agent.SketchGaps.describe(partial)!!.contains("You: "))
+    }
+
+    @Test
     fun askOnlyAndMessyJson() {
         val s = Scenario(title = "t")
         val asked = SketchConverter.toOps(SketchParser.parse("Sure!\n```json\n${Sketches.ASK}\n```")!!, s)
@@ -93,5 +116,33 @@ class ModelSketchTest {
         assertNotNull(SketchParser.parse("""{"people":[],"unknown_field":1}"""))
         val support = SketchConverter.toOps(SketchParser.parse("""{"support":true}""")!!, s)
         assertTrue(support.support)
+    }
+
+    @Test
+    fun liveReplyWithFancyHyphensLooseLabelsAndPlaceholders() {
+        // Shape of a real reply: non-breaking hyphens, picks that paraphrase the option, "short" left in wants/fears, an echoed instruction.
+        val json = """{"goal":"Decide whether to co\u2011sign","people":[{"name":"You","role":"PLAYER","wants":"short","fears":"short"},
+            {"name":"Brother","role":"PLAYER","wants":"short"},{"name":"Wife","role":"INFLUENCER","veto":true,"fears":"Debt"}],
+            "options":[{"for":"You","label":"Co\u2011sign the loan"},{"for":"You","label":"Do not co-sign"},
+                       {"for":"Brother","label":"Accept the co\u2011sign offer"},{"for":"Brother","label":"Reject the co-sign offer"}],
+            "dims":["WELLBEING","RELATIONSHIPS","COST"],
+            "outcomes":[{"picks":{"you":"Co-sign the loan","Brother":"Accept the co-sign offer"},"scores":{"You":[6,8,4],"Brother":[8,9,3]}},
+                        {"picks":{"You":"Co-sign the loan","Brother":"Reject"},"scores":{"You":[4,5,4],"Brother":[5,4,3]}},
+                        {"picks":{"You":"Do not co-sign","Brother":"Accept"},"scores":{"You":[8,7,0],"Brother":[7,8,0]}},
+                        {"picks":{"You":"Do not co-sign","Brother":"Reject the co-sign offer"},"scores":{"You":[9,9,0],"Brother":[6,5,0]}},
+                        {"picks":{"You":"co-sign","Brother":"Accept"},"scores":{"You":[1,1,1],"Brother":[1,1,1]}}],
+            "ask":"ONLY if the story is too thin to model: one short question"}"""
+        val sketch = SketchParser.parse(json)!!
+        val converted = SketchConverter.toOps(sketch, Scenario(title = "t"))
+        assertNull(converted.ask)                                                   // the echoed instruction is not a question
+        val (s, problems) = apply(json, Scenario(title = "t"))
+        assertEquals(emptyList<Any>(), problems)
+        assertEquals(emptyList<String>(), s.stakeholders.single { it.name == "You" }.goals)       // "short" ignored
+        assertEquals(emptyList<String>(), s.stakeholders.single { it.name == "Brother" }.goals)
+        assertEquals(listOf("Debt"), s.stakeholders.single { it.name == "Wife" }.fears)
+        // "Reject", "Accept" and "Co-sign the loan" matched their options loosely: 4 combinations x 2 players saved.
+        // The 5th pick, "co-sign", fits two options ("Co-sign the loan", "Do not co-sign"), so it is dropped, not guessed.
+        assertEquals(8, PayoffCoverage.of(s).filled)
+        assertEquals(8, PayoffCoverage.of(s).expected)
     }
 }

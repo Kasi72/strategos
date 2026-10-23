@@ -54,17 +54,32 @@ object SketchParser {
 }
 
 object SketchConverter {
+    private val dashes = Regex("[\\u2010-\\u2015\\u2212]")
+    private val spaces = Regex("\\s+")
+    private val placeholders = setOf("short", "string", "text", "word", "...", "n/a", "none", "null", "unknown")
+
+    /** Comparison form of a name or label: lowercase, one kind of hyphen, single spaces (models vary these). */
+    internal fun norm(s: String): String = s.trim().lowercase().replace(dashes, "-").replace(spaces, " ")
+
+    /** Text the model filled in, or null when it left a placeholder behind (seen live: "short"). */
+    internal fun clean(s: String?): String? = s?.trim()?.takeIf { it.isNotEmpty() && norm(it) !in placeholders }
+
     private const val MAX_PLAYERS = ChangeSetValidator.MAX_PLAYERS
     private const val MAX_OPTIONS_PER_PLAYER = 4
+    private const val NEAR_DUPLICATE_MIN = 8
     private const val RATIONALE = "From your description"
     private val DEFAULT_DIMS = listOf(PayoffDimension.WELLBEING, PayoffDimension.RELATIONSHIPS, PayoffDimension.COST)
     private val nonRef = Regex("[^a-z0-9_]+")
+
+    /** The one clarifying question, unless the model echoed the prompt's instruction instead of asking (seen live). */
+    private fun askOf(sketch: ModelSketch): String? =
+        clean(sketch.ask)?.takeUnless { norm(it).startsWith("only if") || norm(it).contains("too thin") }
 
     fun toOps(sketch: ModelSketch, s: Scenario): SketchOps {
         // A reply that only asks a question (or flags support) saves nothing.
         val hasContent = sketch.people.isNotEmpty() || sketch.options.isNotEmpty() || sketch.limits.isNotEmpty() ||
             sketch.outcomes.isNotEmpty() || !sketch.goal.isNullOrBlank()
-        if (!hasContent) return SketchOps(emptyList(), sketch.ask?.trim()?.takeIf { it.isNotEmpty() }, sketch.support == true)
+        if (!hasContent) return SketchOps(emptyList(), askOf(sketch), sketch.support == true)
         val ops = mutableListOf<ChangeOp>()
         val taken = mutableSetOf<String>()
         fun ref(base: String): String {
@@ -75,7 +90,7 @@ object SketchConverter {
             taken += r
             return r
         }
-        fun key(name: String) = name.trim().lowercase()
+        fun key(name: String) = norm(name)
 
         // ── People ────────────────────────────────────────────────────────────
         val idByName = s.stakeholders.associate { key(it.name) to it.id }.toMutableMap()
@@ -99,11 +114,11 @@ object SketchConverter {
             val k = key(name)
             if (k in existingNames) {
                 val id = idByName.getValue(k)
-                if (p.veto != null || !p.wants.isNullOrBlank() || !p.fears.isNullOrBlank()) {
+                if (p.veto == true || clean(p.wants) != null || clean(p.fears) != null) {
                     ops += ChangeOp(
                         OpType.UPDATE_STAKEHOLDER, targetId = id, rationale = RATIONALE,
-                        canVeto = p.veto, goals = p.wants?.takeIf { it.isNotBlank() }?.let { listOf(it.take(120)) },
-                        fears = p.fears?.takeIf { it.isNotBlank() }?.let { listOf(it.take(120)) }
+                        canVeto = p.veto?.takeIf { it }, goals = clean(p.wants)?.let { listOf(it.take(120)) },
+                        fears = clean(p.fears)?.let { listOf(it.take(120)) }
                     )
                 }
                 continue
@@ -115,9 +130,9 @@ object SketchConverter {
             idByName[k] = r
             if (role == GameRole.PLAYER) players += r
             ops += ChangeOp(
-                OpType.ADD_STAKEHOLDER, ref = r, name = name, gameRole = role, canVeto = p.veto, rationale = RATIONALE,
-                goals = p.wants?.takeIf { it.isNotBlank() }?.let { listOf(it.take(120)) },
-                fears = p.fears?.takeIf { it.isNotBlank() }?.let { listOf(it.take(120)) }
+                OpType.ADD_STAKEHOLDER, ref = r, name = name, gameRole = role, canVeto = p.veto?.takeIf { it }, rationale = RATIONALE,
+                goals = clean(p.wants)?.let { listOf(it.take(120)) },
+                fears = clean(p.fears)?.let { listOf(it.take(120)) }
             )
         }
 
@@ -129,7 +144,14 @@ object SketchConverter {
             val label = o.label.trim()
             if (owner !in players || label.isEmpty() || label.length > ChangeSetValidator.MAX_LABEL) continue
             val k = "$owner|${key(label)}"
-            if (k in optionIds || (optionCount[owner] ?: 0) >= MAX_OPTIONS_PER_PLAYER) continue
+            // Near-duplicates ("X" and "X (e.g., details)") are the same option; short labels must match exactly.
+            val nearDuplicate = optionIds.keys.any { other ->
+                other.startsWith("$owner|") && other.substringAfter("|").let { o ->
+                    val l = key(label)
+                    minOf(o.length, l.length) >= NEAR_DUPLICATE_MIN && (o.contains(l) || l.contains(o))
+                }
+            }
+            if (k in optionIds || nearDuplicate || (optionCount[owner] ?: 0) >= MAX_OPTIONS_PER_PLAYER) continue
             val r = ref("${o.owner}_$label")
             optionIds[k] = r
             optionCount[owner] = (optionCount[owner] ?: 0) + 1
@@ -152,13 +174,22 @@ object SketchConverter {
                 .distinct().takeIf { it.size in 3..6 } ?: DEFAULT_DIMS
         }
         val playerList = players.toList()
+        /** Exact (normalised) match first; otherwise the owner's one option whose wording contains, or is contained in, the pick. */
+        fun optionFor(pid: String, label: String): String? {
+            optionIds["$pid|$label"]?.let { return it }
+            val close = optionIds.entries.filter { (k, _) -> k.startsWith("$pid|") }.filter { (k, _) ->
+                val own = k.substringAfter("|")
+                own.isNotEmpty() && label.isNotEmpty() && (own.contains(label) || label.contains(own))
+            }
+            return close.singleOrNull()?.value
+        }
         val nameOf = idByName.entries.associate { (n, id) -> id to n }
         val seen = mutableSetOf<String>()
         for (o in sketch.outcomes) {
             val picks = o.picks.entries.associate { key(it.key) to key(it.value) }
             val profile = playerList.map { pid ->
                 val label = picks[nameOf[pid]] ?: return@map null
-                val aid = optionIds["$pid|$label"] ?: return@map null
+                val aid = optionFor(pid, label) ?: return@map null
                 ProfilePick(pid, aid)
             }
             if (profile.any { it == null }) continue
@@ -174,6 +205,6 @@ object SketchConverter {
                 )
             }
         }
-        return SketchOps(ops, sketch.ask?.trim()?.takeIf { it.isNotEmpty() }, sketch.support == true)
+        return SketchOps(ops, askOf(sketch), sketch.support == true)
     }
 }

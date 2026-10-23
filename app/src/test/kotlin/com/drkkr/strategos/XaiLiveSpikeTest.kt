@@ -252,10 +252,24 @@ class XaiLiveSpikeTest {
         }
     }
 
+    /** Diagnostic: the raw one-shot reply for the synthetic loan story (safe to print). */
+    @Test
+    fun diagnoseSketch() = runBlocking {
+        Assume.assumeTrue("GROQ_API_KEY / XAI_API_KEY not set", !key.isNullOrBlank())
+        val story = "My brother wants me to co-sign a big loan for his new shop. My wife is strongly against it. My parents always take his side. I don't know what to do."
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", com.drkkr.strategos.agent.OneShotTurn.PROMPT) })
+            add(user("APP CONTEXT (what is already saved):\n{\"title\":\"Loan\"}\nUSER SAYS:\n$story"))
+        }
+        val r = client.create(LlmRequest(model, input, null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS))
+        if (r is LlmResult.Ok) say("SKETCH-RAW", "INFO", r.output.assistantText().replace("\n", " "))
+        else say("SKETCH-RAW", "FAIL", describe(r))
+    }
+
     /**
-     * Phase 6 accept (manual, env-gated), LEAN PROFILE: the loan-family story as a Guided interview with scripted answers,
-     * then Expert mode for analysis → stress test → what-if. Real CounselController, real agent assets, real Groq.
-     * Prints tool names, counts, statuses and real token usage only (never message text).
+     * Phase 6 accept (manual, env-gated), SIMPLE PROFILE: the loan story, then two follow-ups, through the real
+     * CounselController (one-shot flow) against the real model. Prints counts, token usage and the app's plain answer
+     * (the story is synthetic, so the text is safe to print).
      */
     @Test
     fun counselEndToEnd() = runBlocking {
@@ -264,8 +278,7 @@ class XaiLiveSpikeTest {
         val db = DbFactory.inMemoryForTests(app)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
-            val story = "My brother wants me to co-sign a big loan for his new shop. My wife is strongly against it. I don't know what to do."
-            // As startCounselFromText does: the first message also becomes the scenario description.
+            val story = "My brother wants me to co-sign a big loan for his new shop. My wife is strongly against it. My parents always take his side. I don't know what to do."
             val scenario = com.drkkr.strategos.domain.model.Scenario(title = "Loan for my brother", description = story)
             db.scenarioDao().upsert(ScenarioEntity(scenario.id, scenario.title, "DRAFT", scenario.version, 1L, 1L, "{}"))
             val settings = SettingsRepository(db).apply {
@@ -273,61 +286,41 @@ class XaiLiveSpikeTest {
             }
             db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "placeholder-not-the-key"))
             val conversations = ConversationRepository(db)
-            val changeSets = ChangeSetRepository(db)
-            val assets = AgentAssets(app)
             val gateway = CommittingGateway(scenario)
             val controller = CounselController(scope, CounselDeps(
                 llm = XaiResponsesClient(keyProvider = { key }, callLog = db.llmCallDao(), baseUrl = base),
-                systemPrompt = { assets.systemPrompt }, tools = { assets.tools }, agentVersion = { assets.agentVersion },
-                conversations = conversations, changeSets = changeSets, memory = MemoryRepository(db), settings = settings,
-                whatIfs = db.whatIfDao(), hasKey = { true }
+                systemPrompt = { "" }, tools = { kotlinx.serialization.json.JsonArray(emptyList()) }, agentVersion = { "2.0.0" },
+                conversations = conversations, changeSets = ChangeSetRepository(db), memory = MemoryRepository(db), settings = settings,
+                whatIfs = db.whatIfDao(), hasKey = { true }, oneShot = true
             ), gateway)
             controller.bindScenario(scenario.id).join()
             val cid = controller.state.value.conversationId!!
-            val toolsSeen = mutableListOf<String>()
-            var seenMessages = 0
             var seenCalls = 0
             var failures = 0
 
             suspend fun turn(step: String, text: String) {
                 controller.send(text)?.join()
                 controller.awaitIdle()
-                val msgs = conversations.messages(cid)
-                val calls = msgs.drop(seenMessages).filter { it.role == MessageRole.TOOL_CALL.name }.mapNotNull { it.toolName }
-                val toolErrors = msgs.drop(seenMessages).count { it.role == MessageRole.TOOL_RESULT.name && it.payloadJson?.contains("\"error\"") == true }
-                val replied = msgs.drop(seenMessages).any { it.role == MessageRole.ASSISTANT.name }
-                // Synthetic scripted story, so the agent's tool arguments and the app's results are safe to print here.
-                msgs.drop(seenMessages).filter { it.role == MessageRole.TOOL_CALL.name || it.role == MessageRole.TOOL_RESULT.name }.forEach {
-                    say("E2E-$step-${it.role}", "INFO", "${it.toolName} ${it.payloadJson?.take(700)}")
-                }
-                seenMessages = msgs.size
-                val llm = db.llmCallDao().since(0)
-                val usage = llm.drop(seenCalls).joinToString(";") { "${it.httpStatus}${it.errorCode?.let { c -> "(" + c + ")" } ?: ""}:in${it.inputTokens}/out${it.outputTokens}" }
-                seenCalls = llm.size
-                toolsSeen += calls
                 val s = gateway.inner.scenario!!
                 val cov = com.drkkr.strategos.domain.agent.PayoffCoverage.of(s)
+                val llm = db.llmCallDao().since(0)
+                val usage = llm.drop(seenCalls).joinToString(";") { "${it.httpStatus}${it.errorCode?.let { c -> "($c)" } ?: ""}:in${it.inputTokens}/out${it.outputTokens}" }
+                seenCalls = llm.size
                 val error = controller.state.value.error
                 if (error != null) failures++
                 say("E2E-$step", if (error == null) "PASS" else "FAIL",
-                    "tools=${calls.joinToString(",")} toolErrors=$toolErrors reply=$replied error=$error people=${s.stakeholders.size} " +
-                        "players=${s.players().size} options=${s.actions.size} outcomes=${cov.filled}/${cov.expected} limits=${s.constraints.size} calls=[$usage]")
-                kotlinx.coroutines.delay(20_000)   // let the 8k tokens/minute bucket refill
+                    "error=$error people=${s.stakeholders.size} players=${s.players().size} options=${s.actions.size} outcomes=${cov.filled}/${cov.expected} " +
+                        "limits=${s.constraints.size} version=${s.version} calls=[$usage]")
+                conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name || it.role == MessageRole.ERROR.name }
+                    ?.let { say("E2E-$step-REPLY", "INFO", it.text.replace("\n", " / ")) }
+                kotlinx.coroutines.delay(15_000)    // let the 8k tokens/minute bucket refill
             }
 
-            turn("g1-story", story)
-            turn("g2-goal", "If it went well, he gets his shop, we stay out of debt and there is peace at home.")
-            turn("g3-others", "My wife and my parents are involved too. My parents always take his side.")
-            turn("g4-power", "My brother's choice matters most. My wife can stop it because it is our joint savings. My parents can only pressure us.")
-            turn("g5-options", "I could co-sign, give him a smaller fixed amount, or wait. He could take the loan, give up the shop, or ask our parents for help.")
-            turn("g6-limits", "I won't risk our house, whatever happens.")
-            settings.setUiMode(UiMode.EXPERT)
-            turn("x1-fill", "Fill in the remaining outcomes with your best estimates, marked as AI estimates, then run the analysis.")
-            turn("x2-stress", "Stress-test the AI estimates and tell me what would change the answer.")
-            turn("x3-whatif", "What if my parents pay half of the loan? Use the what-if tool, don't guess.")
-
-            say("E2E-SUMMARY", "INFO", "tools=${toolsSeen.groupingBy { it }.eachCount()} failedTurns=$failures commits=${gateway.commits}")
-            assertTrue("no change was ever saved", "propose_changes" in toolsSeen)
+            turn("1-story", story)
+            turn("2-followup", "I decided to wait and told him. He said he will ask our parents for help instead.")
+            turn("3-followup", "My wife says she could accept a smaller fixed gift, but nothing in our name.")
+            say("E2E-SUMMARY", "INFO", "failedTurns=$failures commits=${gateway.commits} undo=${controller.canUndo}")
+            assertTrue("the first message did not produce a model", gateway.commits >= 1)
         } finally {
             scope.cancel()
             db.close()

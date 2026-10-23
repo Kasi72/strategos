@@ -117,6 +117,34 @@ class OneShotFlowTest {
     }
 
     @Test
+    fun anIncompleteReplyIsRepairedWithOneTargetedRequest() = runBlocking {
+        fake.enqueue(textReply(Sketches.loanStoryIncomplete)).enqueue(textReply(Sketches.loanRepair))
+        send("My brother wants me to co-sign a loan for his shop. My wife is against it.")
+        assertEquals(2, fake.requests.size)
+        val repair = fake.requests[1].input.toString()
+        assertTrue(repair.contains("incomplete") && repair.contains("Brother has fewer than 2 options"))
+        assertFalse(repair.contains("\"by\""))                                    // sketch digest names owners, no ids
+        val s = scenario()
+        assertEquals(4, s.actions.size)
+        assertEquals(8, PayoffCoverage.of(s).filled)
+        val reply = conversations.messages(cid()).last().text
+        assertTrue(reply, reply.contains("Options to consider"))
+        assertTrue(reply.contains("Brother could: Take the loan, Give up the shop"))
+    }
+
+    @Test
+    fun ifTheRepairFailsTheAnswerSaysItCannotCompareYet() = runBlocking {
+        fake.enqueue(textReply(Sketches.loanStoryIncomplete)).enqueue(networkDown())
+        send("My brother wants me to co-sign a loan for his shop. My wife is against it.")
+        val reply = conversations.messages(cid()).last().text
+        assertTrue(reply, reply.contains("I can't compare your options yet"))
+        assertFalse(reply.contains("best fit"))
+        assertTrue(reply.contains("Your options so far: Co-sign, Wait"))
+        assertEquals(null, controller.state.value.error)                          // the first part was saved; no error shown
+        assertEquals(3, scenario().stakeholders.size)
+    }
+
+    @Test
     fun aThinStoryGetsOneQuestionAndSavesNothing() = runBlocking {
         fake.enqueue(textReply(Sketches.ASK))
         val before = scenario()
