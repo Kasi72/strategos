@@ -25,9 +25,10 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 1.5 | done | 10 (TC_GATE_01-06 + extras, ProvenanceStats) | ProvenanceStats, ProvenanceGate; PipelineResult gains provenance + gate and applies the gate (step 6 of §6.4). If executiveStatusReason is null, one is created when capping. |
 | 1.6 | done | 5 (TC_RECON_01-04 + belief/constraint) | ProvenanceReconciler; called at the top of StrategosViewModel.updateActiveScenario (not on the agent path). Fixed my own TC_RECON_02 expectation (compared against the wrong object) before commit. |
 | 1.7 | done | 2 (TC_LANG_01 + parser delegation) | LanguageDetector in domain/agent; ScenarioParser delegates. |
+| 2.1 | done | 3 (TC_DB_01 cascade, seq uniqueness, settings) | Room 2.6.1 + KSP + SQLCipher + OkHttp + Robolectric deps (exact §4.2 versions), 10 entities, 10 DAOs, StrategosDatabase v1, schema exported to app/schemas. TC_DB_02 (concurrent append) comes with ConversationRepository in 2.5. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
 Phase 1 accepted: 106 tests green (77 legacy + 29 new). The 4 templates produce identical status, pathways and candidates through AnalysisPipeline (TC_PIPE_01). Not run on a device; no emulator here.
 
-Next step: Phase 2.1 (Room dependencies, entities, DAOs).
+Next step: Phase 2.2 (KeystoreCipher, DatabaseKeyManager, DbFactory, SecretStore).
