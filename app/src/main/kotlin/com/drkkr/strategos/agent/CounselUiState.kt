@@ -10,7 +10,9 @@ data class CounselUiState(
     val running: Boolean = false, val activity: String? = null, val error: String? = null, val canRetry: Boolean = false,
     val memory: List<MemoryItemUi> = emptyList(), val strip: LiveModelStripUi? = null,
     // §17.4: shown by SafetyKeywordScreen before any LLM call, or by the show_support tool (as a chat item)
-    val supportVisible: Boolean = false, val supportText: String = ""
+    val supportVisible: Boolean = false, val supportText: String = "",
+    /** A turn got 401: the Talk tab offers "Update key" (§11.5.1). */
+    val keyInvalid: Boolean = false
 )
 
 sealed class ChatItem {

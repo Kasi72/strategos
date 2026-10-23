@@ -34,8 +34,16 @@ class XaiResponsesClient(
     private val pause: suspend (Long) -> Unit = { delay(it) }
 ) : LlmClient {
 
-    override suspend fun create(req: LlmRequest): LlmResult {
-        val key = keyProvider()?.takeIf { it.isNotBlank() } ?: return LlmResult.Unauthorized(401)
+    override suspend fun create(req: LlmRequest): LlmResult = execute(req, keyOverride = null)
+
+    override suspend fun testKey(key: String, model: String): LlmResult = execute(
+        LlmRequest(model, buildJsonArray { add(buildJsonObject { put("role", "user"); put("content", "ping") }) }, tools = null,
+            maxOutputTokens = TEST_MAX_OUTPUT_TOKENS, purpose = "TEST"),
+        keyOverride = key
+    )
+
+    private suspend fun execute(req: LlmRequest, keyOverride: String?): LlmResult {
+        val key = (keyOverride ?: keyProvider())?.takeIf { it.isNotBlank() } ?: return LlmResult.Unauthorized(401)
         val body = buildBody(req).toString().toRequestBody(JSON)
 
         var serverErrors = 0
@@ -181,6 +189,7 @@ class XaiResponsesClient(
     companion object {
         private val JSON = "application/json".toMediaType()
         private const val MAX_RETRIES = 2
+        private const val TEST_MAX_OUTPUT_TOKENS = 32
         private const val MAX_RETRY_AFTER_SEC = 10
         private val BACKOFF_MS = longArrayOf(1_000, 4_000)
 

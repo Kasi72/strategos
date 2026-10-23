@@ -18,6 +18,11 @@ class FakeLlmClient : LlmClient {
 
     override suspend fun listModels(apiKey: String?): ModelListResult = models
 
+    /** Scripted answer to [testKey]; every call is recorded as (key, model). */
+    var testKeyResult: LlmResult = textReply("pong")
+    val testKeyCalls = mutableListOf<Pair<String, String>>()
+    override suspend fun testKey(key: String, model: String): LlmResult { testKeyCalls += key to model; return testKeyResult }
+
     companion object {
         private val usage = LlmUsage(100, 0, 20, 0)
 

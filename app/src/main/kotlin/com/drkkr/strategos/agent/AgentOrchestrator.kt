@@ -89,6 +89,7 @@ class AgentOrchestrator(
             var r = llm.create(request)
             // LEAN PROFILE: the provider rejects a response whose tool call doesn't match the schema; a second try usually works.
             if (r.isBadToolCall()) r = llm.create(request)
+            if (r is LlmResult.Unauthorized) settings.setKeyInvalid(true)
             if (r !is LlmResult.Ok) {
                 // The tools already ran and their cards are on screen; a failed wrap-up sentence isn't worth an error.
                 if (toolChoice == "none" && toolsRan) break

@@ -21,6 +21,7 @@ import com.drkkr.strategos.llm.LlmClient
 import com.drkkr.strategos.llm.LlmErrors
 import com.drkkr.strategos.llm.LlmRequest
 import com.drkkr.strategos.llm.LlmResult
+import com.drkkr.strategos.llm.ModelListResult
 import com.drkkr.strategos.llm.assistantText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -131,18 +132,42 @@ class OneShotTurn(
     }
 
     /** One request; a second try when the reply isn't usable JSON. */
-    private suspend fun askModel(input: JsonArray, cid: String, turnId: String): Reply {
+    private suspend fun askModel(input: JsonArray, cid: String, turnId: String, mayChangeModel: Boolean = true): Reply {
+        val model = settings.model()
         val request = LlmRequest(
-            settings.model(), input, tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS,
+            model, input, tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS,
             purpose = "TURN", conversationId = cid, turnId = turnId
         )
         repeat(2) {
             when (val r = llm.create(request)) {
                 is LlmResult.Ok -> SketchParser.parse(r.output.assistantText())?.let { return Reply.Sketch(it) }
-                else -> return Reply.Failed(LlmErrors.userMessage(r), retryable = r !is LlmResult.Unauthorized)
+                is LlmResult.Unauthorized -> {
+                    settings.setKeyInvalid(true)                  // the Talk tab then offers "Update key" (§11.5.1)
+                    return Reply.Failed(LlmErrors.userMessage(r), retryable = false)
+                }
+                is LlmResult.HttpError -> {
+                    // G3: the chosen model was retired. Switch to one that exists, tell the user, retry once.
+                    val gone = r.status == 404 || r.code == "model_not_found"
+                    val fallback = if (gone && mayChangeModel) fallbackModel(model) else null
+                    if (fallback != null) {
+                        settings.setModel(fallback)
+                        conversations.append(cid, turnId, MessageRole.EVENT, "The model you chose isn't available anymore. Switched to $fallback. Change it in Settings.")
+                        return askModel(input, cid, turnId, mayChangeModel = false)
+                    }
+                    return Reply.Failed(LlmErrors.userMessage(r), retryable = true)
+                }
+                else -> return Reply.Failed(LlmErrors.userMessage(r), retryable = true)
             }
         }
         return Reply.Failed(COULD_NOT_READ, retryable = true)
+    }
+
+    /** First of [AgentConfig.MODEL_OPTIONS] that the live list still has, else the list's first model; never [current]. */
+    private suspend fun fallbackModel(current: String): String? {
+        val live = (llm.listModels() as? ModelListResult.Ok)?.models?.map { it.id }
+            ?.filter { id -> AiSettingsController.EXCLUDED.none { id.contains(it, ignoreCase = true) } }
+        val candidates = live ?: AgentConfig.MODEL_OPTIONS
+        return AgentConfig.MODEL_OPTIONS.firstOrNull { it in candidates && it != current } ?: candidates.firstOrNull { it != current }
     }
 
     /** Normalise, validate, save as a change set and apply it through the normal path. Null when nothing could be saved. */

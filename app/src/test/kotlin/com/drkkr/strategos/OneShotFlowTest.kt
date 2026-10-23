@@ -29,6 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -176,6 +177,28 @@ class OneShotFlowTest {
         assertTrue(before === scenario())
         assertTrue(controller.state.value.canRetry)
         assertFalse(roles().contains("ASSISTANT"))
+    }
+
+    @Test
+    fun TC_KEY_07_unauthorizedDuringATurnFlagsTheKey() = runBlocking {
+        fake.enqueue(com.drkkr.strategos.fixtures.FakeLlmClient.error401())
+        send("My brother wants a loan.")
+        assertTrue(settings.keyInvalid())
+        withTimeout(5_000) { while (!controller.state.value.keyInvalid) kotlinx.coroutines.delay(20) }
+        assertFalse(controller.state.value.canRetry)
+    }
+
+    @Test
+    fun TC_MODEL_07_retiredModelSwitchesOnceAndTellsTheUser() = runBlocking {
+        fake.models = com.drkkr.strategos.llm.ModelListResult.Ok(listOf(com.drkkr.strategos.llm.ModelInfo("openai/gpt-oss-120b"), com.drkkr.strategos.llm.ModelInfo("whisper-large-v3")))
+        settings.setModel("openai/gpt-oss-20b")
+        fake.enqueue(com.drkkr.strategos.llm.LlmResult.HttpError(404, "model_not_found")).enqueue(textReply(Sketches.loanStory))
+        send("My brother wants me to co-sign a loan for his shop.")
+        assertEquals(listOf("openai/gpt-oss-20b", "openai/gpt-oss-120b"), fake.requests.map { it.model })
+        assertEquals("openai/gpt-oss-120b", settings.model())
+        val note = conversations.messages(cid()).single { it.role == "EVENT" }.text
+        assertEquals("The model you chose isn't available anymore. Switched to openai/gpt-oss-120b. Change it in Settings.", note)
+        assertEquals(4, scenario().stakeholders.size)                                // the retried turn worked
     }
 
     @Test

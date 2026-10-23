@@ -4,6 +4,7 @@ import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.SettingEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 class SettingsRepository(private val db: StrategosDatabase) {
 
@@ -42,6 +43,15 @@ class SettingsRepository(private val db: StrategosDatabase) {
 
     suspend fun get(key: String): String? = dao.get(key)
 
+    /** Set when a turn gets 401: the stored key stopped working. Cleared by a successful save (§11.5.1). */
+    suspend fun keyInvalid(): Boolean = dao.get(AI_KEY_INVALID) == "true"
+    suspend fun setKeyInvalid(v: Boolean) = put(AI_KEY_INVALID, v.toString())
+
+    /** Emits whenever anything that decides `aiReady` changes, so screens update without a restart (§11.5.1). */
+    fun observeAiFlags(): Flow<List<String?>> = combine(
+        listOf(AI_ENABLED, AI_CONSENT_VERSION, SECRET_XAI_KEY, AI_KEY_INVALID, AI_MODEL).map { dao.observe(it) }
+    ) { values -> values.toList() }
+
     /** enabled AND consent given for the current consent text AND a key is stored. */
     suspend fun aiReady(): Boolean =
         aiEnabled() && consentVersion() == AgentConfig.CONSENT_VERSION && dao.get(SECRET_XAI_KEY) != null
@@ -53,6 +63,7 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val AI_CONSENT_VERSION = "ai.consent_version"
         const val AI_MODEL = "ai.model"
         const val AI_MODEL_LIST_CACHE = "ai.model_list_cache"
+        const val AI_KEY_INVALID = "ai.key_invalid"
         const val AI_INCLUDE_MEMORY = "ai.include_memory"
         const val AI_AUTO_CONTINUE = "ai.auto_continue"
         const val UI_MODE = "ui.mode"

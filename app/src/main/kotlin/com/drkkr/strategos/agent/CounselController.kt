@@ -94,6 +94,11 @@ class CounselController(
         onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize
     )
 
+    init {
+        // §11.5.1: screens update the moment a key, consent or the toggle changes; no restart.
+        scope.launch { deps.settings.observeAiFlags().collect { refreshAiStatus() } }
+    }
+
     private var scenarioId: String? = null
     private var observeJob: Job? = null
     private var turnJob: Job? = null
@@ -134,7 +139,7 @@ class CounselController(
         val hasKey = deps.hasKey()
         _state.update {
             it.copy(
-                aiReady = s.aiReady(), hasKey = hasKey,
+                aiReady = s.aiReady(), hasKey = hasKey, keyInvalid = s.keyInvalid(),
                 needsConsent = hasKey && s.consentVersion() != AgentConfig.CONSENT_VERSION
             )
         }

@@ -38,4 +38,7 @@ sealed class ModelListResult {
 interface LlmClient {
     suspend fun create(req: LlmRequest): LlmResult
     suspend fun listModels(apiKey: String? = null): ModelListResult   // null = use the stored key
+
+    /** One tiny request with a candidate [key] (not the stored one) to see whether it works for [model]. Logged as purpose TEST. */
+    suspend fun testKey(key: String, model: String): LlmResult = LlmResult.Network("unsupported")
 }
