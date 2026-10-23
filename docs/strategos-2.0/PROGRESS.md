@@ -37,6 +37,10 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 3.4 | done | 0 (XaiLiveSpikeTest, env-gated; ran live) | Provider switched to Groq / openai/gpt-oss-20b on the user's instruction. Spike S1-S3, S5-S7 pass; S4 tool_choice:"none" is rejected so the client omits tools instead. ECHO_STRATEGY=VERBATIM, CONTEXT_ROLE=system. See API_NOTES.md and the PROVIDER OVERRIDE block at the top of BLUEPRINT.md. G1 (spending cap) dropped; LlmErrors maps credit/rate-limit failures to "Not enough credits." |
 | 3.5 | done | 0 (permission + R8 rules; assembleDebug green; release/R8 build not run until Phase 8) | INTERNET permission, usesCleartextTraffic=false, R8 keep rules for domain, llm and net.zetetic. |
 | 2.7 | done | 7 instrumented (TC_SECRET_01, SQLCipher encryption + reopen + wrong passphrase, legacy migration, fresh install) + 1 manual-only PostUpgradeCheckTest | Emulator `strategos_api34` (Android 14 arm64, Google APIs) installed with Homebrew sdkmanager. Real upgrade verified: built the 1.x APK from 03d12a8, seeded two scenarios with the real 1.x ScenarioStorage, `adb install -r` the 2.0 APK, home screen showed "2 total" with both, no crash, save works. BLUEPRINT-QUESTION: added androidTest deps (androidx.test runner 1.6.2, ext:junit 1.2.1, core 1.6.1), not in the 4.2 list. Note for 1.x seeding: ScenarioStorage writes with apply(), so a seeding process must wait before exiting or the write is lost. Run with `sh ./gradlew :app:connectedDebugAndroidTest` (emulator must be booted). |
+| 4.1 | done | 0 (files only) | agent.yaml, SOUL.md, RULES.md, change_op.yaml and the 10 tool YAMLs extracted verbatim from the blueprint by script. 9 skills written with name/description/allowed-tools frontmatter (allowed-tools is a space-delimited string per the OpenGAP skill schema). guided-interview body = §7.5.1 verbatim plus the 4 required bullets. Follow-up (uncommitted): skill descriptions quoted, since `: ` inside broke YAML. |
+| 4.2 | done | 0 (pipeline; run by script) | build.mjs, package.json, package-lock.json, export-agent.sh; node_modules gitignored. CP2: `opengap validate` rejected snake_case names in agent.yaml `tools:` (pattern `^[a-z][a-z0-9-]*$`). User chose option 1: the `tools:` list is removed from agent.yaml (BLUEPRINT-QUESTION comment there); build.mjs reads tools/*.yaml directly and the snake_case names stay everywhere. Validate now passes with 12 warnings (tool YAML `name` pattern ×10, `ops.items: "@change_op"` not an object ×2). Output is reproducible (two runs, identical sha256). Skill descriptions quoted (`: ` broke the YAML frontmatter). |
+| 4.3 | done | 0 (wiring; full suite + assembleDebug green) | AgentAssets reads assets/agent/*; AppContainer.agentAssets (lazy). |
+| 4.4 | done | 5 (TC_ASSET_01-05) | Verified TC_ASSET_05 fails when tools.json is edited without re-exporting. BLUEPRINT-QUESTION: TC_ASSET_02's `== ToolDispatcher.names` assertion is deferred to 5.8, when ToolDispatcher exists. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -46,4 +50,6 @@ Phase 2 accepted for everything automatable: cascade delete, seq uniqueness and 
 
 Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md has S1-S7 for the Groq provider. Provider is Groq / openai/gpt-oss-20b (see the PROVIDER OVERRIDE block in BLUEPRINT.md).
 
-Next step: Phase 4.1 (create agent/ files, CP2 at end of Phase 4).
+Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests green (1 skipped = live spike), assembleDebug OK.
+
+Next step: Phase 5.1 (ChangeOp family + ChangeOpDescriber).
