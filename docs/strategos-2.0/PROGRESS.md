@@ -46,6 +46,7 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 5.3 | done | 6 (TC_QUOTE_01-05 + edge chars/null) | normalize = lowercase, collapse whitespace, trim, strip edge quotes/punctuation. Callers must pass USER texts only (TC_QUOTE_05 documents the contract). |
 | 5.4 | done | 12 (TC_APPLY_01-11 + ref resolution) | Re-validates each op with ChangeSetValidator.recheck against the working scenario. User-rejected ops appear in `skipped` as `rejected`. Does not bump `version` (the save path does). add_stakeholder description → `notes`. BLUEPRINT-QUESTION: an op with no decision is treated as rejected. Fixed my own TC_APPLY_11 (a REJECTed update correctly leaves the target CONFIRMED). |
 | 5.5 | done | 8 (TC_DIG_01-04 + 2x3/3x2 maths, missing cap, field presence, rounding) | ScenarioDigest + PayoffCoverage (expected = profiles x players, over PLAYERs only) and ReportDigest. Frameworks use AnalysisResult.frameworkCategory / calculationStatus; status_reasons = blockingReasons + requiredActions (≤5); confidence falls back to overallConfidence when there is no ConfidenceProfile. Fx.templates() added. |
+| 5.6 | done | 3 (TC_WHATIF_01-02 + comparison shape) | suspend run(base, ops, pipeline, label): validate → apply accepted ops to a copy → baseline (cached, LRU 4) + variant on Dispatchers.Default → comparison JSON. rejected_ops includes validator rejections and apply-time skips. Persistence and uiKind are the handler's job (5.8). BLUEPRINT-QUESTION: cache key is id + version + hashCode, since unsaved edits don't bump version. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -57,4 +58,4 @@ Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md
 
 Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests green (1 skipped = live spike), assembleDebug OK.
 
-Next step: Phase 5.6 (WhatIfRunner).
+Next step: Phase 5.7 (InferredStressTest).
