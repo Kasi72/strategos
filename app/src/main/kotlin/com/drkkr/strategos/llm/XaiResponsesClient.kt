@@ -74,32 +74,42 @@ class XaiResponsesClient(
 
     override suspend fun listModels(apiKey: String?): ModelListResult {
         val key = (apiKey ?: keyProvider())?.takeIf { it.isNotBlank() } ?: return ModelListResult.Failed("no_key")
-        // BLUEPRINT-QUESTION: spike S7 decides the endpoint and price fields. Until then: ids only, /language-models then /models.
-        for (path in listOf("language-models", "models")) {
-            val parsed = try {
-                http.newCall(Request.Builder().url("$baseUrl/$path").header("Authorization", "Bearer $key").get().build())
-                    .await().use { r -> if (r.code == 401 || r.code == 403) return ModelListResult.Failed("unauthorized") else if (r.isSuccessful) parseModelIds(r.body?.string()) else null }
-            } catch (e: IOException) {
-                return ModelListResult.Failed(networkKind(e))
-            }
-            if (!parsed.isNullOrEmpty()) return ModelListResult.Ok(parsed.map { ModelInfo(it) })
+        return try {
+            http.newCall(Request.Builder().url("$baseUrl/models").header("Authorization", "Bearer $key").get().build())
+                .await().use { r ->
+                    when {
+                        r.code == 401 || r.code == 403 -> ModelListResult.Failed("unauthorized")
+                        !r.isSuccessful -> ModelListResult.Failed("http_${r.code}")
+                        else -> parseModels(r.body?.string())?.let { ModelListResult.Ok(it) } ?: ModelListResult.Failed("unavailable")
+                    }
+                }
+        } catch (e: IOException) {
+            ModelListResult.Failed(networkKind(e))
         }
-        return ModelListResult.Failed("unavailable")
     }
 
-    private fun parseModelIds(text: String?): List<String>? {
+    /** `GET /models` -> `data[]` with `id` and optional `pricing.{prompt,completion}` in USD per token (spike S7, Groq). */
+    private fun parseModels(text: String?): List<ModelInfo>? {
         if (text == null) return null
         return try {
-            val root = Json.parseToJsonElement(text).jsonObject
-            val list = (root["models"] ?: root["data"]) as? JsonArray
-            list?.mapNotNull { (it as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull }
+            val list = (Json.parseToJsonElement(text).jsonObject["data"] as? JsonArray) ?: return null
+            list.mapNotNull { e ->
+                val o = e as? JsonObject ?: return@mapNotNull null
+                val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                val pricing = o["pricing"] as? JsonObject
+                fun perM(k: String) = (pricing?.get(k) as? JsonPrimitive)?.contentOrNull?.toDoubleOrNull()?.times(1_000_000.0)
+                ModelInfo(id, perM("prompt"), perM("completion"))
+            }.takeIf { it.isNotEmpty() }
         } catch (e: Exception) { null }
     }
 
     private fun buildBody(req: LlmRequest): JsonObject = buildJsonObject {
         put("model", req.model)
         put("input", req.input)
-        if (req.tools != null) {
+        // The provider rejects tool_choice "none" (spike S4). Omitting `tools` forces a text-only reply; echoed
+        // function_call / function_call_output items in `input` are still accepted without it (verified on Groq).
+        val textOnly = req.toolChoice == "none" && !AgentConfig.TOOL_CHOICE_NONE_SUPPORTED
+        if (req.tools != null && !textOnly) {
             put("tools", req.tools)
             put("tool_choice", req.toolChoice)
         }

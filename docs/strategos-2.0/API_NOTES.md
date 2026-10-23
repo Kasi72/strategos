@@ -1,47 +1,37 @@
-# xAI API notes (Phase 3.4 live spike)
+# LLM API notes (Phase 3.4 live spike)
 
-**Status: NOT RUN against a working key (checkpoint CP1).**
+**Provider: Groq, Responses API** (user decision 2026-10-23, replacing the blueprint's xAI).
+Endpoint `POST https://api.groq.com/openai/v1/responses`, default model `openai/gpt-oss-20b`, option `openai/gpt-oss-120b`.
+The first attempt used an xAI endpoint with a Groq key (`gsk_...`) and was rejected, which is why the code and docs changed.
 
-`XaiLiveSpikeTest` is written and ran on 2026-10-23, but every call, including `GET /v1/models`, was rejected:
-`HTTP 400`, error code `invalid-argument`, message saying the API key is incorrect.
-
-What I can say about the key in `.env` without printing it: it is 56 characters long, it does **not** start with `xai-`,
-and it has no stray whitespace or quotes. xAI keys normally start with `xai-`, so this may be a key for another provider,
-a truncated paste, or a placeholder. Create a key at https://console.x.ai, paste it into `.env` as `XAI_API_KEY=...`, then run:
-
+Run it yourself:
 ```bash
 set -a; source .env; set +a
-sh ./gradlew :app:testDebugUnitTest --tests "*XaiLiveSpikeTest*" --console=plain
+sh ./gradlew :app:testDebugUnitTest --tests "*XaiLiveSpikeTest*" --rerun-tasks --console=plain
 ```
+Output lines are `SPIKE|<check>|PASS/FAIL|<detail>` in `app/build/test-results/testDebugUnitTest/TEST-com.drkkr.strategos.XaiLiveSpikeTest.xml`.
+They contain statuses, field names and token counts only, never the key or model text.
 
-The test prints `SPIKE|<check>|PASS/FAIL|<detail>` lines (statuses, field names and token counts only, never the key or model text).
-Read them from `app/build/test-results/testDebugUnitTest/TEST-com.drkkr.strategos.XaiLiveSpikeTest.xml`.
+## Results (run 2026-10-23)
 
-## Results (fill in after a successful run)
-
-| Check | Result | Notes |
+| Check | Result | Consequence |
 |---|---|---|
-| S1 plain call, `store:false` | not run | |
-| S2 tool round trip (VERBATIM / STRIP_IDS / CALLS_ONLY) | not run | `AgentConfig.ECHO_STRATEGY` stays `VERBATIM` (the blueprint default) until this is known |
-| S3 `role:"system"` mid-input | not run | `AgentConfig.CONTEXT_ROLE` stays `"system"` until this is known |
-| S4 `tool_choice:"none"` | not run | |
-| S5 usage field names | not run | also confirms whether `output_tokens` already includes reasoning tokens (PriceTable assumes it does) |
-| S6 model ids `grok-4.7`, `grok-4.3` | not run | |
-| S7 model list endpoint and price fields | not run | `XaiResponsesClient.listModels` parses ids only until this is known |
+| S1 plain call, `store:false` | PASS | The response echoes `store:false`. |
+| S2 tool round trip | PASS with `VERBATIM` (`STRIP_IDS` and `CALLS_ONLY` also pass) | `AgentConfig.ECHO_STRATEGY = VERBATIM`. Output item types seen: `reasoning`, `function_call`, `message`. |
+| S3 `role:"system"` mid-input | PASS | `AgentConfig.CONTEXT_ROLE = "system"`. |
+| S4 `tool_choice:"none"` | FAIL: HTTP 400 `tool_use_failed` | The provider rejects it. `XaiResponsesClient` turns `"none"` into a request with `tools` omitted (`AgentConfig.TOOL_CHOICE_NONE_SUPPORTED = false`). Probe: after a tool call, a final round with `tools` omitted and the echoed items in `input` returns 200 with a `message`. The spike's S4 prompt *demands* a tool call, so it still gets `tool_use_failed`; that is the adversarial case. Phase 6: treat a `tool_use_failed` HttpError on the forced final round as a failed turn (retryable), not a crash. |
+| S5 usage fields | PASS | `input_tokens`, `output_tokens`, `input_tokens_details.cached_tokens`, `output_tokens_details.reasoning_tokens`. Reasoning tokens are a sub-count of `output_tokens`. |
+| S6 model ids | PASS for `openai/gpt-oss-20b` and `openai/gpt-oss-120b` | `AgentConfig.MODEL_OPTIONS` set to those two. |
+| S7 model list | `GET /models` PASS (`data[]`: `id`, `pricing`, `context_window`, `max_completion_tokens`, `input_modalities`...). `/language-models` is 404. | `listModels` uses `/models` and reads `pricing.prompt` / `pricing.completion` (USD per token). The list also holds speech and guard models (`whisper-*`, `canopylabs/orpheus-*`, `meta-llama/llama-prompt-guard-*`, `openai/gpt-oss-safeguard-20b`): Phase 7's dropdown filter must exclude them (add `whisper`, `orpheus`, `prompt-guard`, `safeguard` to the blueprint's exclusion list). |
 
-## Extra: same spike run against Groq (2026-10-23, not xAI)
+## Prices (from `GET /models` on 2026-10-23, USD per 1M tokens)
 
-The key in `.env` is a Groq key (`gsk_` prefix, console.groq.com), not an xAI key. It is valid for `https://api.groq.com/openai/v1`.
-Run with `XAI_BASE_URL=https://api.groq.com/openai/v1 XAI_MODEL=openai/gpt-oss-20b`. This does **not** satisfy CP1 (the blueprint locks xAI); it shows `XaiResponsesClient` works against a real Responses API server.
+| Model | Input | Cached input | Output |
+|---|---|---|---|
+| `openai/gpt-oss-20b` | 0.075 | 0.0375 | 0.30 |
+| `openai/gpt-oss-120b` | 0.15 | 0.075 | 0.60 |
 
-| Check | Groq result |
-|---|---|
-| S1 plain call, `store:false` | PASS. Response echoes `store:false`. |
-| S2 tool round trip | PASS with `VERBATIM` (`STRIP_IDS` and `CALLS_ONLY` also pass). Output item types: `reasoning`, `function_call`. |
-| S3 `role:"system"` mid-input | PASS |
-| S4 `tool_choice:"none"` | FAIL: HTTP 400 `tool_use_failed` (the model tried to call the tool anyway). The blueprint fallback applies: use `"auto"` and drop any calls returned. |
-| S5 usage fields | PASS: `input_tokens`, `output_tokens`, `input_tokens_details.cached_tokens`, `output_tokens_details.reasoning_tokens` |
-| S6 `grok-4.7`, `grok-4.3` | FAIL (404 `model_not_found`), expected: not Groq models |
-| S7 model list | `GET /models` works (`data[]`, fields include `id`, `pricing`, `context_window`); `/language-models` is 404 |
+Both: 131,072 context, 65,536 max output, features `tools`, `json_mode`, `structured_outputs`, `reasoning`.
 
-Groq models visible to this key: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b`, `qwen/qwen3.8-27b`, `allam-2-7b`, plus whisper/orpheus/prompt-guard.
+## Quality caveat
+`gpt-oss-20b` is a small reasoning model. Interview quality and tool-call reliability are what the design depends on. Run TEST_CASES section 14 (agent eval) on the relationship and loan-family scenarios before relying on it; `gpt-oss-120b` is one setting away.

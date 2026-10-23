@@ -6,6 +6,24 @@
 > Baseline: commit `03d12a8` · Kotlin 1.9.24 · AGP 8.5.0 · Compose BOM 2024.09.02 · compileSdk 34 · minSdk 26
 > Drafted 2026-10-23.
 
+
+> ## PROVIDER OVERRIDE (user decision, 2026-10-23). READ THIS BEFORE ANYTHING ELSE.
+> The LLM provider is **Groq**, not xAI. This block beats every other mention in this file.
+>
+> | Where the blueprint says | Use instead |
+> |---|---|
+> | xAI, Grok, `api.x.ai`, `console.x.ai` | Groq, `https://api.groq.com/openai/v1`, `https://console.groq.com` (keys start with `gsk_`) |
+> | `grok-4.7` (default), `grok-4.3` (economy) | `openai/gpt-oss-20b` (default), `openai/gpt-oss-120b` (option) |
+> | prices 2.00/0.50/6.00 and 1.25/0.20/2.50 | 0.075/0.0375/0.30 and 0.15/0.075/0.60 USD per 1M (in / cached / out) |
+> | `tool_choice:"none"` on the forced final round | The provider rejects it. The client omits `tools` instead (`AgentConfig.TOOL_CHOICE_NONE_SUPPORTED=false`). Tests that check the *request* still use `toolChoice="none"` on `LlmRequest`. |
+> | G1 monthly token cap, `ai.monthly_token_cap`, usage-vs-cap UI | **Dropped.** No spending cap in the app. On credit/quota/rate-limit failure show exactly "Not enough credits." (`LlmErrors.userMessage`). Other failures keep their own message. |
+> | consent text "sent to an AI company (xAI)" (section 11.5, 17.6) | "sent to an AI company (Groq)". Re-check Groq's data-retention terms (G6). |
+> | key hint "Paste your xAI API key" | "Paste your Groq API key" |
+> | S6 model ids, S7 endpoint | Verified, see `API_NOTES.md`. |
+>
+> Names that say `Xai` in code (`XaiResponsesClient`, `putXaiKey`, `secret.xai_api_key`, `XaiLiveSpikeTest`, `TC_XAI_*`, env `XAI_API_KEY`) are kept to avoid churn. They mean "the configured LLM provider".
+> `AgentConfig.ECHO_STRATEGY = VERBATIM` and `CONTEXT_ROLE = "system"` are verified (spike S2, S3). CP1 is satisfied.
+
 ---
 
 ## 0. Rules for the implementer

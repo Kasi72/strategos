@@ -1,5 +1,6 @@
 package com.drkkr.strategos
 
+import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.agent.EchoStrategy
 import com.drkkr.strategos.llm.*
 import kotlinx.coroutines.runBlocking
@@ -16,9 +17,10 @@ import org.junit.Test
  * never the key and never model output text.
  */
 class XaiLiveSpikeTest {
-    private val key = System.getenv("XAI_API_KEY")
-    private val base = System.getenv("XAI_BASE_URL")?.takeIf { it.isNotBlank() } ?: "https://api.x.ai/v1"
-    private val model = System.getenv("XAI_MODEL")?.takeIf { it.isNotBlank() } ?: "grok-4.7"
+    // The provider is Groq (user decision 2026-10-23). The key may be in GROQ_API_KEY or, as in the dev .env, XAI_API_KEY.
+    private val key = System.getenv("GROQ_API_KEY")?.takeIf { it.isNotBlank() } ?: System.getenv("XAI_API_KEY")
+    private val base = System.getenv("LLM_BASE_URL")?.takeIf { it.isNotBlank() } ?: AgentConfig.BASE_URL
+    private val model = System.getenv("LLM_MODEL")?.takeIf { it.isNotBlank() } ?: AgentConfig.DEFAULT_MODEL
     private val client by lazy { XaiResponsesClient(keyProvider = { key }, baseUrl = base) }
 
     private fun say(check: String, result: String, detail: String = "") = println("SPIKE|$check|$result|$detail")
@@ -47,7 +49,7 @@ class XaiLiveSpikeTest {
 
     @Test
     fun spike() = runBlocking {
-        Assume.assumeTrue("XAI_API_KEY not set", !key.isNullOrBlank())
+        Assume.assumeTrue("GROQ_API_KEY / XAI_API_KEY not set", !key.isNullOrBlank())
 
         // S1 plain call, store:false
         val s1 = client.create(LlmRequest(model, buildJsonArray { add(user("Reply with the single word OK.")) }, null, maxOutputTokens = 400))
@@ -89,7 +91,7 @@ class XaiLiveSpikeTest {
         }, null, maxOutputTokens = 400))
         say("S3", if (s3 is LlmResult.Ok) "PASS" else "FAIL", describe(s3))
 
-        // S4 tool_choice none
+        // S4 tool_choice none (the client turns it into a text-only request; the provider rejects the literal value)
         val s4 = client.create(LlmRequest(model, buildJsonArray { add(user("Call the echo tool with text \"ping\".")) }, echoTool, toolChoice = "none", maxOutputTokens = 600))
         say("S4", if (s4 is LlmResult.Ok && s4.output.functionCalls().isEmpty() && s4.output.assistantText().isNotBlank()) "PASS" else "FAIL", describe(s4))
 
@@ -98,14 +100,14 @@ class XaiLiveSpikeTest {
         say("S5", if (usage != null && usage.input > 0 && usage.output > 0) "PASS" else "FAIL", "usage=$usage")
 
         // S6 model ids
-        for (id in listOf("grok-4.7", "grok-4.3")) {
+        for (id in AgentConfig.MODEL_OPTIONS) {
             val r = client.create(LlmRequest(id, buildJsonArray { add(user("Reply with the single word OK.")) }, null, maxOutputTokens = 400))
             say("S6-$id", if (r is LlmResult.Ok) "PASS" else "FAIL", describe(r))
         }
 
         // S7 model list endpoints: status, top-level keys and the field names of the first entry
         val http = OkHttpClient()
-        for (path in listOf("language-models", "models")) {
+        for (path in listOf("models")) {
             try {
                 http.newCall(Request.Builder().url("$base/$path").header("Authorization", "Bearer $key").build()).execute().use { resp ->
                     val text = resp.body?.string().orEmpty()
@@ -115,7 +117,7 @@ class XaiLiveSpikeTest {
                     val ids = list?.mapNotNull { (it as? JsonObject)?.get("id")?.jsonPrimitive?.contentOrNull }.orEmpty()
                     val priceFields = first?.filter { it.key.contains("price") }?.entries?.joinToString(";") { "${it.key}=${it.value}" }.orEmpty()
                     say("S7-$path", if (resp.isSuccessful && ids.isNotEmpty()) "PASS" else "FAIL",
-                        "status=${resp.code} topKeys=${root?.keys} entryFields=${first?.keys} count=${ids.size} hasGrok47=${"grok-4.7" in ids} hasGrok43=${"grok-4.3" in ids} priceFields=[$priceFields]")
+                        "status=${resp.code} topKeys=${root?.keys} entryFields=${first?.keys} count=${ids.size} hasDefault=${AgentConfig.DEFAULT_MODEL in ids} priceFields=[$priceFields]")
                 }
             } catch (e: Exception) {
                 say("S7-$path", "FAIL", e.javaClass.simpleName)

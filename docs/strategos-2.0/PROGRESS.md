@@ -34,7 +34,8 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 3.1 | done | 7 (TC_XAI_03/04/05 + usage, functionCallOutput, PriceTable) | LlmClient/DTOs, OutputItems, PriceTable. BLUEPRINT-QUESTION: PriceTable assumes output_tokens already includes reasoning tokens (check in spike S5). |
 | 3.2 | done | 14 (TC_XAI_01/02/06-12 + ok parse, missing key, retry-then-ok, bad_response, listModels) | XaiResponsesClient: store:false, parallel_tool_calls:false, retries per §9.4, writes one llm_call row per attempt, never logs or keeps bodies. BLUEPRINT-QUESTION: LlmRequest gained purpose/conversationId/turnId (defaulted) so the client can write llm_call rows. listModels is ids-only until spike S7 shows the real fields. |
 | 3.3 | done | 2 (FakeLlmClient behaviour) | FakeLlmClient + helpers (textReply, toolCall, error401, error429, networkDown) in the test source set. |
-| 3.4 | done | 0 (XaiLiveSpikeTest written; skipped without XAI_API_KEY) | BLOCKED AT CP1: the key in .env is rejected by xAI (HTTP 400 invalid-argument, incorrect API key; 56 chars, no xai- prefix). Spike results are not recorded; ECHO_STRATEGY=VERBATIM and CONTEXT_ROLE=system are unverified defaults. Also fixed a Phase 0.1 bug found by loading .env: blank STRATEGOS_* env vars made Gradle fail with 'path may not be null or empty'. See API_NOTES.md. |
+| 3.4 | done | 0 (XaiLiveSpikeTest, env-gated; ran live) | Provider switched to Groq / openai/gpt-oss-20b on the user's instruction. Spike S1-S3, S5-S7 pass; S4 tool_choice:"none" is rejected so the client omits tools instead. ECHO_STRATEGY=VERBATIM, CONTEXT_ROLE=system. See API_NOTES.md and the PROVIDER OVERRIDE block at the top of BLUEPRINT.md. G1 (spending cap) dropped; LlmErrors maps credit/rate-limit failures to "Not enough credits." |
+| 3.5 | done | 0 (permission + R8 rules; assembleDebug green; release/R8 build not run until Phase 8) | INTERNET permission, usesCleartextTraffic=false, R8 keep rules for domain, llm and net.zetetic. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -42,4 +43,6 @@ Phase 1 accepted: 106 tests green (77 legacy + 29 new). The 4 templates produce 
 
 Phase 2 accepted for everything automatable: cascade delete, seq uniqueness and concurrent append, migrator tests all green (127 tests). **Not done, needs a device/emulator:** "install 1.x, create 2 scenarios, install 2.0, both appear and save works", and TC_SECRET_01 (real Keystore, instrumented). Both go on the manual checklist for the user.
 
-Next step: STOPPED at CP1. User must put a valid xAI key in .env, then rerun the prompt: the next action is to run XaiLiveSpikeTest, fill API_NOTES.md, set ECHO_STRATEGY and CONTEXT_ROLE, then do 3.5.
+Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md has S1-S7 for the Groq provider. Provider is Groq / openai/gpt-oss-20b (see the PROVIDER OVERRIDE block in BLUEPRINT.md).
+
+Next step: Phase 4.1 (create agent/ files, CP2 at end of Phase 4).

@@ -34,7 +34,7 @@ class XaiResponsesClientTest {
     )
 
     private fun request(tools: JsonArray? = buildJsonArray { }) = LlmRequest(
-        model = "grok-4.7", input = buildJsonArray { add(buildJsonObject { put("role", "user"); put("content", "SECRET USER TEXT") }) },
+        model = "openai/gpt-oss-20b", input = buildJsonArray { add(buildJsonObject { put("role", "user"); put("content", "SECRET USER TEXT") }) },
         tools = tools, conversationId = "c1", turnId = "t1"
     )
 
@@ -51,7 +51,7 @@ class XaiResponsesClientTest {
         val body = Json.parseToJsonElement(rec.body.readUtf8()).jsonObject
         assertEquals(false, body["store"]!!.jsonPrimitive.boolean)
         assertEquals(false, body["parallel_tool_calls"]!!.jsonPrimitive.boolean)
-        assertEquals("grok-4.7", body["model"]!!.jsonPrimitive.content)
+        assertEquals("openai/gpt-oss-20b", body["model"]!!.jsonPrimitive.content)
         assertEquals("auto", body["tool_choice"]!!.jsonPrimitive.content)
         assertNotNull(body["tools"])
     }
@@ -141,7 +141,7 @@ class XaiResponsesClientTest {
         assertEquals(listOf(500, 200), logged.map { it.httpStatus })
         val good = logged.last()
         assertEquals(10, good.inputTokens); assertEquals(4, good.cachedTokens); assertEquals(5, good.outputTokens); assertEquals(2, good.reasoningTokens)
-        assertEquals("c1", good.conversationId); assertEquals("t1", good.turnId); assertEquals("grok-4.7", good.model)
+        assertEquals("c1", good.conversationId); assertEquals("t1", good.turnId); assertEquals("openai/gpt-oss-20b", good.model)
         val dump = logged.joinToString { it.toString() }
         assertFalse(dump.contains("SECRET USER TEXT") || dump.contains("xai-secret-key"))
     }
@@ -153,12 +153,32 @@ class XaiResponsesClientTest {
     }
 
     @Test
-    fun listModelsReadsIdsAndFallsBack() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(404))
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":[{"id":"grok-4.7"},{"id":"grok-4.3"}]}"""))
+    fun listModelsReadsIdsAndPerMillionPrices() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            """{"object":"list","data":[{"id":"openai/gpt-oss-20b","pricing":{"prompt":"0.000000075","completion":"0.0000003"}},{"id":"whisper-large-v3"}]}"""))
         val r = client().listModels() as ModelListResult.Ok
-        assertEquals(listOf("grok-4.7", "grok-4.3"), r.models.map { it.id })
-        assertEquals("/v1/language-models", server.takeRequest().path)
+        assertEquals(listOf("openai/gpt-oss-20b", "whisper-large-v3"), r.models.map { it.id })
+        assertEquals(0.075, r.models[0].inputPricePerM!!, 1e-9)
+        assertEquals(0.30, r.models[0].outputPricePerM!!, 1e-9)
+        assertNull(r.models[1].inputPricePerM)
         assertEquals("/v1/models", server.takeRequest().path)
+    }
+
+    @Test
+    fun listModelsMapsAuthAndNetworkFailures() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(401))
+        assertEquals(ModelListResult.Failed("unauthorized"), client().listModels())
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertEquals(ModelListResult.Failed("http_500"), client().listModels())
+    }
+
+    @Test
+    fun toolChoiceNoneIsSentAsTextOnlyBecauseTheProviderRejectsIt() = runBlocking {
+        server.enqueue(ok())
+        client().create(request().copy(toolChoice = "none"))
+        val body = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertNull("tools must be omitted to force text", body["tools"])
+        assertNull(body["tool_choice"])
+        assertNotNull(body["input"])
     }
 }

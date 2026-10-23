@@ -49,8 +49,8 @@ class OutputItemsTest {
 
     @Test
     fun priceTableEstimate() {
-        // 1M uncached in @2.00 + 1M cached @0.50 + 1M out @6.00 = 8.50
-        assertEquals(8.50, PriceTable.estimateUsd("grok-4.7", 2_000_000, 1_000_000, 1_000_000)!!, 1e-9)
+        // 1M uncached in @0.075 + 1M cached @0.0375 + 1M out @0.30 = 0.4125
+        assertEquals(0.4125, PriceTable.estimateUsd("openai/gpt-oss-20b", 2_000_000, 1_000_000, 1_000_000)!!, 1e-9)
         assertNull(PriceTable.estimateUsd("unknown-model", 1, 0, 1))
     }
 }
