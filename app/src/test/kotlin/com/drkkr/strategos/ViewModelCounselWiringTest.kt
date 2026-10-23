@@ -10,6 +10,7 @@ import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.fixtures.FakeLlmClient
 import com.drkkr.strategos.fixtures.FakeLlmClient.Companion.textReply
 import com.drkkr.strategos.fixtures.Fx
+import com.drkkr.strategos.fixtures.Sketches
 import com.drkkr.strategos.ui.StrategosViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -66,7 +67,7 @@ class ViewModelCounselWiringTest {
 
     @Test
     fun startCounselFromTextWithAiReadySavesBindsAndSends() = runBlocking {
-        fake.enqueue(textReply("Tell me more."))
+        fake.enqueue(textReply(Sketches.ASK))     // the app container runs the one-shot flow, so the reply is a JSON sketch
         val navigated = CompletableDeferred<Boolean>()
         vm.startCounselFromText("My brother wants me to co-sign a loan.\nMy wife is against it.") { navigated.complete(it) }
         assertEquals(true, withTimeout(5_000) { navigated.await() })

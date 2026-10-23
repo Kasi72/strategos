@@ -61,7 +61,9 @@ class CounselDeps(
     val whatIfs: WhatIfDao,
     val hasKey: suspend () -> Boolean,
     val pipeline: AnalysisPipeline = AnalysisPipeline(),
-    val dispatcher: ToolDispatcher = ToolDispatcher.default()
+    val dispatcher: ToolDispatcher = ToolDispatcher.default(),
+    /** SIMPLE PROFILE: true runs the one-shot flow (the app); false keeps the agent loop (tool calls), used by its tests. */
+    val oneShot: Boolean = false
 )
 
 /**
@@ -85,6 +87,11 @@ class CounselController(
     private val orchestrator = AgentOrchestrator(
         deps.llm, deps.tools, deps.dispatcher, assembler, deps.conversations, deps.settings,
         afterTurn = summarizer::maybeSummarize, backgroundScope = scope
+    )
+
+    private val oneShotTurn = OneShotTurn(
+        deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
+        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize
     )
 
     private var scenarioId: String? = null
@@ -139,12 +146,14 @@ class CounselController(
      */
     fun send(text: String): Job? {
         if (text.isBlank()) return null
-        if (SafetyKeywordScreen.check(text)) {
-            _state.update { it.copy(supportVisible = true) }
-            scope.launch { _state.update { it.copy(supportText = deps.settings.supportText()) } }
-        }
+        if (SafetyKeywordScreen.check(text)) showSupport()
         if (turnJob?.isActive == true) return null
         return startTurn(TurnTrigger.User(text.trim()))
+    }
+
+    private fun showSupport() {
+        _state.update { it.copy(supportVisible = true) }
+        scope.launch { _state.update { it.copy(supportText = deps.settings.supportText()) } }
     }
 
     fun dismissSupport() = _state.update { it.copy(supportVisible = false) }
@@ -200,9 +209,9 @@ class CounselController(
             }
             _state.update { it.copy(running = true, activity = "Thinking…", error = null, canRetry = false) }
             try {
-                val result = orchestrator.runTurn(cid, sid, trigger, { turnId -> toolContext(cid, sid, turnId) }) { label ->
-                    _state.update { it.copy(activity = label) }
-                }
+                val onActivity = { label: String -> _state.update { it.copy(activity = label) } }
+                val result = if (deps.oneShot) oneShotTurn.run(cid, sid, trigger, onActivity)
+                else orchestrator.runTurn(cid, sid, trigger, { turnId -> toolContext(cid, sid, turnId) }, onActivity)
                 if (result is TurnResult.Failed) _state.update { it.copy(error = result.userMessage, canRetry = result.retryable) }
             } finally {
                 _state.update { it.copy(running = false, activity = null) }

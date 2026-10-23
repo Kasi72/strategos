@@ -43,6 +43,20 @@
 > | One request per Guided turn | `propose_changes` takes an optional `ask {text, options}`. In Guided mode it saves the ops and shows `ask` as a question card that ends the turn. Guided requests don't send `ask_user`. `ops` may be empty; `rationale` is optional (falls back to the summary). |
 > | Turn end | A turn that ends on a card (question, recap, support) makes no extra text-only request. A `tool_use_failed` 400 is retried once. A failed wrap-up request after tools ran ends the turn quietly. |
 
+> ## SIMPLE PROFILE (user decision, 2026-10-23). READ THIS LAST; IT BEATS THE LEAN PROFILE.
+> The multi-turn interview with a tool loop was too heavy for a small model (repeated questions, duplicate people, bad tool calls).
+> The user asked for the simple flow: **one input → one output**, and a follow-up re-runs it.
+>
+> | Area | Simple rule |
+> |---|---|
+> | Flow | One model call per message. The model returns a JSON *sketch* (people, options, outcome scores, limits, optional one question). The app turns it into change ops (`ModelSketch.toOps`), validates (`OpNormalizer` → `ChangeSetValidator`), saves through the existing change-set path (auto-applied, undoable), runs the engine, and shows a plain result (`PlainResult`, built by the app, no second model call). |
+> | Follow-up | Same call. The context is `LiveDigest` of the saved scenario plus the last few user messages. The model returns only what is new or changed; existing people and options are matched by name. The engine re-runs and the result is shown again. |
+> | Memory | The saved scenario and the stored conversation. No tool loop, no intake checklist, no change-set review in this flow. |
+> | Questions | At most one clarifying question, only when the story is too thin to model (`ask`). |
+> | Safety | The keyword screen is unchanged. The sketch may also set `support: true`, which shows the support card. |
+> | Provenance | Everything the model sketches is AI_INFERRED, so `ProvenanceGate` lowers the confidence label as designed. |
+> | Kept | The agent loop (`AgentOrchestrator`, tools) stays in the code behind `CounselDeps.oneShot = false` for a later Expert mode; the app uses the simple flow. |
+
 ---
 
 ## 0. Rules for the implementer

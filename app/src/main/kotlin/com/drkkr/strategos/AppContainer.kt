@@ -76,7 +76,8 @@ class AppContainer(
             memory = MemoryRepository(db),
             settings = settings,
             whatIfs = db.whatIfDao(),
-            hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null }
+            hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null },
+            oneShot = true      // SIMPLE PROFILE
         )
     }
 

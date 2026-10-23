@@ -14,6 +14,9 @@ object AgentConfig {
     const val MAX_TURN_MS = 120_000L
     // LEAN PROFILE: Groq reserves max_output_tokens against the 8,000 tokens/minute limit, so keep it small.
     const val MAX_OUTPUT_TOKENS = 1_000
+
+    /** SIMPLE PROFILE: the one-shot sketch holds up to ~9 outcome rows, so it needs more room than a tool call. */
+    const val ONE_SHOT_MAX_OUTPUT_TOKENS = 2_000
     const val TEMPERATURE = 0.3
     const val HISTORY_TOKEN_BUDGET = 1_200
     const val HISTORY_TOKEN_TARGET = 600
