@@ -18,7 +18,8 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 0.1 | done | 0 (TC_BUILD_01/02 verified by command) | Signing read from keystore.properties or STRATEGOS_* env; release signed only if the store file exists. Needed `import java.util.Properties` (inside `android {}` `java` is the Java extension). |
 | 0.2 | done | 0 | Classify, runAll and combine run in `withContext(Dispatchers.Default)`; state updates stay on main. Full suite + assembleDebug green. |
 | 0.3 | done | 1 (TC_PURE_01) | Verified it fails when `import android.util.Log` is added to domain/, then reverted. |
+| 1.1 | done | 2 (TC_PROV_01/02) | factStatus + provenanceNote on Stakeholder, Action, Constraint, PayoffEntry. gameRole assertion added in 1.2. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
-Next step: Phase 1.1 (provenance fields + ProvenanceDefaultsTest).
+Next step: Phase 1.2 (GameRole + Scenario.players()).

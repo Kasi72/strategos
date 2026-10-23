@@ -91,7 +91,9 @@ data class Stakeholder(
     val trustRelationships: List<String> = emptyList(),// stakeholder ids they trust
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
-    val notes: String = ""
+    val notes: String = "",
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
@@ -107,7 +109,9 @@ data class Action(
     val publicVisibility: Boolean = true,
     val implementationDifficulty: Int = 3,  // 1–5
     val preconditions: List<String> = emptyList(),
-    val likelyReactions: Map<String, String> = emptyMap()  // stakeholderId -> reaction
+    val likelyReactions: Map<String, String> = emptyMap(),  // stakeholderId -> reaction
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
@@ -126,7 +130,9 @@ data class Constraint(
     val id: String = UUID.randomUUID().toString(),
     val label: String,
     val kind: Kind,
-    val description: String = ""
+    val description: String = "",
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 ) {
     @Serializable enum class Kind { LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL, RESOURCE, USER_HARD }
 }
@@ -143,7 +149,9 @@ data class Belief(
 data class PayoffEntry(
     val stakeholderId: String,
     val actionProfile: Map<String, String>, // stakeholderId -> actionId
-    val payoff: MultiPayoff
+    val payoff: MultiPayoff,
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
