@@ -7,6 +7,8 @@ import com.drkkr.strategos.domain.model.Scenario
  * the people involved with a role line, the user's options and the last answer.
  */
 object PlainSummary {
+    private const val VIEW_HEADING = "Here's what I see"
+
     fun build(s: Scenario, lastAnswer: String?): String = buildString {
         appendLine(s.title.ifBlank { "Your decision" })
         appendLine()
@@ -30,7 +32,11 @@ object PlainSummary {
             s.constraints.forEach { appendLine("• ${it.label}") }
             appendLine()
         }
-        lastAnswer?.takeIf { it.isNotBlank() }?.let { appendLine("The latest view"); appendLine(it.trim()) }
+        // The answer starts with "What I understood", which the sections above already cover; keep it from "Here's what I see".
+        lastAnswer?.takeIf { it.isNotBlank() }?.let { a ->
+            val from = a.indexOf(VIEW_HEADING).takeIf { it >= 0 } ?: 0
+            appendLine("The latest view"); appendLine(a.substring(from).trim())
+        }
     }.trim()
 
     fun roleLine(s: Scenario, id: String): String {

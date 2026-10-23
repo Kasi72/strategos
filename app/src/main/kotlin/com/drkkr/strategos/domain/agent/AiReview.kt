@@ -12,7 +12,8 @@ data class ReviewItem(val kind: ReviewKind, val key: String, val title: String, 
 object AiReview {
 
     fun items(s: Scenario): List<ReviewItem> = buildList {
-        s.stakeholders.filter { it.factStatus == FactStatus.AI_INFERRED }.forEach { add(ReviewItem(ReviewKind.PERSON, it.id, it.name, it.provenanceNote)) }
+        // The user ("You") obviously exists; nothing to review there.
+        s.stakeholders.filter { it.factStatus == FactStatus.AI_INFERRED && !it.name.equals("You", ignoreCase = true) }.forEach { add(ReviewItem(ReviewKind.PERSON, it.id, it.name, it.provenanceNote)) }
         s.actions.filter { it.factStatus == FactStatus.AI_INFERRED }.forEach { a ->
             add(ReviewItem(ReviewKind.OPTION, a.id, "${nameOf(s, a.stakeholderId)}: ${a.label}", a.provenanceNote))
         }

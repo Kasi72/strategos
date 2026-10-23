@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import com.drkkr.strategos.ui.components.startDictation
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -984,50 +985,6 @@ private fun extractDocxText(context: Context, uri: Uri): String {
             ""
         } ?: ""
     } catch (e: Exception) { "" }
-}
-
-private fun startDictation(
-    context: Context,
-    recognizerRef: MutableState<SpeechRecognizer?>,
-    onResult: (String) -> Unit,
-    onStop: () -> Unit,
-    onSnack: (String) -> Unit
-) {
-    if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-        onSnack("Speech recognition not available on this device")
-        onStop()
-        return
-    }
-    recognizerRef.value?.destroy()
-    val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-    recognizerRef.value = recognizer
-
-    recognizer.setRecognitionListener(object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
-        override fun onBeginningOfSpeech() {}
-        override fun onRmsChanged(rmsdB: Float) {}
-        override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {}
-        override fun onError(error: Int) {
-            onSnack("Dictation error (${error})")
-            onStop()
-        }
-        override fun onResults(results: Bundle?) {
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            val text = matches?.firstOrNull() ?: ""
-            if (text.isNotBlank()) onResult(text)
-            onStop()
-        }
-        override fun onPartialResults(partialResults: Bundle?) {}
-        override fun onEvent(eventType: Int, params: Bundle?) {}
-    })
-
-    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-    }
-    recognizer.startListening(intent)
 }
 
 private fun formatBytes(bytes: Long): String = when {

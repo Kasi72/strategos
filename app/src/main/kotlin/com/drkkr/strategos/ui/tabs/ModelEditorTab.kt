@@ -317,7 +317,13 @@ fun StakeholderEditorCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (stakeholder.gameRole == GameRole.INFLUENCER) {
+                        SemanticChip("Influencer", MaterialTheme.colorScheme.tertiary)
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    ProvenanceChip(stakeholder.factStatus)
+                    Spacer(Modifier.width(4.dp))
                     SemanticChip("A:${stakeholder.authority}", MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
                     SemanticChip("I:${stakeholder.influence}", MaterialTheme.colorScheme.secondary)
@@ -402,6 +408,15 @@ fun StakeholderIdentitySection(sh: Stakeholder, onUpdate: (Stakeholder) -> Unit)
                     label = { Text(type.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
                 )
             }
+        }
+        // Player / Influencer: players choose actions and appear in the payoff matrix; influencers only shape the outcome
+        Text("Role in the decision", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = sh.gameRole == GameRole.PLAYER, onClick = { onUpdate(sh.copy(gameRole = GameRole.PLAYER)) }, label = { Text("Player", style = MaterialTheme.typography.labelSmall) })
+            FilterChip(selected = sh.gameRole == GameRole.INFLUENCER, onClick = { onUpdate(sh.copy(gameRole = GameRole.INFLUENCER)) }, label = { Text("Influencer", style = MaterialTheme.typography.labelSmall) })
+        }
+        if (sh.gameRole == GameRole.INFLUENCER) {
+            Text("Influencers have no actions in the payoff matrix.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         // Authority and influence sliders
         SliderField("Authority (formal decision rights)", sh.authority.toFloat(), 0f, 10f) {
@@ -571,12 +586,17 @@ fun ActionEditorCard(
                     Text(action.label.ifBlank { "Unnamed action" }, style = MaterialTheme.typography.titleSmall)
                     Text("[$owner]${if (action.description.isNotBlank()) " · ${action.description.take(60)}" else ""}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                ProvenanceChip(action.factStatus)
+                Spacer(Modifier.width(6.dp))
                 Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
             }
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     StratDivider()
                     Spacer(Modifier.height(2.dp))
+                    if (stakeholders.firstOrNull { it.id == action.stakeholderId }?.gameRole == GameRole.INFLUENCER) {
+                        Text("Influencers have no actions in the payoff matrix. Make $owner a player to use this action.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     OutlinedTextField(
                         value = action.label,
                         onValueChange = { onUpdate(action.copy(label = it)) },

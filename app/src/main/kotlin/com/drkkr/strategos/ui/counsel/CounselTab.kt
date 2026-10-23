@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
@@ -137,6 +138,10 @@ fun CounselTab(vm: StrategosViewModel, expert: Boolean, onOpenSettings: () -> Un
                     value = draft, onValueChange = { draft = it }, modifier = Modifier.weight(1f).testTag("counsel_input"),
                     placeholder = { Text(if (ui.items.isEmpty()) "What's on your mind?" else "What happened next?") }, maxLines = 5
                 )
+                val voice = com.drkkr.strategos.ui.components.rememberVoiceInput(onText = { spoken -> draft = (draft + " " + spoken).trim() })
+                IconButton(onClick = voice.start, modifier = Modifier.testTag("counsel_mic")) {
+                    Icon(Icons.Default.Mic, if (voice.listening) "Listening" else "Speak", tint = if (voice.listening) NeoTokens.red else p.muted)
+                }
                 if (ui.running) {
                     Button(onClick = counsel::stop, modifier = Modifier.testTag("counsel_stop")) { Icon(Icons.Default.Stop, "Stop") }
                 } else {

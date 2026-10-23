@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +43,12 @@ fun HomeComposer(vm: StrategosViewModel, expert: Boolean, onStarted: (toCounsel:
             value = text, onValueChange = { text = it }, modifier = Modifier.fillMaxWidth().testTag("home_input"), minLines = 3, maxLines = 8,
             placeholder = { Text("Describe it in your own words…") }
         )
+        val voice = com.drkkr.strategos.ui.components.rememberVoiceInput(onText = { spoken -> text = (text + " " + spoken).trim() })
+        androidx.compose.material3.TextButton(onClick = voice.start, modifier = Modifier.testTag("home_mic")) {
+            androidx.compose.material3.Icon(Icons.Default.Mic, "Speak")
+            androidx.compose.foundation.layout.Spacer(Modifier.padding(start = 6.dp))
+            Text(if (voice.listening) "Listening…" else "Speak")
+        }
         if (!ready) Text(if (expert) "AI off · works offline" else "AI counsel is off. Set it up to talk this through.", color = p.muted, style = MaterialTheme.typography.labelMedium)
         Button(
             onClick = {

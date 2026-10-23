@@ -31,7 +31,7 @@ class AiReviewTest {
     @Test
     fun listsEveryAiGuessByKind() {
         val items = AiReview.items(aiModel())
-        assertEquals(4, items.count { it.kind == ReviewKind.PERSON })
+        assertEquals(3, items.count { it.kind == ReviewKind.PERSON })           // the user ("You") is never listed
         assertEquals(6, items.count { it.kind == ReviewKind.OPTION })
         assertEquals(1, items.count { it.kind == ReviewKind.LIMIT })
         assertEquals(18, items.count { it.kind == ReviewKind.OUTCOME })
@@ -70,13 +70,14 @@ class AiReviewTest {
 
     @Test
     fun summaryIsPlain() {
-        val text = PlainSummary.build(aiModel(), "Here's what I see\nEarly view.")
+        val text = PlainSummary.build(aiModel(), "What I understood\n• Wife: can stop this\n\nHere's what I see\nEarly view.")
         assertTrue(text.startsWith("Loan for my brother"))
         assertTrue(text.contains("People involved"))
         assertTrue(text.contains("• Wife: can stop this"))
         assertTrue(text.contains("Your options"))
         assertTrue(text.contains("• Co-sign"))
-        assertTrue(text.contains("The latest view"))
+        assertTrue(text.contains("The latest view\nHere's what I see\nEarly view."))
+        assertEquals(1, Regex("• Wife: can stop this").findAll(text).count())      // not repeated in the latest view
         listOf("player", "influencer", "payoff", "matrix", "equilibrium").forEach { assertFalse("'$it' in summary", text.lowercase().contains(it)) }
     }
 }

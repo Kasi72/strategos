@@ -125,6 +125,12 @@ fun StrategosApp(vm: StrategosViewModel) {
         if (expert) { selectedTab = Tab.MORE; selectedMoreTab = MoreSubTab.SETTINGS } else selectedTab = Tab.SETTINGS
     }
 
+    // Switching Guided/Expert from Settings keeps you in Settings (its place differs between the two docks).
+    LaunchedEffect(expert) {
+        if (expert && selectedTab == Tab.SETTINGS) { selectedTab = Tab.MORE; selectedMoreTab = MoreSubTab.SETTINGS }
+        else if (!expert && selectedTab == Tab.MORE && selectedMoreTab == MoreSubTab.SETTINGS) selectedTab = Tab.SETTINGS
+    }
+
     LaunchedEffect(state.pendingNavigationTarget) {
         state.pendingNavigationTarget?.let { target ->
             selectedTab = target.toTab()
@@ -172,7 +178,7 @@ fun StrategosApp(vm: StrategosViewModel) {
                     selectedSubTab = selectedModelSubTab,
                     onSubTabSelected = { selectedModelSubTab = it }
                 )
-                Tab.REPORT -> ReportWithSubTabs(vm, selectedReportTab) { selectedReportTab = it }
+                Tab.REPORT -> ReportWithSubTabs(vm, selectedReportTab, onReviewAi = { showReview = true }) { selectedReportTab = it }
                 Tab.MORE -> MoreTab(
                     vm = vm,
                     selectedSubTab = selectedMoreTab,
@@ -426,7 +432,7 @@ internal fun MoreTab(
 }
 
 @Composable
-internal fun ReportWithSubTabs(vm: StrategosViewModel, selected: ReportSubTab, onSelect: (ReportSubTab) -> Unit) {
+internal fun ReportWithSubTabs(vm: StrategosViewModel, selected: ReportSubTab, onReviewAi: () -> Unit, onSelect: (ReportSubTab) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         NeoSubTabBar(
             entries = ReportSubTab.entries, selected = selected, label = { it.label }, icon = { it.icon },
@@ -434,7 +440,7 @@ internal fun ReportWithSubTabs(vm: StrategosViewModel, selected: ReportSubTab, o
         )
         Box(Modifier.fillMaxSize()) {
             when (selected) {
-                ReportSubTab.DECISION -> ReportTab(vm)
+                ReportSubTab.DECISION -> ReportTab(vm, onReviewAi)
                 ReportSubTab.FRAMEWORKS -> AnalysisTab(vm)
             }
         }

@@ -38,12 +38,27 @@ private fun Long.toReportDateStr(): String = if (this == 0L) "—" else reportDa
 private enum class ReportTabLevel { EXECUTIVE, STRATEGIC, TECHNICAL, CONSOLE }
 
 @Composable
-fun ReportTab(vm: StrategosViewModel) {
+fun ReportTab(vm: StrategosViewModel, onReviewAi: (() -> Unit)? = null) {
     val state by vm.state.collectAsState()
     val report = state.report
     var tab by remember { mutableStateOf(ReportTabLevel.EXECUTIVE) }
 
     Column(Modifier.fillMaxSize()) {
+        // §11.7: when AI guesses are holding the confidence down, say so and link to the review.
+        val stats = state.activeScenario?.let { com.drkkr.strategos.domain.analysis.ProvenanceStats.of(it) }
+        if (report != null && stats != null && stats.payoffsAi > 0) {
+            val pct = (stats.aiPayoffShare * 100).toInt()
+            Row(
+                Modifier.fillMaxWidth().background(com.drkkr.strategos.ui.theme.NeoTokens.amber.copy(alpha = 0.16f)).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "$pct% of the outcome scores are AI guesses, so the engine keeps its confidence lower until you review them.",
+                    style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f)
+                )
+                if (onReviewAi != null) TextButton(onClick = onReviewAi) { Text("Review AI inputs") }
+            }
+        }
         TabRow(selectedTabIndex = tab.ordinal, containerColor = MaterialTheme.colorScheme.surface) {
             listOf("Executive", "Strategic", "Technical", "Console").forEachIndexed { idx, label ->
                 Tab(
