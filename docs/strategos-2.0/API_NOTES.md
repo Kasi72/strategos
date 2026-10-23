@@ -35,3 +35,15 @@ Both: 131,072 context, 65,536 max output, features `tools`, `json_mode`, `struct
 
 ## Quality caveat
 `gpt-oss-20b` is a small reasoning model. Interview quality and tool-call reliability are what the design depends on. Run TEST_CASES section 14 (agent eval) on the relationship and loan-family scenarios before relying on it; `gpt-oss-120b` is one setting away.
+
+## Phase 6 end-to-end run (2026-10-23, `XaiLiveSpikeTest.counselEndToEnd`)
+Healthcare template, Expert mode, real agent assets, `openai/gpt-oss-20b`.
+
+| Step | Result |
+|---|---|
+| Small spike calls (S1–S7, ~80–160 input tokens) | Still PASS with the same key. The key and account work. |
+| Every Counsel turn (system prompt + tools + live context) | **HTTP 413, `error.code = rate_limit_exceeded`** on the first request, so no tool was ever called. |
+
+Size of one Counsel request before any history: `system_prompt.md` 17.5 KB (~4.4k tokens) + `tools.json` 22 KB (~5.5k tokens, the change-op schema appears in both `propose_changes` and `what_if`) + the scenario digest. That is ~10k tokens or more per request, and a turn makes 2–4 requests. Groq returns 413 `rate_limit_exceeded` when one request exceeds the account's tokens-per-minute limit, so this account tier can't run Counsel at all. **Needs a decision (CP3).**
+
+`LlmErrors` now maps `rate_limit_exceeded` to "Not enough credits." (provider override rule), so users see that instead of "error (413)".

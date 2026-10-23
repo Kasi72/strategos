@@ -7,8 +7,34 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import androidx.test.core.app.ApplicationProvider
+import com.drkkr.strategos.agent.AgentAssets
+import com.drkkr.strategos.agent.CounselController
+import com.drkkr.strategos.agent.CounselDeps
+import com.drkkr.strategos.data.db.DbFactory
+import com.drkkr.strategos.data.db.entities.ScenarioEntity
+import com.drkkr.strategos.data.db.entities.SettingEntity
+import com.drkkr.strategos.data.repo.ChangeSetRepository
+import com.drkkr.strategos.data.repo.ChangeSetStatus
+import com.drkkr.strategos.data.repo.ConversationRepository
+import com.drkkr.strategos.data.repo.MemoryRepository
+import com.drkkr.strategos.data.repo.MessageRole
+import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.UiMode
+import com.drkkr.strategos.domain.agent.Decision
+import com.drkkr.strategos.domain.agent.OpDecision
+import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Manual live spike (blueprint §9.5, TEST_CASES §11). Skipped unless XAI_API_KEY is in the environment:
@@ -16,6 +42,8 @@ import org.junit.Test
  * Prints one `SPIKE|<check>|<result>|<detail>` line per check. It prints statuses, field names and token counts only,
  * never the key and never model output text.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class XaiLiveSpikeTest {
     // The provider is Groq (user decision 2026-10-23). The key may be in GROQ_API_KEY or, as in the dev .env, XAI_API_KEY.
     private val key = System.getenv("GROQ_API_KEY")?.takeIf { it.isNotBlank() } ?: System.getenv("XAI_API_KEY")
@@ -122,6 +150,73 @@ class XaiLiveSpikeTest {
             } catch (e: Exception) {
                 say("S7-$path", "FAIL", e.javaClass.simpleName)
             }
+        }
+    }
+
+    /**
+     * Phase 6 accept (manual, env-gated): the healthcare template end to end through the real CounselController and agent
+     * assets, in Expert mode: intake → apply → analysis → stress test → what-if. Prints tool names and statuses only.
+     */
+    @Test
+    fun counselEndToEnd() = runBlocking {
+        Assume.assumeTrue("GROQ_API_KEY / XAI_API_KEY not set", !key.isNullOrBlank())
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val db = DbFactory.inMemoryForTests(app)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val scenario = InstitutionalHealthcareTemplate.create()
+            db.scenarioDao().upsert(ScenarioEntity(scenario.id, scenario.title, "DRAFT", scenario.version, 1L, 1L, "{}"))
+            val settings = SettingsRepository(db).apply {
+                setAiEnabled(true); setConsentVersion(AgentConfig.CONSENT_VERSION); setUiMode(UiMode.EXPERT); setModel(model)
+            }
+            db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "placeholder-not-the-key"))
+            val conversations = ConversationRepository(db)
+            val changeSets = ChangeSetRepository(db)
+            val assets = AgentAssets(app)
+            val gateway = CommittingGateway(scenario)
+            val controller = CounselController(scope, CounselDeps(
+                llm = XaiResponsesClient(keyProvider = { key }, callLog = db.llmCallDao(), baseUrl = base), systemPrompt = { assets.systemPrompt }, tools = { assets.tools }, agentVersion = { assets.agentVersion },
+                conversations = conversations, changeSets = changeSets, memory = MemoryRepository(db), settings = settings,
+                whatIfs = db.whatIfDao(), hasKey = { true }
+            ), gateway)
+            controller.bindScenario(scenario.id).join()
+            val cid = controller.state.value.conversationId!!
+            val toolsSeen = mutableListOf<String>()
+            var seen = 0
+
+            suspend fun report(step: String) {
+                controller.awaitIdle()
+                val msgs = conversations.messages(cid)
+                val calls = msgs.drop(seen).filter { it.role == MessageRole.TOOL_CALL.name }.mapNotNull { it.toolName }
+                val errors = msgs.drop(seen).count { it.role == MessageRole.TOOL_RESULT.name && it.payloadJson?.contains("\"error\"") == true }
+                seen = msgs.size
+                toolsSeen += calls
+                say("E2E-$step", if (controller.state.value.error == null) "PASS" else "FAIL",
+                    "tools=${calls.joinToString(",")} toolErrors=$errors error=${controller.state.value.error} version=${gateway.inner.scenario!!.version} " +
+                        "calls=${db.llmCallDao().since(0).joinToString(";") { "${it.httpStatus}/${it.errorCode}" }}")
+            }
+
+            controller.send("I lead this unit and need to decide what to do. First read the current model. " +
+                "Then propose adding the state health regulator as an influencer who can delay things.")
+            report("intake")
+            for (cs in changeSets.observe(cid).first().filter { it.status == ChangeSetStatus.PENDING.name }) {
+                val n = com.drkkr.strategos.agent.MessageMapper.decodeOps(cs.opsJson).size
+                controller.applyChangeSet(cs.id, (0 until n).map { OpDecision(it, Decision.ACCEPT) }).join()
+            }
+            report("apply")
+            controller.send("Run the analysis now. If any payoffs are AI-inferred, stress-test them before you answer.")
+            report("analysis")
+            controller.send("What if the patient advocate withdraws support? Use the what-if tool, don't guess.")
+            report("whatif")
+
+            val stakeholdersAdded = gateway.inner.scenario!!.stakeholders.size - scenario.stakeholders.size
+            say("E2E-SUMMARY", "INFO", "tools=${toolsSeen.distinct().joinToString(",")} stakeholdersAdded=$stakeholdersAdded commits=${gateway.commits}")
+            for (needed in listOf("propose_changes", "run_analysis", "what_if")) {
+                assertTrue("$needed was never called", needed in toolsSeen)
+            }
+        } finally {
+            scope.cancel()
+            db.close()
         }
     }
 }

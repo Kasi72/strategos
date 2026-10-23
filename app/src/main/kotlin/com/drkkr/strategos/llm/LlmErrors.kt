@@ -4,7 +4,10 @@ package com.drkkr.strategos.llm
 object LlmErrors {
     const val NOT_ENOUGH_CREDITS = "Not enough credits."
 
-    private val creditCodes = setOf("insufficient_quota", "insufficient_credits", "quota_exceeded", "billing_not_active", "payment_required")
+    // Groq answers an over-limit request (tokens per minute for the account tier) with 413 or 429 and code rate_limit_exceeded.
+    private val creditCodes = setOf(
+        "insufficient_quota", "insufficient_credits", "quota_exceeded", "billing_not_active", "payment_required", "rate_limit_exceeded"
+    )
 
     /** Credit / quota / rate-limit exhaustion. User decision 2026-10-23: no spending cap in the app, just report this. */
     fun isCreditProblem(r: LlmResult): Boolean = when (r) {

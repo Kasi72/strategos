@@ -24,4 +24,11 @@ class LlmErrorsTest {
     @Test fun messagesNeverContainContent() {
         assertFalse(LlmErrors.userMessage(LlmResult.HttpError(400, "model_not_found")).contains("model_not_found"))
     }
+
+    @Test
+    fun groqTokensPerMinuteLimitIsACreditProblem() {
+        val r = LlmResult.HttpError(413, "rate_limit_exceeded")
+        assertTrue(LlmErrors.isCreditProblem(r))
+        assertEquals(LlmErrors.NOT_ENOUGH_CREDITS, LlmErrors.userMessage(r))
+    }
 }
