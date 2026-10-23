@@ -1,8 +1,8 @@
 package com.drkkr.strategos
 
 import android.database.sqlite.SQLiteConstraintException
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.*
 import kotlinx.coroutines.runBlocking
@@ -20,8 +20,7 @@ class DaoTest {
     private lateinit var db: StrategosDatabase
 
     @Before fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), StrategosDatabase::class.java)
-            .allowMainThreadQueries().build()
+        db = DbFactory.inMemoryForTests(ApplicationProvider.getApplicationContext())
     }
     @After fun tearDown() { db.close() }
 
