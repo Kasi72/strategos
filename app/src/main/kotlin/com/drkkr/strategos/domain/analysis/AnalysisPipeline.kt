@@ -26,7 +26,9 @@ data class PipelineResult(
     val plan: AnalysisPlan?,
     val moduleRuns: List<ModuleRunResult>,
     val results: List<AnalysisResult>,
-    val report: DecisionReport?          // null when validity.blocksAnalysis
+    val report: DecisionReport?,         // null when validity.blocksAnalysis
+    val provenance: ProvenanceStats = ProvenanceStats(0, 0, 0, 0, 0, 0),
+    val gate: ProvenanceGate.Outcome = ProvenanceGate.Outcome.NONE
 )
 
 /** The whole analysis in one pure, synchronous call. Callers wrap it in Dispatchers.Default. */
@@ -41,8 +43,10 @@ class AnalysisPipeline(
         val plan = FrameworkSelector.classify(scenario, registry.modules())
         val moduleRuns = registry.runAll(scenario, plan.selected().map { it.moduleId }.toSet())
         val results = registry.analysisResultsFrom(moduleRuns)
-        val report = engine.combine(scenario, results).copy(analysisPlan = plan)
-        return PipelineResult(validity, plan, moduleRuns, results, report)
+        val raw = engine.combine(scenario, results).copy(analysisPlan = plan)
+        val stats = ProvenanceStats.of(scenario)
+        val (report, gate) = ProvenanceGate.apply(raw, stats)
+        return PipelineResult(validity, plan, moduleRuns, results, report, stats, gate)
     }
 
     companion object {

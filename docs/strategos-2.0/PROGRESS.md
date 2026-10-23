@@ -22,7 +22,8 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 1.2 | done | 1 (players_excludesInfluencers) + TC_PROV gameRole assertions | GameRole enum, Stakeholder.gameRole, Scenario.players(); Fx.pdWithInfluencer added. |
 | 1.3 | done | 3 (TC_MATRIX_01/02/03) | MatrixSupport.buildChecked and FrameworkSelector use scenario.players(). Tests 01/02 failed before the edit as expected; 03 already passed. |
 | 1.4 | done | 5 (TC_PIPE_01 x4, TC_PIPE_02) | AnalysisPipeline extracted; ViewModel uses it (analyzeAndAwait + analyze). Expected template values captured from the old logic before the refactor; action labels stand in for random ids. BLUEPRINT-QUESTION (§6.4): PipelineResult has no provenance/gate fields yet; added in 1.5 to avoid forward dependency. Dropped the mid-run analysisPlan state update (plan is set at the end). |
+| 1.5 | done | 10 (TC_GATE_01-06 + extras, ProvenanceStats) | ProvenanceStats, ProvenanceGate; PipelineResult gains provenance + gate and applies the gate (step 6 of §6.4). If executiveStatusReason is null, one is created when capping. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
-Next step: Phase 1.5 (ProvenanceStats + ProvenanceGate).
+Next step: Phase 1.6 (ProvenanceReconciler).
