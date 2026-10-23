@@ -3,7 +3,11 @@ package com.drkkr.strategos.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.drkkr.strategos.agent.CounselController
+import com.drkkr.strategos.agent.CounselGateway
+import com.drkkr.strategos.agent.CounselUiState
 import com.drkkr.strategos.data.repo.SaveResult
+import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.data.storage.RecoverableRecord
 import com.drkkr.strategos.domain.framework.AnalysisResult
 import com.drkkr.strategos.domain.framework.DecisionReadinessResult
@@ -114,6 +118,18 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     private val snapshotJson = Json { ignoreUnknownKeys = true }
 
+    // ── Counsel (§10.5) ───────────────────────────────────────────────────────
+    private val gatewayImpl = object : CounselGateway {
+        override fun activeScenario() = _state.value.activeScenario
+        override suspend fun analyzeAndPublish() = analyzeAndAwait()
+        override fun lastResults() = _state.value.analysisResults
+        override suspend fun commitAgentChange(updated: Scenario): SaveResult = this@StrategosViewModel.commitAgentChange(updated)
+    }
+
+    /** Null when secure storage is unavailable (Counsel needs the database). */
+    val counsel: CounselController? = container.counselDeps?.let { CounselController(viewModelScope, it, gatewayImpl) }
+    val counselState: StateFlow<CounselUiState> = counsel?.state ?: MutableStateFlow(CounselUiState()).asStateFlow()
+
     init {
         _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError) }
         viewModelScope.launch { container.prepareStorage(); repo.load() }
@@ -148,6 +164,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setActiveScenario(s: Scenario) {
         _state.update { it.copy(activeScenario = s, analysisResults = emptyList(), moduleRunResults = emptyList(), report = null, decisionReadiness = null, snapshotInvalidated = false) }
+        counsel?.bindScenario(s.id)
     }
 
     fun updateActiveScenario(s: Scenario) {
@@ -257,10 +274,11 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                 lifecycleStage = targetStage,
                 snapshotId = snapshot?.snapshotId ?: scenario.snapshotId
             )
-            repo.save(analysedScenario)
+            // repo.save bumps the version; keep the stored copy active so the next save doesn't see a conflict.
+            val savedScenario = (repo.save(analysedScenario) as? SaveResult.Success)?.saved ?: analysedScenario
 
             val readiness = buildDecisionReadiness(
-                scenario = analysedScenario,
+                scenario = savedScenario,
                 report = report,
                 moduleRuns = moduleRuns,
                 runStatus = runStatus,
@@ -277,8 +295,8 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                     analysisPlan = plan,
                     debugEntries = debugEntries,
                     snapshot = snapshot,
-                    activeScenario = analysedScenario,
-                    scenarios = st.scenarios.map { if (it.id == analysedScenario.id) analysedScenario else it }
+                    activeScenario = savedScenario,
+                    scenarios = st.scenarios.map { if (it.id == savedScenario.id) savedScenario else it }
                 )
             }
             pr
@@ -440,8 +458,14 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveScenario() {
-        var s = _state.value.activeScenario ?: return
-        viewModelScope.launch {
+        val s = _state.value.activeScenario ?: return
+        viewModelScope.launch { saveScenarioInternal(s) }
+    }
+
+    /** Saves [s0] with material-change detection; updates the active scenario or the error message. */
+    suspend fun saveScenarioInternal(s0: Scenario): SaveResult {
+        var s = s0
+        run {
             // Material change detection: if scenario is APPROVED+, check for changes that
             // invalidate approval (actions, constraints, payoffs, selected policy option)
             val stored = _state.value.scenarios.find { it.id == s.id }
@@ -470,15 +494,52 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(activeScenario = s) }
                 }
             }
-            when (val result = repo.save(s)) {
-                is SaveResult.Success -> _state.update { it.copy(activeScenario = result.saved) }
-                is SaveResult.Conflict -> _state.update {
-                    it.copy(errorMessage = "Save conflict: stored version is newer (v${result.stored.version}). Your changes were not saved. Reload the scenario to see the current version.")
-                }
-                is SaveResult.StorageUnavailable -> _state.update {
-                    it.copy(errorMessage = "Storage unavailable — scenario cannot be saved")
-                }
+        }
+        val result = repo.save(s)
+        when (result) {
+            is SaveResult.Success -> _state.update { it.copy(activeScenario = result.saved) }
+            is SaveResult.Conflict -> _state.update {
+                it.copy(errorMessage = "Save conflict: stored version is newer (v${result.stored.version}). Your changes were not saved. Reload the scenario to see the current version.")
             }
+            is SaveResult.StorageUnavailable -> _state.update {
+                it.copy(errorMessage = "Storage unavailable — scenario cannot be saved")
+            }
+        }
+        return result
+    }
+
+    /** The only way agent changes reach the scenario (I2): an applied change set, saved like a manual save. */
+    suspend fun commitAgentChange(updated: Scenario): SaveResult {
+        val hadSnapshot = _state.value.snapshot != null
+        val result = saveScenarioInternal(updated)
+        if (result is SaveResult.Success && hadSnapshot) _state.update { it.copy(snapshotInvalidated = true) }
+        return result
+    }
+
+    /**
+     * Home composer entry point. With AI not ready this is the 1.x parser path (I7, no network).
+     * Otherwise it saves a new scenario from the text, binds Counsel to it and sends the text as the first message.
+     */
+    fun startCounselFromText(text: String, onNavigate: (toCounsel: Boolean) -> Unit) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            val controller = counsel
+            val ready = controller != null && container.settingsRepository?.aiReady() == true
+            if (!ready) {
+                parseAndCreateScenario(text)
+                onNavigate(false)
+                return@launch
+            }
+            val draft = Scenario(
+                title = text.trim().lineSequence().first().take(60),
+                description = text.trim(),
+                language = LanguageDetector.detect(text)
+            )
+            val saved = (saveScenarioInternal(draft) as? SaveResult.Success)?.saved ?: return@launch
+            setActiveScenario(saved)
+            controller!!.bindScenario(saved.id).join()
+            controller.send(text)
+            onNavigate(true)
         }
     }
 
@@ -568,6 +629,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
             analysisResults = emptyList(), moduleRunResults = emptyList(),
             report = null, decisionReadiness = null, snapshot = null, snapshotInvalidated = false
         ) }
+        _state.value.activeScenario?.let { counsel?.bindScenario(it.id) }
     }
 
     fun dismissError() { _state.update { it.copy(errorMessage = null) } }
