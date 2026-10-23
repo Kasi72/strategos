@@ -4,6 +4,7 @@ import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.data.repo.UiKind
+import com.drkkr.strategos.data.repo.UiMode
 import com.drkkr.strategos.llm.LlmClient
 import com.drkkr.strategos.llm.LlmErrors
 import com.drkkr.strategos.llm.LlmRequest
@@ -74,13 +75,17 @@ class AgentOrchestrator(
         ctxFactory: suspend (String) -> ToolContext, onActivity: (String) -> Unit
     ): TurnResult {
         val model = settings.model()
+        val toolList = tools().let { all ->
+            if (settings.uiMode() != UiMode.GUIDED) all
+            else JsonArray(all.filter { ((it as? JsonObject)?.get("name") as? JsonPrimitive)?.content in AgentConfig.GUIDED_TOOLS })
+        }
         val input = assembler.build(conversationId, scenarioId).toMutableList<JsonElement>()
         var toolChoice = "auto"
 
         for (round in 0..AgentConfig.MAX_TOOL_ROUNDS) {
             if (round == AgentConfig.MAX_TOOL_ROUNDS) toolChoice = "none"
             val r = llm.create(
-                LlmRequest(model, JsonArray(input), tools(), toolChoice, purpose = "TURN", conversationId = conversationId, turnId = turnId)
+                LlmRequest(model, JsonArray(input), toolList, toolChoice, purpose = "TURN", conversationId = conversationId, turnId = turnId)
             )
             if (r !is LlmResult.Ok) {
                 return fail(conversationId, turnId, LlmErrors.userMessage(r), retryable = r !is LlmResult.Unauthorized)

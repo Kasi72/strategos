@@ -1,8 +1,8 @@
 name: propose_changes
-description: Proposes a batch of model changes for the user to review. Nothing changes until the user applies them. New entities get a `ref` that later ops in the same batch can use. Returns real ids for accepted ops and reasons for rejected ones.
+description: Change the model. Guided mode applies at once; Expert mode waits for the user's review.
 input_schema:
   type: object
   properties:
-    summary: { type: string, description: "One line shown to the user, e.g. 'Add the regulator and the staff union'" }
-    ops: { type: array, minItems: 1, maxItems: 40, items: "@change_op" }
+    summary: { type: string }
+    ops: { type: array, items: "@change_op" }
   required: [summary, ops]

@@ -42,14 +42,17 @@ class ConversationSummarizerTest {
 
     @After fun tearDown() { db.close() }
 
-    /** Each message is ~1,000 tokens (4,000 ASCII bytes). */
+    /** Each message is [MSG_TOKENS] tokens, so the budget is exactly 10 messages and the target 5. */
     private suspend fun fill(n: Int) = repeat(n) { i ->
-        conversations.append(cid, "t", if (i % 2 == 0) MessageRole.USER else MessageRole.ASSISTANT, "m$i " + "x".repeat(3_996))
+        val prefix = "m${i.toString().padStart(2, '0')} "
+        conversations.append(cid, "t", if (i % 2 == 0) MessageRole.USER else MessageRole.ASSISTANT, prefix + "x".repeat(MSG_TOKENS * 4 - prefix.length))
     }
+
+    private companion object { val MSG_TOKENS = AgentConfig.HISTORY_TOKEN_BUDGET / 10 }
 
     @Test
     fun TC_SUM_01_underBudgetNoCall() = runBlocking {
-        fill(10)
+        fill(10)                                   // exactly the budget: not over it
         summarizer.maybeSummarize(cid)
         assertTrue(fake.requests.isEmpty())
     }
@@ -63,9 +66,10 @@ class ConversationSummarizerTest {
         assertNull(fake.requests.single().tools)
         val conv = conversations.get(cid)!!
         assertEquals("The user runs a clinic.", conv.rollingSummary)
-        assertEquals(18, conv.summarizedThroughSeq)   // 30k tokens → keep the newest 12k
+        val kept = AgentConfig.HISTORY_TOKEN_TARGET / MSG_TOKENS   // 3x the budget → keep the newest TARGET worth
+        assertEquals(30 - kept, conv.summarizedThroughSeq)
         val remaining = conversations.messages(cid).filter { it.seq > conv.summarizedThroughSeq }.size
-        assertTrue(remaining * 1_000 <= AgentConfig.HISTORY_TOKEN_TARGET)
+        assertTrue(remaining * MSG_TOKENS <= AgentConfig.HISTORY_TOKEN_TARGET)
     }
 
     @Test

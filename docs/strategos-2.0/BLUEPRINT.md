@@ -24,6 +24,22 @@
 > Names that say `Xai` in code (`XaiResponsesClient`, `putXaiKey`, `secret.xai_api_key`, `XaiLiveSpikeTest`, `TC_XAI_*`, env `XAI_API_KEY`) are kept to avoid churn. They mean "the configured LLM provider".
 > `AgentConfig.ECHO_STRATEGY = VERBATIM` and `CONTEXT_ROLE = "system"` are verified (spike S2, S3). CP1 is satisfied.
 
+> ## LEAN PROFILE (user decision, 2026-10-23). READ THIS AFTER THE PROVIDER OVERRIDE.
+> The Groq account allows **8,000 tokens per minute** (spike S8), and Groq reserves `max_output_tokens` up front. The full
+> design sent ~13k tokens per request, so every turn failed with 413. The user asked for a lightweight version that works on Groq.
+> This block beats §7.3–7.7, §10.1 and §10.3 where they conflict.
+>
+> | Area | Lean rule |
+> |---|---|
+> | Budget | One request ≲ 3,000 tokens including the reply reserve, so a 2–3 request turn fits in a minute. `LeanBudgetTest` enforces it. |
+> | `agent/SOUL.md`, `RULES.md`, skills | Rewritten compactly (same rules, same interview order). 9 skills kept as one-line summaries; no `allowed-tools`. The guided question script lives in RULES "Guided mode". |
+> | `agent/schemas/change_op.yaml` | Only the fields the interview needs; no descriptions or min/max (the validator enforces ranges). The Kotlin `ChangeOp` still accepts every field. |
+> | Tool descriptions | One line each. Same 10 tools and names. |
+> | Live context `scenario` | `LiveDigest` (compact, short ids) instead of `ScenarioDigest`. `get_scenario` still returns the full `ScenarioDigest`. |
+> | Live context `last_analysis` | One line of status, recommended action and AI share; the full digest stays in the RECOMMENDATION card. |
+> | Ids | Context and tool outputs use the first 8 characters of a UUID. Handlers expand a unique prefix back to the full id. |
+> | `AgentConfig` | `MAX_OUTPUT_TOKENS = 700`, `REASONING_EFFORT = "low"`, `HISTORY_TOKEN_BUDGET = 1_200`, `HISTORY_TOKEN_TARGET = 600`. |
+
 ---
 
 ## 0. Rules for the implementer

@@ -9,6 +9,7 @@ import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.data.repo.UiMode
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
 import com.drkkr.strategos.domain.agent.OpRejection
+import com.drkkr.strategos.domain.agent.ShortIds
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -23,8 +24,8 @@ import kotlinx.serialization.json.putJsonObject
 object ProposeChangesHandler : ToolHandler {
     override suspend fun handle(args: JsonObject, ctx: ToolContext): ToolOutcome {
         val summary = Args.requireString(args, "summary")
-        val ops = Args.ops(args, ChangeSetValidator.MAX_OPS)
         val scenario = ctx.gateway.activeScenario() ?: return ToolOutcome(Args.error("no_scenario"), ToolDispatcher.ERROR_LABEL)
+        val ops = ShortIds.expandOps(Args.ops(args, ChangeSetValidator.MAX_OPS), scenario)
 
         val pending = ctx.changeSets.pending(ctx.scenarioId)
         if (pending.size >= AgentConfig.MAX_PENDING_CHANGE_SETS) {
@@ -50,7 +51,7 @@ object ProposeChangesHandler : ToolHandler {
             val applied = buildJsonObject {
                 put("status", "applied")
                 put("applied_count", r.applied)
-                putJsonObject("ids") { v.refIds.forEach { (ref, id) -> put(ref, id) } }
+                putJsonObject("ids") { v.refIds.forEach { (ref, id) -> put(ref, ShortIds.short(id)) } }
                 put("skipped", buildJsonArray {
                     r.skipped.forEach { (i, reason) -> addJsonObject { put("index", v.accepted.getOrNull(i)?.index ?: i); put("reason", reason) } }
                     v.rejected.forEach { rej -> addJsonObject { put("index", rej.index); put("reason", rej.reason) } }
@@ -62,7 +63,7 @@ object ProposeChangesHandler : ToolHandler {
             put("status", "pending_user_review")
             put("change_set_id", entity.id)
             put("accepted_count", v.accepted.size)
-            putJsonObject("ids") { v.refIds.forEach { (ref, id) -> put(ref, id) } }
+            putJsonObject("ids") { v.refIds.forEach { (ref, id) -> put(ref, ShortIds.short(id)) } }
             put("rejected", rejections(v.rejected))
         }
         return ToolOutcome(out, "Proposed ${v.accepted.size} changes", UiKind.CHANGE_SET, refId = entity.id, endsTurn = true)

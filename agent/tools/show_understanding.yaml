@@ -1,7 +1,7 @@
 name: show_understanding
-description: Shows the user a plain-language recap of what you've understood so far, with "Looks right" and "Fix something" buttons. Write it as short bullets with no jargon. The app adds nothing to it.
+description: Show a plain recap (2-8 short bullets) with Looks right / Fix buttons. Ends your turn.
 input_schema:
   type: object
   properties:
-    bullets: { type: array, minItems: 2, maxItems: 8, items: { type: string, maxLength: 160 } }
+    bullets: { type: array, items: { type: string } }
   required: [bullets]

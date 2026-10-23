@@ -2,14 +2,12 @@
   {
     "type": "function",
     "name": "ask_user",
-    "description": "Shows up to 3 short questions as tappable cards. Ends your turn. The user's answer arrives as their next message.",
+    "description": "Show 1-3 short questions with tap options. Ends your turn.",
     "parameters": {
       "type": "object",
       "properties": {
         "questions": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 3,
           "items": {
             "type": "object",
             "properties": {
@@ -23,11 +21,7 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "maxItems": 4
-              },
-              "allow_free_text": {
-                "type": "boolean"
+                }
               }
             },
             "required": [
@@ -45,13 +39,12 @@
   {
     "type": "function",
     "name": "explain_framework",
-    "description": "Returns the findings, assumptions and explanation of one framework module from the most recent analysis.",
+    "description": "Explain one framework from the last analysis.",
     "parameters": {
       "type": "object",
       "properties": {
         "module_id": {
-          "type": "string",
-          "description": "e.g. pure-nash, stackelberg, minimax-regret"
+          "type": "string"
         }
       },
       "required": [
@@ -62,7 +55,7 @@
   {
     "type": "function",
     "name": "get_scenario",
-    "description": "Returns a compact JSON digest of the current decision model, including ids, players, influencers, actions, payoff coverage, missing profiles, constraints, beliefs and validity issues.",
+    "description": "Full model digest. The app context already has a short one.",
     "parameters": {
       "type": "object",
       "properties": {},
@@ -72,18 +65,15 @@
   {
     "type": "function",
     "name": "propose_changes",
-    "description": "Proposes a batch of model changes for the user to review. Nothing changes until the user applies them. New entities get a `ref` that later ops in the same batch can use. Returns real ids for accepted ops and reasons for rejected ones.",
+    "description": "Change the model. Guided mode applies at once; Expert mode waits for the user's review.",
     "parameters": {
       "type": "object",
       "properties": {
         "summary": {
-          "type": "string",
-          "description": "One line shown to the user, e.g. 'Add the regulator and the staff union'"
+          "type": "string"
         },
         "ops": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 40,
           "items": {
             "type": "object",
             "properties": {
@@ -104,40 +94,16 @@
                 ]
               },
               "ref": {
-                "type": "string",
-                "description": "handle for a NEW entity, [a-z0-9_]{2,40}, unique in this batch"
+                "type": "string"
               },
               "target_id": {
-                "type": "string",
-                "description": "id of an EXISTING entity for update_/remove_"
+                "type": "string"
               },
               "stakeholder": {
-                "type": "string",
-                "description": "existing stakeholder id OR a ref defined earlier in this batch"
+                "type": "string"
               },
               "name": {
                 "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
-              "stakeholder_type": {
-                "type": "string",
-                "enum": [
-                  "INDIVIDUAL",
-                  "DEPARTMENT",
-                  "INSTITUTION",
-                  "REGULATOR",
-                  "PUBLIC",
-                  "PATIENT_GROUP",
-                  "VENDOR",
-                  "MEDIA",
-                  "POLITICAL_ACTOR",
-                  "COMMITTEE",
-                  "UNION",
-                  "COMMUNITY",
-                  "OTHER"
-                ]
               },
               "game_role": {
                 "type": "string",
@@ -147,24 +113,12 @@
                 ]
               },
               "authority": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
+                "type": "integer"
               },
               "influence": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
-              },
-              "credibility": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
+                "type": "integer"
               },
               "can_veto": {
-                "type": "boolean"
-              },
-              "can_exit": {
                 "type": "boolean"
               },
               "can_delay": {
@@ -174,56 +128,19 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "maxItems": 5
+                }
               },
               "fears": {
                 "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "maxItems": 5
-              },
-              "incentives": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 5
+                }
               },
               "label": {
                 "type": "string"
               },
-              "description": {
-                "type": "string"
-              },
-              "reversible": {
-                "type": "boolean"
-              },
-              "legal_status": {
-                "type": "string",
-                "enum": [
-                  "PERMITTED",
-                  "RESTRICTED",
-                  "PROHIBITED",
-                  "UNCLEAR"
-                ]
-              },
-              "difficulty": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 5
-              },
-              "cost": {
-                "type": "number"
-              },
-              "time_cost_days": {
-                "type": "integer",
-                "minimum": 0
-              },
               "profile": {
                 "type": "array",
-                "description": "set_payoff: one pick per PLAYER",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -233,16 +150,11 @@
                     "action": {
                       "type": "string"
                     }
-                  },
-                  "required": [
-                    "stakeholder",
-                    "action"
-                  ]
+                  }
                 }
               },
               "values": {
                 "type": "array",
-                "description": "set_payoff: 0-10 per dimension; COST 10 = very costly",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -262,15 +174,9 @@
                       ]
                     },
                     "value": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 10
+                      "type": "number"
                     }
-                  },
-                  "required": [
-                    "dimension",
-                    "value"
-                  ]
+                  }
                 }
               },
               "constraint_kind": {
@@ -285,9 +191,7 @@
                 ]
               },
               "probability": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1
+                "type": "number"
               },
               "scenario_fields": {
                 "type": "object",
@@ -303,30 +207,11 @@
                   },
                   "stakes": {
                     "type": "string"
-                  },
-                  "time_horizon_label": {
-                    "type": "string"
-                  },
-                  "institution": {
-                    "type": "string"
-                  },
-                  "location": {
-                    "type": "string"
-                  },
-                  "repeated": {
-                    "type": "boolean"
-                  },
-                  "information_asymmetry": {
-                    "type": "boolean"
-                  },
-                  "zero_sum": {
-                    "type": "boolean"
                   }
                 }
               },
               "rationale": {
-                "type": "string",
-                "description": "why; shown to the user"
+                "type": "string"
               },
               "source": {
                 "type": "string",
@@ -336,8 +221,7 @@
                 ]
               },
               "quote": {
-                "type": "string",
-                "description": "required when source = user_stated: the user's exact words"
+                "type": "string"
               }
             },
             "required": [
@@ -356,7 +240,7 @@
   {
     "type": "function",
     "name": "run_analysis",
-    "description": "Runs the on-device engine (32 framework modules plus the recommendation engine) on the APPLIED model and returns a digest with the executive status, pathways, confidence, frameworks, disagreements, value-of-information items, risks and provenance.",
+    "description": "Run the on-device engine on the model and return its result.",
     "parameters": {
       "type": "object",
       "properties": {},
@@ -366,7 +250,7 @@
   {
     "type": "function",
     "name": "show_support",
-    "description": "Shows the app's support and crisis card (the clinician's contact details and local helplines configured in Settings). Use it whenever the user's safety, or someone else's, may be at risk.",
+    "description": "Show the support and crisis card. Use whenever someone's safety may be at risk.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -389,17 +273,14 @@
   {
     "type": "function",
     "name": "show_understanding",
-    "description": "Shows the user a plain-language recap of what you've understood so far, with \"Looks right\" and \"Fix something\" buttons. Write it as short bullets with no jargon. The app adds nothing to it.",
+    "description": "Show a plain recap (2-8 short bullets) with Looks right / Fix buttons. Ends your turn.",
     "parameters": {
       "type": "object",
       "properties": {
         "bullets": {
           "type": "array",
-          "minItems": 2,
-          "maxItems": 8,
           "items": {
-            "type": "string",
-            "maxLength": 160
+            "type": "string"
           }
         }
       },
@@ -411,15 +292,12 @@
   {
     "type": "function",
     "name": "stress_test_inferred",
-    "description": "Moves each AI-inferred payoff up and down by `perturbation` x 10 points, one at a time, re-runs the engine each time, and reports whether the recommendation flips.",
+    "description": "Check whether AI-estimated outcomes could flip the recommendation.",
     "parameters": {
       "type": "object",
       "properties": {
         "perturbation": {
-          "type": "number",
-          "minimum": 0.1,
-          "maximum": 0.5,
-          "description": "default 0.25"
+          "type": "number"
         }
       },
       "required": []
@@ -428,13 +306,12 @@
   {
     "type": "function",
     "name": "update_memory",
-    "description": "Stores or resolves memory items for this decision. They are sent back to you in the app context on later turns.",
+    "description": "Store facts (with the user's words in quote), open questions or preferences; resolve items by id.",
     "parameters": {
       "type": "object",
       "properties": {
         "add": {
           "type": "array",
-          "maxItems": 10,
           "items": {
             "type": "object",
             "properties": {
@@ -448,12 +325,10 @@
                 ]
               },
               "text": {
-                "type": "string",
-                "maxLength": 300
+                "type": "string"
               },
               "quote": {
-                "type": "string",
-                "description": "For FACT: the user's exact words"
+                "type": "string"
               }
             },
             "required": [
@@ -466,8 +341,7 @@
           "type": "array",
           "items": {
             "type": "string"
-          },
-          "description": "memory item ids"
+          }
         }
       },
       "required": []
@@ -476,18 +350,15 @@
   {
     "type": "function",
     "name": "what_if",
-    "description": "Applies hypothetical ops to a COPY of the model, runs the engine on it, and compares it with the current result. Does not change the model.",
+    "description": "Simulate changes on a copy and compare results. Changes nothing.",
     "parameters": {
       "type": "object",
       "properties": {
         "label": {
-          "type": "string",
-          "description": "e.g. 'Regulator exits'"
+          "type": "string"
         },
         "ops": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 20,
           "items": {
             "type": "object",
             "properties": {
@@ -508,40 +379,16 @@
                 ]
               },
               "ref": {
-                "type": "string",
-                "description": "handle for a NEW entity, [a-z0-9_]{2,40}, unique in this batch"
+                "type": "string"
               },
               "target_id": {
-                "type": "string",
-                "description": "id of an EXISTING entity for update_/remove_"
+                "type": "string"
               },
               "stakeholder": {
-                "type": "string",
-                "description": "existing stakeholder id OR a ref defined earlier in this batch"
+                "type": "string"
               },
               "name": {
                 "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
-              "stakeholder_type": {
-                "type": "string",
-                "enum": [
-                  "INDIVIDUAL",
-                  "DEPARTMENT",
-                  "INSTITUTION",
-                  "REGULATOR",
-                  "PUBLIC",
-                  "PATIENT_GROUP",
-                  "VENDOR",
-                  "MEDIA",
-                  "POLITICAL_ACTOR",
-                  "COMMITTEE",
-                  "UNION",
-                  "COMMUNITY",
-                  "OTHER"
-                ]
               },
               "game_role": {
                 "type": "string",
@@ -551,24 +398,12 @@
                 ]
               },
               "authority": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
+                "type": "integer"
               },
               "influence": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
-              },
-              "credibility": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 10
+                "type": "integer"
               },
               "can_veto": {
-                "type": "boolean"
-              },
-              "can_exit": {
                 "type": "boolean"
               },
               "can_delay": {
@@ -578,56 +413,19 @@
                 "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "maxItems": 5
+                }
               },
               "fears": {
                 "type": "array",
                 "items": {
                   "type": "string"
-                },
-                "maxItems": 5
-              },
-              "incentives": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "maxItems": 5
+                }
               },
               "label": {
                 "type": "string"
               },
-              "description": {
-                "type": "string"
-              },
-              "reversible": {
-                "type": "boolean"
-              },
-              "legal_status": {
-                "type": "string",
-                "enum": [
-                  "PERMITTED",
-                  "RESTRICTED",
-                  "PROHIBITED",
-                  "UNCLEAR"
-                ]
-              },
-              "difficulty": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 5
-              },
-              "cost": {
-                "type": "number"
-              },
-              "time_cost_days": {
-                "type": "integer",
-                "minimum": 0
-              },
               "profile": {
                 "type": "array",
-                "description": "set_payoff: one pick per PLAYER",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -637,16 +435,11 @@
                     "action": {
                       "type": "string"
                     }
-                  },
-                  "required": [
-                    "stakeholder",
-                    "action"
-                  ]
+                  }
                 }
               },
               "values": {
                 "type": "array",
-                "description": "set_payoff: 0-10 per dimension; COST 10 = very costly",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -666,15 +459,9 @@
                       ]
                     },
                     "value": {
-                      "type": "number",
-                      "minimum": 0,
-                      "maximum": 10
+                      "type": "number"
                     }
-                  },
-                  "required": [
-                    "dimension",
-                    "value"
-                  ]
+                  }
                 }
               },
               "constraint_kind": {
@@ -689,9 +476,7 @@
                 ]
               },
               "probability": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1
+                "type": "number"
               },
               "scenario_fields": {
                 "type": "object",
@@ -707,30 +492,11 @@
                   },
                   "stakes": {
                     "type": "string"
-                  },
-                  "time_horizon_label": {
-                    "type": "string"
-                  },
-                  "institution": {
-                    "type": "string"
-                  },
-                  "location": {
-                    "type": "string"
-                  },
-                  "repeated": {
-                    "type": "boolean"
-                  },
-                  "information_asymmetry": {
-                    "type": "boolean"
-                  },
-                  "zero_sum": {
-                    "type": "boolean"
                   }
                 }
               },
               "rationale": {
-                "type": "string",
-                "description": "why; shown to the user"
+                "type": "string"
               },
               "source": {
                 "type": "string",
@@ -740,8 +506,7 @@
                 ]
               },
               "quote": {
-                "type": "string",
-                "description": "required when source = user_stated: the user's exact words"
+                "type": "string"
               }
             },
             "required": [

@@ -12,10 +12,11 @@ object AgentConfig {
     val MODEL_OPTIONS = listOf("openai/gpt-oss-20b", "openai/gpt-oss-120b")
     const val MAX_TOOL_ROUNDS = 8
     const val MAX_TURN_MS = 120_000L
-    const val MAX_OUTPUT_TOKENS = 4_000
+    // LEAN PROFILE: Groq reserves max_output_tokens against the 8,000 tokens/minute limit, so keep it small.
+    const val MAX_OUTPUT_TOKENS = 700
     const val TEMPERATURE = 0.3
-    const val HISTORY_TOKEN_BUDGET = 24_000
-    const val HISTORY_TOKEN_TARGET = 12_000
+    const val HISTORY_TOKEN_BUDGET = 1_200
+    const val HISTORY_TOKEN_TARGET = 600
     const val MAX_PENDING_CHANGE_SETS = 2
     const val CONSENT_VERSION = 1
     const val ENGINE_VERSION = "2.0"
@@ -24,4 +25,10 @@ object AgentConfig {
 
     /** Spike S4 on Groq: `tool_choice:"none"` returns 400 tool_use_failed, so the client omits `tools` instead. */
     const val TOOL_CHOICE_NONE_SUPPORTED = false
+
+    /** LEAN PROFILE: gpt-oss reasoning effort; null leaves it to the provider's default. */
+    val REASONING_EFFORT: String? = "low"
+
+    /** LEAN PROFILE: Guided requests send only the tools the interview uses. Expert mode sends all of them. */
+    val GUIDED_TOOLS = setOf("propose_changes", "ask_user", "run_analysis", "update_memory", "show_understanding", "show_support")
 }

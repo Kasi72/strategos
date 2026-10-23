@@ -5,6 +5,7 @@ import com.drkkr.strategos.agent.EchoStrategy
 import com.drkkr.strategos.llm.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import androidx.test.core.app.ApplicationProvider
@@ -150,6 +151,23 @@ class XaiLiveSpikeTest {
             } catch (e: Exception) {
                 say("S7-$path", "FAIL", e.javaClass.simpleName)
             }
+        }
+    }
+
+    /** S8: the account's rate limits, read from Groq's x-ratelimit-* response headers on one tiny call. Prints numbers only. */
+    @Test
+    fun limits() = runBlocking {
+        Assume.assumeTrue("GROQ_API_KEY / XAI_API_KEY not set", !key.isNullOrBlank())
+        val body = buildJsonObject {
+            put("model", model); put("store", false); put("max_output_tokens", 50)
+            put("input", buildJsonArray { add(user("Reply OK.")) })
+        }.toString()
+        val req = Request.Builder().url("$base/responses").header("Authorization", "Bearer $key")
+            .post(okhttp3.RequestBody.create("application/json".toMediaType(), body)).build()
+        OkHttpClient().newCall(req).execute().use { resp ->
+            val limits = resp.headers.names().filter { it.lowercase().startsWith("x-ratelimit") }.sorted()
+                .joinToString(" ") { "$it=${resp.header(it)}" }
+            say("S8-limits", if (resp.isSuccessful) "PASS" else "FAIL", "status=${resp.code} $limits")
         }
     }
 

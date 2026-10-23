@@ -1,17 +1,8 @@
 name: update_memory
-description: Stores or resolves memory items for this decision. They are sent back to you in the app context on later turns.
+description: Store facts (with the user's words in quote), open questions or preferences; resolve items by id.
 input_schema:
   type: object
   properties:
-    add:
-      type: array
-      maxItems: 10
-      items:
-        type: object
-        properties:
-          kind: { type: string, enum: [FACT, OPEN_QUESTION, PREFERENCE, DECISION_NOTE] }
-          text: { type: string, maxLength: 300 }
-          quote: { type: string, description: "For FACT: the user's exact words" }
-        required: [kind, text]
-    resolve: { type: array, items: { type: string }, description: "memory item ids" }
+    add: { type: array, items: { type: object, properties: { kind: { type: string, enum: [FACT, OPEN_QUESTION, PREFERENCE, DECISION_NOTE] }, text: { type: string }, quote: { type: string } }, required: [kind, text] } }
+    resolve: { type: array, items: { type: string } }
   required: []

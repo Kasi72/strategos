@@ -117,6 +117,7 @@ class XaiResponsesClient(
         put("store", false)
         put("max_output_tokens", req.maxOutputTokens)
         put("temperature", req.temperature)
+        AgentConfig.REASONING_EFFORT?.let { effort -> put("reasoning", buildJsonObject { put("effort", effort) }) }
     }
 
     private class Attempt(val result: LlmResult, val status: Int, val errorCode: String?, val usage: LlmUsage, val unused: Unit?)
