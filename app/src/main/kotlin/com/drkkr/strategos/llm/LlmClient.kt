@@ -9,7 +9,11 @@ data class LlmRequest(
     val tools: JsonArray?,
     val toolChoice: String = "auto",
     val maxOutputTokens: Int = AgentConfig.MAX_OUTPUT_TOKENS,
-    val temperature: Double = AgentConfig.TEMPERATURE
+    val temperature: Double = AgentConfig.TEMPERATURE,
+    // BLUEPRINT-QUESTION: not in §9.1. Carried only so the client can write the llm_call row (ids and a purpose tag, never content).
+    val purpose: String = "TURN",
+    val conversationId: String? = null,
+    val turnId: String? = null
 )
 
 data class LlmUsage(val input: Int, val cached: Int, val output: Int, val reasoning: Int) {
