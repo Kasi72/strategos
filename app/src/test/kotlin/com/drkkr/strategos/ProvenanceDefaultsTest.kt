@@ -24,9 +24,16 @@ class ProvenanceDefaultsTest {
     @Test
     fun TC_PROV_02_roundTripIsEqual() {
         val original = Fx.pd().copy(
-            stakeholders = Fx.pd().stakeholders.map { it.copy(factStatus = FactStatus.AI_INFERRED, provenanceNote = "why") }
+            stakeholders = Fx.pd().stakeholders.map { it.copy(factStatus = FactStatus.AI_INFERRED, provenanceNote = "why", gameRole = GameRole.INFLUENCER) }
         )
         val decoded = json.decodeFromString<Scenario>(json.encodeToString(original))
         assertEquals(original, decoded)
+    }
+
+    @Test
+    fun players_excludesInfluencers() {
+        val s = Fx.pdWithInfluencer()
+        assertEquals(listOf("p1", "p2"), s.players().map { it.id })
+        assertEquals(3, s.stakeholders.size)
     }
 }

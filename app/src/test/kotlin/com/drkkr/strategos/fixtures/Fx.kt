@@ -32,6 +32,11 @@ object Fx {
         )
     }
 
+    /** [pd] plus an INFLUENCER "Media" (m1) with no actions. */
+    fun pdWithInfluencer(): Scenario = pd().let {
+        it.copy(stakeholders = it.stakeholders + Stakeholder(id = "m1", name = "Media", gameRole = GameRole.INFLUENCER))
+    }
+
     /** A 1.x scenario: no factStatus and no gameRole fields anywhere. */
     val v1ScenarioJson: String = """
         {

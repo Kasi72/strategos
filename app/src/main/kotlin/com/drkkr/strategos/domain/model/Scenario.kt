@@ -68,6 +68,9 @@ data class BehavioralAssumption(
 )
 
 @Serializable
+enum class GameRole { PLAYER, INFLUENCER }
+
+@Serializable
 data class Stakeholder(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -92,6 +95,7 @@ data class Stakeholder(
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
     val notes: String = "",
+    val gameRole: GameRole = GameRole.PLAYER,
     val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
     val provenanceNote: String = ""      // AI rationale or source quote
 )
@@ -205,6 +209,9 @@ data class Scenario(
     val attachments: List<ScenarioAttachment> = emptyList()
 ) {
     fun actionsFor(sid: String) = actions.filter { it.stakeholderId == sid }
+
+    /** Stakeholders who choose actions and appear in the payoff matrix. */
+    fun players(): List<Stakeholder> = stakeholders.filter { it.gameRole == GameRole.PLAYER }
 
     /** 0–100 model completeness score used by health card */
     fun completenessScore(): Int {
