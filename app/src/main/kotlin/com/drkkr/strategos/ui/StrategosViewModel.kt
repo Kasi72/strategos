@@ -106,7 +106,8 @@ data class UiState(
 
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = ScenarioRepository(app)
+    private val container = (app as com.drkkr.strategos.StrategosApplication).container
+    private val repo = ScenarioRepository(container.database, container.storageError)
     private val pipeline = AnalysisPipeline()
 
     private val _state = MutableStateFlow(UiState())
