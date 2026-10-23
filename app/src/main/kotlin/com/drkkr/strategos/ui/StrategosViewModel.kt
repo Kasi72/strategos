@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.drkkr.strategos.data.repo.SaveResult
-import com.drkkr.strategos.data.repo.ScenarioRepository
 import com.drkkr.strategos.data.storage.RecoverableRecord
 import com.drkkr.strategos.domain.framework.AnalysisResult
 import com.drkkr.strategos.domain.framework.DecisionReadinessResult
@@ -107,7 +106,7 @@ data class UiState(
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     private val container = (app as com.drkkr.strategos.StrategosApplication).container
-    private val repo = ScenarioRepository(container.database, container.storageError)
+    private val repo = container.scenarioRepository
     private val pipeline = AnalysisPipeline()
 
     private val _state = MutableStateFlow(UiState())
@@ -117,7 +116,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError) }
-        viewModelScope.launch { repo.load() }
+        viewModelScope.launch { container.prepareStorage(); repo.load() }
         viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
     }

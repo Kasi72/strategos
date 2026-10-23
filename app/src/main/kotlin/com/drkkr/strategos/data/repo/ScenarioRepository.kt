@@ -3,7 +3,6 @@ package com.drkkr.strategos.data.repo
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.withTransaction
 import com.drkkr.strategos.data.db.StrategosDatabase
-import com.drkkr.strategos.data.db.entities.RecoverableRecordEntity
 import com.drkkr.strategos.data.db.entities.ScenarioEntity
 import com.drkkr.strategos.data.db.entities.SnapshotEntity
 import com.drkkr.strategos.data.storage.RecoverableRecord
@@ -15,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 sealed class SaveResult {
     data class Success(val saved: Scenario) : SaveResult()
@@ -30,9 +28,7 @@ class ScenarioRepository(
 ) {
     val isStorageSecure: Boolean = db != null
 
-    // encodeDefaults: updatedAt/createdAt/timestamp default to "now". With encodeDefaults=false the encoder drops a value
-    // that equals the default evaluated at encode time (same millisecond), and decoding then re-evaluates "now".
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false; encodeDefaults = true }
+    private val json = ScenarioMapper.json
 
     private val _scenarios = MutableStateFlow<List<Scenario>>(emptyList())
     val scenarios: StateFlow<List<Scenario>> get() = _scenarios
@@ -55,13 +51,7 @@ class ScenarioRepository(
             if (stored != null && stored.version > scenario.version) {
                 SaveResult.Conflict(stored)
             } else {
-                database.scenarioDao().upsert(
-                    ScenarioEntity(
-                        id = updated.id, title = updated.title, lifecycleStage = updated.lifecycleStage.name,
-                        version = updated.version, createdAt = updated.createdAt, updatedAt = updated.updatedAt,
-                        json = json.encodeToString(updated)
-                    )
-                )
+                database.scenarioDao().upsert(ScenarioMapper.toEntity(updated))
                 SaveResult.Success(updated)
             }
         }
