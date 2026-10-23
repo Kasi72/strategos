@@ -41,6 +41,8 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 4.2 | done | 0 (pipeline; run by script) | build.mjs, package.json, package-lock.json, export-agent.sh; node_modules gitignored. CP2: `opengap validate` rejected snake_case names in agent.yaml `tools:` (pattern `^[a-z][a-z0-9-]*$`). User chose option 1: the `tools:` list is removed from agent.yaml (BLUEPRINT-QUESTION comment there); build.mjs reads tools/*.yaml directly and the snake_case names stay everywhere. Validate now passes with 12 warnings (tool YAML `name` pattern ×10, `ops.items: "@change_op"` not an object ×2). Output is reproducible (two runs, identical sha256). Skill descriptions quoted (`: ` broke the YAML frontmatter). |
 | 4.3 | done | 0 (wiring; full suite + assembleDebug green) | AgentAssets reads assets/agent/*; AppContainer.agentAssets (lazy). |
 | 4.4 | done | 5 (TC_ASSET_01-05) | Verified TC_ASSET_05 fails when tools.json is edited without re-exporting. BLUEPRINT-QUESTION: TC_ASSET_02's `== ToolDispatcher.names` assertion is deferred to 5.8, when ToolDispatcher exists. |
+| 5.1 | done | 3 (ChangeOpTest: snake_case parse, USER_HARD unparseable, describer) | ChangeOp mirrors change_op.yaml. `constraint_kind` uses OpConstraintKind (no USER_HARD), so I4 holds at parse time. `type` is non-null; `rationale` is nullable so a missing one gives `rationale_required` instead of failing the batch. ChangeOpDescriber.describe(op, scenario, batch) resolves refs by name. |
+| 5.2 | done | 20 (TC_VAL_01-13 + 7 extra rules) | Stateful workspace (roles, action owners, refIds, dims); `recheck()` reused by the applier. BLUEPRINT-QUESTIONs: (1) the 3-6 dimension count is enforced only when a batch establishes the set; if payoffs exist the set must match (templates use all 10 dims, so a literal reading would block every payoff on a template); (2) add_belief/add_assumption without text → `label_required`. Fx.loanFamily and Fx.pdAiPayoffs added. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -52,4 +54,4 @@ Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md
 
 Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests green (1 skipped = live spike), assembleDebug OK.
 
-Next step: Phase 5.1 (ChangeOp family + ChangeOpDescriber).
+Next step: Phase 5.3 (QuoteVerifier).

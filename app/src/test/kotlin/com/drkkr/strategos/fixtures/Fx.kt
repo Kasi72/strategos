@@ -37,6 +37,52 @@ object Fx {
         it.copy(stakeholders = it.stakeholders + Stakeholder(id = "m1", name = "Media", gameRole = GameRole.INFLUENCER))
     }
 
+    /** [pd] with the first [n] payoff entries set to AI_INFERRED. */
+    fun pdAiPayoffs(n: Int): Scenario = pd().let { s ->
+        s.copy(payoffs = s.payoffs.mapIndexed { i, p -> if (i < n) p.copy(factStatus = FactStatus.AI_INFERRED) else p })
+    }
+
+    /**
+     * Guided example: "You" and "Brother" are players; "Wife" (can veto) and "Parents" are influencers.
+     * Dimensions WELLBEING, RELATIONSHIPS, COST; full 3x3 payoffs for both players, all USER_ESTIMATE.
+     */
+    fun loanFamily(): Scenario {
+        val mine = listOf("cosign", "give", "wait")
+        val his = listOf("accept", "refuse", "askp")
+        val payoffs = buildList {
+            mine.forEachIndexed { i, a ->
+                his.forEachIndexed { j, b ->
+                    val profile = mapOf("you" to a, "bro" to b)
+                    add(PayoffEntry("you", profile, MultiPayoff(mapOf(
+                        PayoffDimension.WELLBEING to (3.0 + i + j), PayoffDimension.RELATIONSHIPS to (6.0 - j), PayoffDimension.COST to (8.0 - 3 * i)))))
+                    add(PayoffEntry("bro", profile, MultiPayoff(mapOf(
+                        PayoffDimension.WELLBEING to (8.0 - 2 * i - j), PayoffDimension.RELATIONSHIPS to (5.0 + i - j), PayoffDimension.COST to (2.0 + j)))))
+                }
+            }
+        }
+        return Scenario(
+            id = "loan", title = "Loan for my brother", decisionOwner = "You",
+            description = "My brother wants me to co-sign a large loan and my wife is against it.",
+            stakes = "Family peace and our savings",
+            stakeholders = listOf(
+                Stakeholder(id = "you", name = "You"),
+                Stakeholder(id = "bro", name = "Brother"),
+                Stakeholder(id = "wife", name = "Wife", gameRole = GameRole.INFLUENCER, canVeto = true),
+                Stakeholder(id = "parents", name = "Parents", gameRole = GameRole.INFLUENCER)
+            ),
+            actions = listOf(
+                Action(id = "cosign", stakeholderId = "you", label = "Co-sign"),
+                Action(id = "give", stakeholderId = "you", label = "Give a fixed amount"),
+                Action(id = "wait", stakeholderId = "you", label = "Wait"),
+                Action(id = "accept", stakeholderId = "bro", label = "Accept"),
+                Action(id = "refuse", stakeholderId = "bro", label = "Refuse"),
+                Action(id = "askp", stakeholderId = "bro", label = "Ask parents")
+            ),
+            payoffs = payoffs,
+            constraints = listOf(Constraint(id = "peace", label = "Don't risk peace at home", kind = Constraint.Kind.ETHICAL))
+        )
+    }
+
     /** A 1.x scenario: no factStatus and no gameRole fields anywhere. */
     val v1ScenarioJson: String = """
         {
