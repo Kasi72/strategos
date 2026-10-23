@@ -1,0 +1,53 @@
+type: object
+properties:
+  type: { type: string, enum: [set_scenario_fields, add_stakeholder, update_stakeholder, remove_stakeholder, add_action, update_action, remove_action, set_payoff, add_constraint, add_belief, add_assumption] }
+  ref: { type: string, description: "handle for a NEW entity, [a-z0-9_]{2,40}, unique in this batch" }
+  target_id: { type: string, description: "id of an EXISTING entity for update_/remove_" }
+  stakeholder: { type: string, description: "existing stakeholder id OR a ref defined earlier in this batch" }
+  name: { type: string }
+  role: { type: string }
+  stakeholder_type: { type: string, enum: [INDIVIDUAL, DEPARTMENT, INSTITUTION, REGULATOR, PUBLIC, PATIENT_GROUP, VENDOR, MEDIA, POLITICAL_ACTOR, COMMITTEE, UNION, COMMUNITY, OTHER] }
+  game_role: { type: string, enum: [PLAYER, INFLUENCER] }
+  authority: { type: integer, minimum: 0, maximum: 10 }
+  influence: { type: integer, minimum: 0, maximum: 10 }
+  credibility: { type: integer, minimum: 0, maximum: 10 }
+  can_veto: { type: boolean }
+  can_exit: { type: boolean }
+  can_delay: { type: boolean }
+  goals: { type: array, items: { type: string }, maxItems: 5 }
+  fears: { type: array, items: { type: string }, maxItems: 5 }
+  incentives: { type: array, items: { type: string }, maxItems: 5 }
+  label: { type: string }
+  description: { type: string }
+  reversible: { type: boolean }
+  legal_status: { type: string, enum: [PERMITTED, RESTRICTED, PROHIBITED, UNCLEAR] }
+  difficulty: { type: integer, minimum: 1, maximum: 5 }
+  cost: { type: number }
+  time_cost_days: { type: integer, minimum: 0 }
+  profile:
+    type: array
+    description: "set_payoff: one pick per PLAYER"
+    items: { type: object, properties: { stakeholder: { type: string }, action: { type: string } }, required: [stakeholder, action] }
+  values:
+    type: array
+    description: "set_payoff: 0-10 per dimension; COST 10 = very costly"
+    items: { type: object, properties: { dimension: { type: string, enum: [SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE] }, value: { type: number, minimum: 0, maximum: 10 } }, required: [dimension, value] }
+  constraint_kind: { type: string, enum: [LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL, RESOURCE] }
+  probability: { type: number, minimum: 0, maximum: 1 }
+  scenario_fields:
+    type: object
+    properties:
+      title: { type: string }
+      description: { type: string }
+      decision_owner: { type: string }
+      stakes: { type: string }
+      time_horizon_label: { type: string }
+      institution: { type: string }
+      location: { type: string }
+      repeated: { type: boolean }
+      information_asymmetry: { type: boolean }
+      zero_sum: { type: boolean }
+  rationale: { type: string, description: "why; shown to the user" }
+  source: { type: string, enum: [ai_inferred, user_stated] }
+  quote: { type: string, description: "required when source = user_stated: the user's exact words" }
+required: [type, rationale]

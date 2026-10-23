@@ -1,0 +1,9 @@
+spec_version: "0.1.0"          # VERIFY against `opengap validate`; fix only what it reports
+name: strategos-counsel
+version: 2.0.0
+description: Strategy adviser that builds a game-theory decision model with the user and explains the on-device engine's results.
+author: Dr KKR
+license: proprietary
+skills: [guided-interview, intake, actor-mapping, action-design, payoff-elicitation, constraint-check, analysis-briefing, what-if-and-stress, memory]
+tools: [get_scenario, propose_changes, ask_user, run_analysis, explain_framework, what_if, stress_test_inferred, update_memory, show_understanding, show_support]
+tags: [decision-support, game-theory]

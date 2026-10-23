@@ -1,0 +1,6 @@
+name: explain_framework
+description: Returns the findings, assumptions and explanation of one framework module from the most recent analysis.
+input_schema:
+  type: object
+  properties: { module_id: { type: string, description: "e.g. pure-nash, stackelberg, minimax-regret" } }
+  required: [module_id]

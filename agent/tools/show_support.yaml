@@ -1,0 +1,6 @@
+name: show_support
+description: Shows the app's support and crisis card (the clinician's contact details and local helplines configured in Settings). Use it whenever the user's safety, or someone else's, may be at risk.
+input_schema:
+  type: object
+  properties: { reason: { type: string, enum: [self_harm, harm_to_others, abuse, immediate_danger, distress] } }
+  required: [reason]

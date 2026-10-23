@@ -1,0 +1,6 @@
+name: stress_test_inferred
+description: Moves each AI-inferred payoff up and down by `perturbation` x 10 points, one at a time, re-runs the engine each time, and reports whether the recommendation flips.
+input_schema:
+  type: object
+  properties: { perturbation: { type: number, minimum: 0.1, maximum: 0.5, description: "default 0.25" } }
+  required: []

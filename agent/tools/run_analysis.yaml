@@ -1,0 +1,3 @@
+name: run_analysis
+description: Runs the on-device engine (32 framework modules plus the recommendation engine) on the APPLIED model and returns a digest with the executive status, pathways, confidence, frameworks, disagreements, value-of-information items, risks and provenance.
+input_schema: { type: object, properties: {}, required: [] }

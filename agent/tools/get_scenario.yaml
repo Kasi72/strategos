@@ -1,0 +1,3 @@
+name: get_scenario
+description: Returns a compact JSON digest of the current decision model, including ids, players, influencers, actions, payoff coverage, missing profiles, constraints, beliefs and validity issues.
+input_schema: { type: object, properties: {}, required: [] }
