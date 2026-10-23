@@ -1,6 +1,13 @@
 package com.drkkr.strategos.agent
 
 import com.drkkr.strategos.data.db.dao.WhatIfDao
+import kotlinx.coroutines.flow.first
+import com.drkkr.strategos.domain.model.ChangeRecord
+import com.drkkr.strategos.domain.agent.SafetyKeywordScreen
+import com.drkkr.strategos.domain.agent.Decision
+import com.drkkr.strategos.domain.agent.ApplyResult
+import com.drkkr.strategos.data.repo.UiKind
+import com.drkkr.strategos.data.db.entities.ChangeSetEntity
 import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ChangeSetStatus
 import com.drkkr.strategos.data.repo.ConversationRepository
@@ -83,6 +90,7 @@ class CounselController(
     private var scenarioId: String? = null
     private var observeJob: Job? = null
     private var turnJob: Job? = null
+    private val undoStack = ArrayDeque<Scenario>()
 
     fun bindScenario(scenarioId: String?): Job = scope.launch {
         observeJob?.cancel()
@@ -125,11 +133,45 @@ class CounselController(
         }
     }
 
-    /** No-op if blank, a turn is running, or AI isn't ready (I7: no network call when AI is off). */
+    /**
+     * Screens the text for crisis phrases first (§17.4: the card shows even offline or with AI off), then sends.
+     * Sending is a no-op if blank, a turn is running, or AI isn't ready (I7: no network call when AI is off).
+     */
     fun send(text: String): Job? {
-        if (text.isBlank() || turnJob?.isActive == true) return null
+        if (text.isBlank()) return null
+        if (SafetyKeywordScreen.check(text)) {
+            _state.update { it.copy(supportVisible = true) }
+            scope.launch { _state.update { it.copy(supportText = deps.settings.supportText()) } }
+        }
+        if (turnJob?.isActive == true) return null
         return startTurn(TurnTrigger.User(text.trim()))
     }
+
+    fun dismissSupport() = _state.update { it.copy(supportVisible = false) }
+
+    /** "Looks right" on a recap (§17.3): confirms what was added since the previous recap, then tells the agent. */
+    fun confirmUnderstanding(): Job = scope.launch {
+        promoteSinceLastRecap()
+        send(LOOKS_RIGHT)?.join()
+    }
+
+    fun fixSomething(text: String): Job? = send("$NOT_RIGHT_PREFIX$text")
+
+    /** Restores the scenario from before the last applied change set (kept in memory, last 5). */
+    fun undoLastChange(): Job = scope.launch {
+        val previous = undoStack.removeLastOrNull() ?: return@launch
+        val current = gateway.activeScenario()?.takeIf { it.id == previous.id } ?: return@launch
+        val record = ChangeRecord(
+            changedBy = "user", summary = "Undid the last AI change", previousVersion = current.version,
+            previousLifecycleStage = current.lifecycleStage, reason = "Undo"
+        )
+        val restored = previous.copy(version = current.version, changeHistory = current.changeHistory + record)
+        if (gateway.commitAgentChange(restored) !is SaveResult.Success) {
+            _state.update { it.copy(error = "Couldn't undo. The model was not changed.") }
+        }
+    }
+
+    val canUndo: Boolean get() = undoStack.isNotEmpty()
 
     fun answerQuestion(questionId: String, questionText: String, option: String): Job? = send("Re: $questionText → $option")
 
@@ -173,12 +215,24 @@ class CounselController(
     private suspend fun toolContext(cid: String, sid: String, turnId: String) = ToolContext(
         conversationId = cid, turnId = turnId, scenarioId = sid, gateway = gateway, pipeline = deps.pipeline,
         conversations = deps.conversations, changeSets = deps.changeSets, memory = deps.memory, whatIfs = deps.whatIfs,
-        userTexts = deps.conversations.userTexts(cid)
+        userTexts = deps.conversations.userTexts(cid),
+        uiMode = deps.settings.uiMode(),
+        autoApply = ::autoApply
     )
 
-    fun applyChangeSet(id: String, decisions: List<OpDecision>): Job = scope.launch {
-        val cs = deps.changeSets.get(id)?.takeIf { it.status == ChangeSetStatus.PENDING.name } ?: return@launch
-        val scenario = gateway.activeScenario()?.takeIf { it.id == cs.scenarioId } ?: return@launch
+    /**
+     * Guided mode (§17.3): the same path as [applyChangeSet] with every op accepted, but no EVENT and no auto-continue,
+     * because the agent is still mid-turn. Returns null when the change couldn't be saved.
+     */
+    suspend fun autoApply(changeSetId: String): ApplyResult? {
+        val cs = deps.changeSets.get(changeSetId)?.takeIf { it.status == ChangeSetStatus.PENDING.name } ?: return null
+        val ops = MessageMapper.decodeOps(cs.opsJson)
+        return applyInternal(cs, ops.indices.map { OpDecision(it, Decision.ACCEPT) })?.first
+    }
+
+    /** Applies, commits and marks the set decided. Returns the result and the saved scenario, or null on failure. */
+    private suspend fun applyInternal(cs: ChangeSetEntity, decisions: List<OpDecision>): Pair<ApplyResult, Scenario>? {
+        val scenario = gateway.activeScenario()?.takeIf { it.id == cs.scenarioId } ?: return null
         val ops = MessageMapper.decodeOps(cs.opsJson)
         val refIds = runCatching { Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), cs.refIdsJson) }.getOrDefault(emptyMap())
         val userTexts = deps.conversations.userTexts(cs.conversationId)
@@ -186,23 +240,59 @@ class CounselController(
         val result = withContext(Dispatchers.Default) { ChangeSetApplier.apply(scenario, ops, decisions, refIds, userTexts, cs.summary) }
         val saved = when (val commit = gateway.commitAgentChange(result.scenario)) {
             is SaveResult.Success -> commit.saved
-            is SaveResult.Conflict -> return@launch _state.update { it.copy(error = "The model changed elsewhere. Reload it and review the changes again.") }
-            SaveResult.StorageUnavailable -> return@launch _state.update { it.copy(error = "Storage unavailable. The changes were not applied.") }
+            is SaveResult.Conflict -> {
+                _state.update { it.copy(error = "The model changed elsewhere. Reload it and review the changes again.") }
+                return null
+            }
+            SaveResult.StorageUnavailable -> {
+                _state.update { it.copy(error = "Storage unavailable. The changes were not applied.") }
+                return null
+            }
         }
-
+        if (result.applied > 0) {
+            undoStack.addLast(scenario)
+            while (undoStack.size > MAX_UNDO) undoStack.removeFirst()
+        }
         val status = when {
             result.applied == ops.size -> ChangeSetStatus.APPLIED
             result.applied > 0 -> ChangeSetStatus.PARTIAL
             else -> ChangeSetStatus.REJECTED
         }
-        val skipped = result.skipped.joinToString("; ") { (i, reason) ->
-            val text = ops.getOrNull(i)?.let { ChangeOpDescriber.describe(it, scenario, ops) } ?: "change ${i + 1}"
-            "$text ($reason)"
-        }.ifEmpty { "none" }
         deps.changeSets.markDecided(
-            id, status, decisionsJson(decisions),
+            cs.id, status, decisionsJson(decisions),
             Json.encodeToString(ListSerializer(String.serializer()), result.skipped.map { "${it.first}:${it.second}" }), saved.version
         )
+        return result to saved
+    }
+
+    /** AI_INFERRED stakeholders, actions and constraints created since the previous recap become USER_ESTIMATE. Payoffs stay. */
+    private suspend fun promoteSinceLastRecap() {
+        val cid = _state.value.conversationId ?: return
+        val scenario = gateway.activeScenario() ?: return
+        val recaps = deps.conversations.messages(cid).filter { it.uiKind == UiKind.UNDERSTANDING.name }
+        val since = recaps.dropLast(1).lastOrNull()?.createdAt ?: 0L
+        val created = deps.changeSets.observe(cid).first()
+            .filter { (it.decidedAt ?: 0L) > since && (it.status == ChangeSetStatus.APPLIED.name || it.status == ChangeSetStatus.PARTIAL.name) }
+            .flatMap { cs -> runCatching { Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), cs.refIdsJson).values }.getOrDefault(emptyList()) }
+            .toSet()
+        fun FactStatus.promoted(id: String) = if (this == FactStatus.AI_INFERRED && id in created) FactStatus.USER_ESTIMATE else this
+        val updated = scenario.copy(
+            stakeholders = scenario.stakeholders.map { it.copy(factStatus = it.factStatus.promoted(it.id)) },
+            actions = scenario.actions.map { it.copy(factStatus = it.factStatus.promoted(it.id)) },
+            constraints = scenario.constraints.map { it.copy(factStatus = it.factStatus.promoted(it.id)) }
+        )
+        if (updated != scenario) gateway.commitAgentChange(updated)
+    }
+
+    fun applyChangeSet(id: String, decisions: List<OpDecision>): Job = scope.launch {
+        val cs = deps.changeSets.get(id)?.takeIf { it.status == ChangeSetStatus.PENDING.name } ?: return@launch
+        val before = gateway.activeScenario() ?: return@launch
+        val ops = MessageMapper.decodeOps(cs.opsJson)
+        val (result, saved) = applyInternal(cs, decisions) ?: return@launch
+        val skipped = result.skipped.joinToString("; ") { (i, reason) ->
+            val text = ops.getOrNull(i)?.let { ChangeOpDescriber.describe(it, before, ops) } ?: "change ${i + 1}"
+            "$text ($reason)"
+        }.ifEmpty { "none" }
         reportDecision(
             cs.conversationId,
             "User applied ${result.applied} of ${ops.size} proposed changes (\"${cs.summary}\"). " +
@@ -246,6 +336,12 @@ class CounselController(
             baseScenarioVersion = scenario.version
         )
         deps.whatIfs.update(w.copy(promotedChangeSetId = cs.id))
+    }
+
+    companion object {
+        const val LOOKS_RIGHT = "Looks right"
+        const val NOT_RIGHT_PREFIX = "Something's not right: "
+        private const val MAX_UNDO = 5
     }
 
     private fun decisionsJson(decisions: List<OpDecision>) =

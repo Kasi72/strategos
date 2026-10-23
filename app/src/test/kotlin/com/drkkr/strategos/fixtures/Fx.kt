@@ -69,10 +69,10 @@ object Fx {
             description = "My brother wants me to co-sign a large loan and my wife is against it.",
             stakes = "Family peace and our savings",
             stakeholders = listOf(
-                Stakeholder(id = "you", name = "You"),
-                Stakeholder(id = "bro", name = "Brother"),
-                Stakeholder(id = "wife", name = "Wife", gameRole = GameRole.INFLUENCER, canVeto = true),
-                Stakeholder(id = "parents", name = "Parents", gameRole = GameRole.INFLUENCER)
+                Stakeholder(id = "you", name = "You", authority = 8, goals = listOf("Help without risking our savings")),
+                Stakeholder(id = "bro", name = "Brother", influence = 6, goals = listOf("Get the loan"), fears = listOf("Losing face")),
+                Stakeholder(id = "wife", name = "Wife", gameRole = GameRole.INFLUENCER, canVeto = true, fears = listOf("Debt")),
+                Stakeholder(id = "parents", name = "Parents", gameRole = GameRole.INFLUENCER, influence = 4, goals = listOf("Keep the family together"))
             ),
             actions = listOf(
                 Action(id = "cosign", stakeholderId = "you", label = "Co-sign"),

@@ -8,7 +8,9 @@ data class CounselUiState(
     val aiReady: Boolean = false, val needsConsent: Boolean = false, val hasKey: Boolean = false,
     val conversationId: String? = null, val items: List<ChatItem> = emptyList(),
     val running: Boolean = false, val activity: String? = null, val error: String? = null, val canRetry: Boolean = false,
-    val memory: List<MemoryItemUi> = emptyList(), val strip: LiveModelStripUi? = null
+    val memory: List<MemoryItemUi> = emptyList(), val strip: LiveModelStripUi? = null,
+    // §17.4: shown by SafetyKeywordScreen before any LLM call, or by the show_support tool (as a chat item)
+    val supportVisible: Boolean = false, val supportText: String = ""
 )
 
 sealed class ChatItem {

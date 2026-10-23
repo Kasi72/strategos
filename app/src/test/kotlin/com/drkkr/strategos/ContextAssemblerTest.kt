@@ -11,6 +11,8 @@ import com.drkkr.strategos.data.repo.MemoryKind
 import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.UiMode
+import kotlinx.serialization.json.jsonArray
 import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.fixtures.Fx
@@ -119,5 +121,19 @@ class ContextAssemblerTest {
         assertTrue(after.getValue("scenario_changed_since_last_turn").jsonPrimitive.boolean)
         assertEquals("2026-10-23", after.getValue("now").jsonPrimitive.content)
         assertEquals("guided", after.getValue("ui_mode").jsonPrimitive.content)
+    }
+
+    @Test
+    fun TC_CTX_05_guidedIntakeGaps() = runBlocking {
+        settings.setUiMode(UiMode.GUIDED)
+        scenario = Fx.loanFamily().copy(constraints = emptyList())
+        conversations.append(cid, "t", MessageRole.USER, "hi")
+        val ctx = live(assembler.build(cid, "pd"))
+        assertEquals("guided", ctx.getValue("ui_mode").jsonPrimitive.content)
+        val ids = ctx.getValue("intake_gaps").jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content }
+        assertTrue(ids.contains("limits"))
+        memory.add("pd", MemoryKind.FACT, "No limits mentioned (limits_none)", FactStatus.AI_INFERRED)
+        val after = live(assembler.build(cid, "pd")).getValue("intake_gaps").jsonArray
+        assertTrue(after.isEmpty())
     }
 }

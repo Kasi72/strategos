@@ -16,6 +16,8 @@ import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.UiKind
+import com.drkkr.strategos.data.repo.UiMode
+import com.drkkr.strategos.domain.agent.ApplyResult
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
 import com.drkkr.strategos.domain.analysis.PipelineResult
 import com.drkkr.strategos.domain.framework.AnalysisResult
@@ -46,7 +48,10 @@ data class ToolContext(
     val gateway: ScenarioGateway, val pipeline: AnalysisPipeline,
     val conversations: ConversationRepository, val changeSets: ChangeSetRepository,
     val memory: MemoryRepository, val whatIfs: WhatIfDao,
-    val userTexts: List<String>             // all USER messages incl. the current one
+    val userTexts: List<String>,            // all USER messages incl. the current one
+    // §17.3: in Guided mode propose_changes applies at once through this hook (CounselController.autoApply).
+    val uiMode: UiMode = UiMode.EXPERT,
+    val autoApply: (suspend (changeSetId: String) -> ApplyResult?)? = null
 )
 
 /** Thrown by a handler when its arguments don't fit the tool contract. */

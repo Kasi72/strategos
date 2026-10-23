@@ -6,6 +6,7 @@ import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
 import com.drkkr.strategos.data.repo.UiKind
+import com.drkkr.strategos.data.repo.UiMode
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
 import com.drkkr.strategos.domain.agent.OpRejection
 import kotlinx.serialization.json.Json
@@ -42,6 +43,21 @@ object ProposeChangesHandler : ToolHandler {
             scenarioId = ctx.scenarioId, conversationId = ctx.conversationId, summary = summary,
             opsJson = Args.encodeOps(v.accepted.map { it.op }), refIdsJson = refIdsJson, baseScenarioVersion = scenario.version
         )
+        val autoApply = ctx.autoApply
+        if (ctx.uiMode == UiMode.GUIDED && autoApply != null) {
+            val r = autoApply(entity.id)
+                ?: return ToolOutcome(Args.error("apply_failed"), ToolDispatcher.ERROR_LABEL)
+            val applied = buildJsonObject {
+                put("status", "applied")
+                put("applied_count", r.applied)
+                putJsonObject("ids") { v.refIds.forEach { (ref, id) -> put(ref, id) } }
+                put("skipped", buildJsonArray {
+                    r.skipped.forEach { (i, reason) -> addJsonObject { put("index", v.accepted.getOrNull(i)?.index ?: i); put("reason", reason) } }
+                    v.rejected.forEach { rej -> addJsonObject { put("index", rej.index); put("reason", rej.reason) } }
+                })
+            }
+            return ToolOutcome(applied, "Saved ${r.applied} changes")
+        }
         val out = buildJsonObject {
             put("status", "pending_user_review")
             put("change_set_id", entity.id)
