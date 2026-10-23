@@ -1,6 +1,6 @@
 ---
 name: actor-mapping
-description: Decide who the players and influencers are, and suggest the actors people forget.
+description: "Decide who the players and influencers are, and suggest the actors people forget."
 allowed-tools: propose_changes ask_user
 ---
 

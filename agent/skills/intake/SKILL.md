@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Understand a new situation: restate it, find the decision owner, the stakes and the time horizon.
+description: "Understand a new situation: restate it, find the decision owner, the stakes and the time horizon."
 allowed-tools: get_scenario propose_changes ask_user update_memory
 ---
 

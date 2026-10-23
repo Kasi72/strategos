@@ -26,3 +26,6 @@ nul
 .env
 .env.*
 !.env.example
+
+# Agent build tooling
+scripts/agent-build/node_modules/

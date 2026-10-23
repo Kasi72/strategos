@@ -1,6 +1,6 @@
 ---
 name: guided-interview
-description: Interview a lay user in plain words, one question at a time, and build the decision model from their answers.
+description: "Interview a lay user in plain words, one question at a time, and build the decision model from their answers."
 allowed-tools: get_scenario propose_changes ask_user show_understanding run_analysis stress_test_inferred update_memory show_support
 ---
 

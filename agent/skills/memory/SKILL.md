@@ -1,6 +1,6 @@
 ---
 name: memory
-description: Keep track of what the user said, open questions and how they like to work.
+description: "Keep track of what the user said, open questions and how they like to work."
 allowed-tools: update_memory
 ---
 

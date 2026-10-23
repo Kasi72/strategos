@@ -5,5 +5,5 @@ description: Strategy adviser that builds a game-theory decision model with the 
 author: Dr KKR
 license: proprietary
 skills: [guided-interview, intake, actor-mapping, action-design, payoff-elicitation, constraint-check, analysis-briefing, what-if-and-stress, memory]
-tools: [get_scenario, propose_changes, ask_user, run_analysis, explain_framework, what_if, stress_test_inferred, update_memory, show_understanding, show_support]
 tags: [decision-support, game-theory]
+# BLUEPRINT-QUESTION: `tools:` list removed (user decision at CP2). OpenGAP requires ^[a-z][a-z0-9-]*$ there, the tool names are snake_case; build.mjs reads tools/*.yaml directly.

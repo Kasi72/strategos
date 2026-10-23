@@ -1,6 +1,6 @@
 ---
 name: what-if-and-stress
-description: Answer hypotheticals and test fragile estimates with the engine, never from intuition.
+description: "Answer hypotheticals and test fragile estimates with the engine, never from intuition."
 allowed-tools: what_if stress_test_inferred propose_changes
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: analysis-briefing
-description: Run the engine at the right time and explain its result in the required format.
+description: "Run the engine at the right time and explain its result in the required format."
 allowed-tools: run_analysis explain_framework stress_test_inferred
 ---
 

@@ -1,0 +1,2 @@
+{ "name": "strategos-agent-build", "private": true, "type": "module",
+  "dependencies": { "@open-gitagent/opengap": "0.5.0", "js-yaml": "4.1.0" } }

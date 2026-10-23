@@ -1,6 +1,6 @@
 ---
 name: constraint-check
-description: Elicit the legal, ethical and safety limits without judging them.
+description: "Elicit the legal, ethical and safety limits without judging them."
 allowed-tools: propose_changes ask_user
 ---
 

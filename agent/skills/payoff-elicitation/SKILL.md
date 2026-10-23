@@ -1,6 +1,6 @@
 ---
 name: payoff-elicitation
-description: Fill the payoff matrix one player at a time and have the user anchor the least certain cells.
+description: "Fill the payoff matrix one player at a time and have the user anchor the least certain cells."
 allowed-tools: get_scenario propose_changes ask_user
 ---
 

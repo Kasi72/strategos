@@ -1,6 +1,6 @@
 ---
 name: action-design
-description: Give each player 2-3 concrete actions, including the status quo.
+description: "Give each player 2-3 concrete actions, including the status quo."
 allowed-tools: propose_changes
 ---
 
