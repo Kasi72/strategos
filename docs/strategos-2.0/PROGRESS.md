@@ -31,6 +31,7 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 2.4 | done | 7 (TC_DB_03/04/05 + delete, snapshots, orphan snapshot, null db) | ScenarioRepository now Room-backed (db, storageError); ViewModel gets db from AppContainer. save() builds the updated scenario outside the transaction (first run returned a different updatedAt than the stored one). BLUEPRINT-QUESTION: saveSnapshot skips when the scenario row doesn't exist yet (FK); analyze() saves the snapshot before the scenario for never-saved scenarios. |
 | 2.5 | done | 7 (TC_DB_02 + conversation, memory, change set, settings) | AgentConfig (§10.1) created now because SettingsRepository needs DEFAULT_MODEL/CONSENT_VERSION; enums MessageRole, UiKind (incl. UNDERSTANDING, SUPPORT from §17.4), ChangeSetStatus, MemoryKind, UiMode in RepoModels.kt. Snapshots now carry engineVersion = AgentConfig.ENGINE_VERSION (§4.3). FOUND A REAL BUG: with `encodeDefaults=false` kotlinx.serialization drops `updatedAt`/`createdAt`/`timestamp` when the value equals "now" at encode time (same ms), and decoding re-evaluates the default. Caused a flaky TC_DB_04 (stored time 1ms off). ScenarioRepository now encodes with `encodeDefaults=true`. The legacy ScenarioStorage and the ViewModel `snapshotJson` still have the same latent issue (1.x behaviour, not touched). |
 | 2.6 | done | 4 (TC_MIG_01/02/03 + missing store) | LegacyStorageMigrator + LegacySource; ScenarioMapper is the single Scenario->row mapper. AppContainer.prepareStorage() runs it once (Mutex) before load(); the legacy factory returns null when shared_prefs/strategos_scenarios.xml is absent so a fresh install never creates a 1.x master key. Legacy store is kept. |
+| 3.1 | done | 7 (TC_XAI_03/04/05 + usage, functionCallOutput, PriceTable) | LlmClient/DTOs, OutputItems, PriceTable. BLUEPRINT-QUESTION: PriceTable assumes output_tokens already includes reasoning tokens (check in spike S5). |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -38,4 +39,4 @@ Phase 1 accepted: 106 tests green (77 legacy + 29 new). The 4 templates produce 
 
 Phase 2 accepted for everything automatable: cascade delete, seq uniqueness and concurrent append, migrator tests all green (127 tests). **Not done, needs a device/emulator:** "install 1.x, create 2 scenarios, install 2.0, both appear and save works", and TC_SECRET_01 (real Keystore, instrumented). Both go on the manual checklist for the user.
 
-Next step: Phase 3.1 (LlmClient, DTOs, OutputItems, PriceTable).
+Next step: Phase 3.2 (XaiResponsesClient + MockWebServer tests).
