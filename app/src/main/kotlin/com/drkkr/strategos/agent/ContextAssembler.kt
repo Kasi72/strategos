@@ -135,7 +135,19 @@ class ContextAssembler(
         MessageRole.USER.name -> message("user", m.text)
         MessageRole.ASSISTANT.name -> message("assistant", m.text)
         MessageRole.EVENT.name -> message("user", EVENT_PREFIX + m.text)
-        else -> null    // TOOL_CALL, TOOL_RESULT and ERROR: the live context carries current state
+        // LEAN PROFILE: a turn that ends on a card has no assistant text, so the agent's own question or recap goes
+        // into history; otherwise it can't see what it already asked.
+        MessageRole.TOOL_CALL.name -> askedText(m.payloadJson)?.let { message("assistant", it) }
+        else -> null    // TOOL_RESULT and ERROR: the live context carries current state
+    }
+
+    private fun askedText(argsJson: String?): String? {
+        val args = argsJson?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() } ?: return null
+        fun str(e: JsonElement?) = (e as? JsonPrimitive)?.takeIf { it.isString }?.content
+        (args["ask"] as? JsonObject)?.let { return str(it["text"]) }
+        (args["questions"] as? JsonArray)?.mapNotNull { str((it as? JsonObject)?.get("text")) }?.takeIf { it.isNotEmpty() }?.let { return it.joinToString("\n") }
+        (args["bullets"] as? JsonArray)?.mapNotNull(::str)?.takeIf { it.isNotEmpty() }?.let { return "Recap: " + it.joinToString("; ") }
+        return null
     }
 
     private fun message(role: String, content: String) = buildJsonObject { put("role", role); put("content", content) }

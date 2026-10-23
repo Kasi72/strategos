@@ -6,6 +6,7 @@ import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
 import com.drkkr.strategos.data.db.entities.WhatIfEntity
 import com.drkkr.strategos.data.repo.UiKind
+import com.drkkr.strategos.domain.agent.OpNormalizer
 import com.drkkr.strategos.domain.agent.ShortIds
 import com.drkkr.strategos.domain.agent.WhatIfRunner
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +22,7 @@ object WhatIfHandler : ToolHandler {
     override suspend fun handle(args: JsonObject, ctx: ToolContext): ToolOutcome {
         val label = Args.requireString(args, "label")
         val base = ctx.gateway.activeScenario() ?: return ToolOutcome(Args.error("no_scenario"), ToolDispatcher.ERROR_LABEL)
-        val ops = ShortIds.expandOps(Args.ops(args, MAX_OPS), base)
+        val ops = Args.withRationale(OpNormalizer.normalize(ShortIds.expandOps(Args.ops(args, MAX_OPS), base), base), label)
 
         val outcome = WhatIfRunner.run(base, ops, ctx.pipeline, label)
         val id = UUID.randomUUID().toString()

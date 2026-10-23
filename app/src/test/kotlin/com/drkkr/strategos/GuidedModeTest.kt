@@ -179,8 +179,23 @@ class GuidedModeTest {
         fake.enqueue(toolCall("show_support", """{"reason":"distress"}""")).enqueue(textReply("I'm here with you."))
         controller.send("I can't cope any more")!!.join()
         controller.awaitIdle()
-        assertEquals(listOf("auto", "none"), fake.requests.map { it.toolChoice })   // endsTurn = true
+        assertEquals(listOf("auto"), fake.requests.map { it.toolChoice })   // endsTurn = true; LEAN: the card is the reply
         withTimeout(5_000) { while (controller.state.value.items.none { it is ChatItem.Support }) delay(20) }
+    }
+
+    @Test
+    fun lean_saveAndAskInOneRequest() = runBlocking {
+        val args = """{"summary":"Add your manager","ops":[{"type":"add_stakeholder","ref":"boss","name":"Manager"}],
+            "ask":{"text":"Can your manager stop this, or only make it harder?","options":["Can stop it","Make it harder","Not sure"]}}"""
+        fake.enqueue(toolCall("propose_changes", args))
+        controller.send("My manager decides.")!!.join()
+        controller.awaitIdle()
+        assertEquals(1, fake.requests.size)                                       // no second request
+        assertTrue(scenario().stakeholders.any { it.name == "Manager" })         // saved
+        withTimeout(5_000) {
+            while (controller.state.value.items.filterIsInstance<ChatItem.Questions>().none { q -> q.questions.single().options.size == 3 }) delay(20)
+        }
+        assertTrue(fake.requests.single().tools!!.none { it.toString().contains("\"ask_user\"") })   // Guided tool subset
     }
 
     private suspend fun ChangeSetRepository.observeAll() = observe(cid()).first()

@@ -65,7 +65,7 @@
   {
     "type": "function",
     "name": "propose_changes",
-    "description": "Change the model. Guided mode applies at once; Expert mode waits for the user's review.",
+    "description": "Change the model (8 ops max per call). Guided mode applies at once and shows `ask` as your next question, ending your turn. Expert mode waits for the user's review.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -225,16 +225,26 @@
               }
             },
             "required": [
-              "type",
-              "rationale"
+              "type"
             ]
+          }
+        },
+        "ask": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       },
-      "required": [
-        "summary",
-        "ops"
-      ]
+      "required": []
     }
   },
   {
@@ -510,8 +520,7 @@
               }
             },
             "required": [
-              "type",
-              "rationale"
+              "type"
             ]
           }
         }

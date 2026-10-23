@@ -119,7 +119,7 @@ class ToolDispatcherTest {
 
     @Test
     fun TC_DISP_05b_allRejectedMakesNoCard() = runBlocking {
-        val o = dispatcher.dispatch("propose_changes", """{"summary":"x","ops":[{"type":"add_stakeholder","name":"No ref","rationale":"r"}]}""", ctx())
+        val o = dispatcher.dispatch("propose_changes", """{"summary":"x","ops":[{"type":"add_action","ref":"a1","stakeholder":"nobody","label":"X","rationale":"r"}]}""", ctx())
         assertEquals("rejected", o.output.str("status"))
         assertEquals(UiKind.NONE, o.uiKind)
         assertTrue(changeSets.pending("pd").isEmpty())

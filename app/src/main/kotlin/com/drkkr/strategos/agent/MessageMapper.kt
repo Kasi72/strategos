@@ -95,7 +95,13 @@ object MessageMapper {
         runCatching { ChangeOp.json.decodeFromString(ListSerializer(ChangeOp.serializer()), json) }.getOrDefault(emptyList())
 
     private fun questions(argsJson: String?): List<QuestionUi> {
-        val arr = parseObject(argsJson)?.get("questions") as? JsonArray ?: return emptyList()
+        val args = parseObject(argsJson)
+        // LEAN PROFILE: a Guided propose_changes carries one question in `ask`.
+        (args?.get("ask") as? JsonObject)?.let { ask ->
+            val text = str(ask["text"]) ?: return emptyList()
+            return listOf(QuestionUi("ask", text, strings(ask["options"]), allowFreeText = true))
+        }
+        val arr = args?.get("questions") as? JsonArray ?: return emptyList()
         return arr.mapNotNull { el ->
             val q = el as? JsonObject ?: return@mapNotNull null
             QuestionUi(

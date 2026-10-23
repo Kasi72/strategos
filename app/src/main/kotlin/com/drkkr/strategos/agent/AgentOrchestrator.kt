@@ -81,13 +81,17 @@ class AgentOrchestrator(
         }
         val input = assembler.build(conversationId, scenarioId).toMutableList<JsonElement>()
         var toolChoice = "auto"
+        var toolsRan = false
 
         for (round in 0..AgentConfig.MAX_TOOL_ROUNDS) {
             if (round == AgentConfig.MAX_TOOL_ROUNDS) toolChoice = "none"
-            val r = llm.create(
-                LlmRequest(model, JsonArray(input), toolList, toolChoice, purpose = "TURN", conversationId = conversationId, turnId = turnId)
-            )
+            val request = LlmRequest(model, JsonArray(input), toolList, toolChoice, purpose = "TURN", conversationId = conversationId, turnId = turnId)
+            var r = llm.create(request)
+            // LEAN PROFILE: the provider rejects a response whose tool call doesn't match the schema; a second try usually works.
+            if (r.isBadToolCall()) r = llm.create(request)
             if (r !is LlmResult.Ok) {
+                // The tools already ran and their cards are on screen; a failed wrap-up sentence isn't worth an error.
+                if (toolChoice == "none" && toolsRan) break
                 return fail(conversationId, turnId, LlmErrors.userMessage(r), retryable = r !is LlmResult.Unauthorized)
             }
             val calls = r.output.functionCalls()
@@ -98,6 +102,8 @@ class AgentOrchestrator(
             input += echo(r.output, AgentConfig.ECHO_STRATEGY)
             val ctx = ctxFactory(turnId)
             var endsTurn = false
+            var endedByCard = true
+            toolsRan = true
             for (c in calls) {
                 conversations.append(conversationId, turnId, MessageRole.TOOL_CALL, toolName = c.name, callId = c.callId, payloadJson = c.arguments)
                 onActivity(PROGRESS_LABELS[c.name] ?: "Working…")
@@ -109,13 +115,20 @@ class AgentOrchestrator(
                 // ask_user, run_analysis and the Guided cards point at their own TOOL_RESULT message (§10.2).
                 if (o.uiKind != UiKind.NONE && o.refId == null) conversations.setRefId(msg.id, msg.id)
                 input += functionCallOutput(c.callId, o.output)
-                endsTurn = endsTurn || o.endsTurn
+                if (o.endsTurn) {
+                    endsTurn = true
+                    endedByCard = endedByCard && o.uiKind in CARD_KINDS
+                }
             }
+            // LEAN PROFILE: a question, recap or support card is itself the reply; skip the extra text-only request.
+            if (endsTurn && endedByCard) break
             if (endsTurn) toolChoice = "none"
         }
         backgroundScope?.launch { runCatching { afterTurn(conversationId) } }
         return TurnResult.Done
     }
+
+    private fun LlmResult.isBadToolCall() = this is LlmResult.HttpError && status == 400 && code == "tool_use_failed"
 
     private suspend fun fail(conversationId: String, turnId: String, text: String, retryable: Boolean): TurnResult {
         conversations.append(conversationId, turnId, MessageRole.ERROR, text)
@@ -130,6 +143,9 @@ class AgentOrchestrator(
 
     companion object {
         const val STOPPED_TEXT = "Stopped."
+
+        /** Results whose card is the turn's reply (LEAN PROFILE): a question, a recap or the support card. */
+        val CARD_KINDS = setOf(UiKind.QUESTIONS, UiKind.UNDERSTANDING, UiKind.SUPPORT)
         const val TIMEOUT_TEXT = "That took too long. Try again."
         const val NO_REPLY = "(no reply)"
 

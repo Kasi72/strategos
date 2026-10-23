@@ -2,6 +2,7 @@ package com.drkkr.strategos.agent.tools
 
 import com.drkkr.strategos.agent.InvalidArguments
 import com.drkkr.strategos.domain.agent.ChangeOp
+import com.drkkr.strategos.domain.agent.ChangeSetValidator
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -40,6 +41,10 @@ internal object Args {
         if (ops.isEmpty() || ops.size > max) throw InvalidArguments("ops must have 1-$max items")
         return ops
     }
+
+    /** LEAN PROFILE: `rationale` is optional in the schema; a missing one falls back to the batch summary or label. */
+    fun withRationale(ops: List<ChangeOp>, fallback: String): List<ChangeOp> =
+        ops.map { if (it.rationale.isNullOrBlank()) it.copy(rationale = fallback.take(ChangeSetValidator.MAX_RATIONALE)) else it }
 
     fun encodeOps(ops: List<ChangeOp>): String = ChangeOp.json.encodeToString(ListSerializer(ChangeOp.serializer()), ops)
 

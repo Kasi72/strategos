@@ -21,4 +21,4 @@ properties:
   rationale: { type: string }
   source: { type: string, enum: [ai_inferred, user_stated] }
   quote: { type: string }
-required: [type, rationale]
+required: [type]

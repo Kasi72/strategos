@@ -187,5 +187,34 @@ class AgentOrchestratorTest {
         assertEquals(q.id, q.refId)
     }
 
+    @Test
+    fun lean_cardToolEndsTurnWithoutExtraRequest() = runBlocking {
+        fake.enqueue(toolCall("ask_user", """{"questions":[{"id":"q1","text":"Who decides?"}]}"""))
+        assertEquals(TurnResult.Done, turn())
+        assertEquals(1, fake.requests.size)
+        assertEquals(listOf("USER", "TOOL_CALL", "TOOL_RESULT"), roles())
+    }
+
+    @Test
+    fun lean_badToolCallIsRetriedOnce() = runBlocking {
+        fake.enqueue(LlmResult.HttpError(400, "tool_use_failed")).enqueue(textReply("Hello"))
+        assertEquals(TurnResult.Done, turn())
+        assertEquals(2, fake.requests.size)
+        assertEquals("ASSISTANT", conversations.messages(cid).last().role)
+        fake.enqueue(LlmResult.HttpError(400, "tool_use_failed")).enqueue(LlmResult.HttpError(400, "tool_use_failed"))
+        assertTrue(turn() is TurnResult.Failed)
+        assertEquals(4, fake.requests.size)
+    }
+
+    @Test
+    fun lean_failedWrapUpAfterToolsStillDone() = runBlocking {
+        val propose = """{"summary":"Add regulator","ops":[{"type":"add_stakeholder","ref":"reg","name":"Regulator"}]}"""
+        fake.enqueue(toolCall("propose_changes", propose)).enqueue(LlmResult.HttpError(500, null))
+        assertEquals(TurnResult.Done, turn())
+        assertTrue(conversations.messages(cid).none { it.role == MessageRole.ERROR.name })
+        // The missing rationale fell back to the summary, so the op was accepted.
+        assertTrue(conversations.messages(cid).single { it.role == "TOOL_RESULT" }.payloadJson!!.contains("pending_user_review"))
+    }
+
     private companion object { const val STORED_KEY = "gsk_TEST_SECRET_KEY_123" }
 }

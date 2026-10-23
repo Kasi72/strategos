@@ -13,7 +13,7 @@ object AgentConfig {
     const val MAX_TOOL_ROUNDS = 8
     const val MAX_TURN_MS = 120_000L
     // LEAN PROFILE: Groq reserves max_output_tokens against the 8,000 tokens/minute limit, so keep it small.
-    const val MAX_OUTPUT_TOKENS = 700
+    const val MAX_OUTPUT_TOKENS = 1_000
     const val TEMPERATURE = 0.3
     const val HISTORY_TOKEN_BUDGET = 1_200
     const val HISTORY_TOKEN_TARGET = 600
@@ -30,5 +30,5 @@ object AgentConfig {
     val REASONING_EFFORT: String? = "low"
 
     /** LEAN PROFILE: Guided requests send only the tools the interview uses. Expert mode sends all of them. */
-    val GUIDED_TOOLS = setOf("propose_changes", "ask_user", "run_analysis", "update_memory", "show_understanding", "show_support")
+    val GUIDED_TOOLS = setOf("propose_changes", "run_analysis", "update_memory", "show_understanding", "show_support")
 }

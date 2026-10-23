@@ -1,7 +1,7 @@
 // Builds app/src/main/assets/agent/* from agent/ (blueprint §7.8).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -31,7 +31,8 @@ execFileSync(opengap, ["export", "-f", "system-prompt", "-d", agentDir, "-o", pr
 
 // 3. One "## Skill: " heading per skill directory.
 const prompt = readFileSync(promptPath, "utf8");
-const skillDirs = readdirSync(join(agentDir, "skills")).filter((d) => statSync(join(agentDir, "skills", d)).isDirectory());
+const skillsRoot = join(agentDir, "skills");
+const skillDirs = existsSync(skillsRoot) ? readdirSync(skillsRoot).filter((d) => statSync(join(skillsRoot, d)).isDirectory()) : [];
 const skillHeadings = prompt.split("## Skill: ").length - 1;
 if (skillHeadings !== skillDirs.length) {
   fail(`system_prompt.md has ${skillHeadings} "## Skill: " headings, expected ${skillDirs.length}`);

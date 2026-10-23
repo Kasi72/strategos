@@ -136,4 +136,17 @@ class ContextAssemblerTest {
         val after = live(assembler.build(cid, "pd")).getValue("intake_gaps").jsonArray
         assertTrue(after.isEmpty())
     }
+
+    @Test
+    fun lean_askedQuestionIsInHistory() = runBlocking {
+        conversations.append(cid, "t", MessageRole.USER, "My brother wants a loan.")
+        conversations.append(cid, "t", MessageRole.TOOL_CALL, toolName = "propose_changes", callId = "c1",
+            payloadJson = """{"ops":[],"ask":{"text":"What would a good outcome look like?"}}""")
+        conversations.append(cid, "t", MessageRole.TOOL_RESULT, "Asked a question", toolName = "propose_changes", callId = "c1", payloadJson = """{"status":"asked"}""")
+        conversations.append(cid, "t", MessageRole.USER, "He gets his shop and we stay out of debt.")
+        val input = assembler.build(cid, "pd")
+        val asked = input.single { content(it) == "What would a good outcome look like?" }
+        assertEquals("assistant", role(asked))
+        assertFalse(input.map(::content).any { it.contains("\"ops\"") })   // never raw tool JSON
+    }
 }

@@ -38,7 +38,10 @@
 > | Live context `scenario` | `LiveDigest` (compact, short ids) instead of `ScenarioDigest`. `get_scenario` still returns the full `ScenarioDigest`. |
 > | Live context `last_analysis` | One line of status, recommended action and AI share; the full digest stays in the RECOMMENDATION card. |
 > | Ids | Context and tool outputs use the first 8 characters of a UUID. Handlers expand a unique prefix back to the full id. |
-> | `AgentConfig` | `MAX_OUTPUT_TOKENS = 700`, `REASONING_EFFORT = "low"`, `HISTORY_TOKEN_BUDGET = 1_200`, `HISTORY_TOKEN_TARGET = 600`. |
+> | `AgentConfig` | `MAX_OUTPUT_TOKENS = 1_000`, `REASONING_EFFORT = "low"`, `HISTORY_TOKEN_BUDGET = 1_200`, `HISTORY_TOKEN_TARGET = 600`. |
+> | Skills | None. The model called skill names as tools (seen live), and they duplicated RULES. |
+> | One request per Guided turn | `propose_changes` takes an optional `ask {text, options}`. In Guided mode it saves the ops and shows `ask` as a question card that ends the turn. Guided requests don't send `ask_user`. `ops` may be empty; `rationale` is optional (falls back to the summary). |
+> | Turn end | A turn that ends on a card (question, recap, support) makes no extra text-only request. A `tool_use_failed` 400 is retried once. A failed wrap-up request after tools ran ends the turn quietly. |
 
 ---
 

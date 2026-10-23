@@ -63,7 +63,8 @@ class AgentAssetsTest {
     @Test
     fun TC_ASSET_04_systemPromptHasSkillsAndRules() {
         val prompt = text("system_prompt.md")
-        assertEquals(9, prompt.split("## Skill: ").size - 1)
+        // LEAN PROFILE: no skill sections (the model called them as tools); the rules carry the interview.
+        assertEquals(0, prompt.split("## Skill: ").size - 1)
         assertTrue(prompt.contains("Never calculate equilibria"))
         assertTrue(prompt.contains("Guided mode"))
     }
