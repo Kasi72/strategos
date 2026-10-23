@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -18,12 +20,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun signingValue(key: String, env: String): String? =
+        keystoreProps.getProperty(key) ?: System.getenv(env)
+    val releaseStoreFile = signingValue("storeFile", "STRATEGOS_STORE_FILE")
+        ?.let { rootProject.file(it) }?.takeIf { it.exists() }
+
     signingConfigs {
-        create("release") {
-            storeFile = file("strategos-release.jks")
-            storePassword = "strategos123"
-            keyAlias = "strategos"
-            keyPassword = "strategos123"
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = signingValue("storePassword", "STRATEGOS_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "STRATEGOS_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "STRATEGOS_KEY_PASSWORD")
+            }
         }
     }
 
@@ -31,7 +44,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     buildFeatures { compose = true; buildConfig = true }
