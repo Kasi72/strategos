@@ -1,7 +1,6 @@
 package com.drkkr.strategos.agent.tools
 
 import com.drkkr.strategos.agent.AgentConfig
-import com.drkkr.strategos.agent.InvalidArguments
 import com.drkkr.strategos.agent.ToolContext
 import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
@@ -84,8 +83,6 @@ object ProposeChangesHandler : ToolHandler {
     private fun askOf(args: JsonObject): JsonObject? {
         val ask = args["ask"] as? JsonObject ?: return null
         Args.string(ask, "text")?.takeIf { it.isNotBlank() } ?: return null
-        val options = Args.array(ask, "options")
-        if (options != null && options.size > 4) throw InvalidArguments("ask.options must have at most 4 items")
         return ask
     }
 

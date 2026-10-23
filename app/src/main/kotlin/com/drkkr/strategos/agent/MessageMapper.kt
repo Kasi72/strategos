@@ -99,7 +99,8 @@ object MessageMapper {
         // LEAN PROFILE: a Guided propose_changes carries one question in `ask`.
         (args?.get("ask") as? JsonObject)?.let { ask ->
             val text = str(ask["text"]) ?: return emptyList()
-            return listOf(QuestionUi("ask", text, strings(ask["options"]), allowFreeText = true))
+            // The model sometimes sends 5 options; show the first 4 rather than failing the whole save.
+            return listOf(QuestionUi("ask", text, strings(ask["options"]).take(MAX_OPTIONS), allowFreeText = true))
         }
         val arr = args?.get("questions") as? JsonArray ?: return emptyList()
         return arr.mapNotNull { el ->
@@ -112,6 +113,8 @@ object MessageMapper {
             )
         }
     }
+
+    private const val MAX_OPTIONS = 4
 
     private fun parseObject(json: String?): JsonObject? = json?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
     private fun str(e: Any?): String? = (e as? JsonPrimitive)?.takeIf { it.isString }?.content

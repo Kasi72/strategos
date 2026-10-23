@@ -16,6 +16,7 @@ object ChangeSetValidator {
     const val MAX_NAME = 80
     const val MAX_LABEL = 120
     const val MAX_MATRIX_CELLS = 200
+    const val MAX_PLAYERS = 3     // §7.4 modelling rules: 2 players whenever possible, 3 at most
     private val REF = Regex("[a-z0-9_]{2,40}")
 
     fun validate(scenario: Scenario, ops: List<ChangeOp>, newId: () -> String = { UUID.randomUUID().toString() }): ValidatedChangeSet {
@@ -82,9 +83,20 @@ object ChangeSetValidator {
 
             return when (op.type) {
                 OpType.SET_SCENARIO_FIELDS -> null
-                OpType.ADD_STAKEHOLDER ->
-                    if (op.name.isNullOrBlank() || op.name.length > MAX_NAME) "name_required" else null
-                OpType.UPDATE_STAKEHOLDER, OpType.REMOVE_STAKEHOLDER ->
+                OpType.ADD_STAKEHOLDER -> when {
+                    op.name.isNullOrBlank() || op.name.length > MAX_NAME -> "name_required"
+                    op.gameRole == GameRole.PLAYER && players().size >= MAX_PLAYERS -> "too_many_players"
+                    else -> null
+                }
+                OpType.UPDATE_STAKEHOLDER -> {
+                    val id = resolve(op.targetId)
+                    when {
+                        id !in roles -> "unknown_target"
+                        op.gameRole == GameRole.PLAYER && roles[id] != GameRole.PLAYER && players().size >= MAX_PLAYERS -> "too_many_players"
+                        else -> null
+                    }
+                }
+                OpType.REMOVE_STAKEHOLDER ->
                     if (resolve(op.targetId) !in roles) "unknown_target" else null
                 OpType.UPDATE_ACTION, OpType.REMOVE_ACTION ->
                     if (resolve(op.targetId) !in actionOwner) "unknown_target" else null

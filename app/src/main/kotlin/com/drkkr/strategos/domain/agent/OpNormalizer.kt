@@ -43,7 +43,7 @@ object OpNormalizer {
         fun person(token: String?) = if (token == null || token in known) token else people[token.lowercase()] ?: token
         fun option(token: String?) = if (token == null || token in known) token else options[token.lowercase()] ?: token
 
-        return withRefs.map { op ->
+        val resolved = withRefs.map { op ->
             op.copy(
                 stakeholder = person(op.stakeholder),
                 targetId = when (op.type) {
@@ -54,5 +54,57 @@ object OpNormalizer {
                 profile = op.profile?.map { ProfilePick(person(it.stakeholder)!!, option(it.action)!!) }
             )
         }
+        return mergeDuplicates(resolved, s)
     }
+
+    /**
+     * The model re-adds people and options it already saved (4 real people became 12 in a live run). An add whose name
+     * (or owner + label) already exists, in the scenario or earlier in the batch, is merged into the existing one:
+     * dropped when it adds nothing, or turned into an update when it carries new details. Later references to its ref
+     * are pointed at the existing id. `game_role` is never changed by a merge.
+     */
+    private fun mergeDuplicates(ops: List<ChangeOp>, s: Scenario): List<ChangeOp> {
+        val refMap = mutableMapOf<String, String>()
+        val peopleByName = s.stakeholders.associate { it.name.trim().lowercase() to it.id }.toMutableMap()
+        val optionKeys = s.actions.associate { "${it.stakeholderId}|${it.label.trim().lowercase()}" to it.id }.toMutableMap()
+        fun mapped(token: String?) = token?.let { refMap[it] ?: it }
+
+        val out = mutableListOf<ChangeOp>()
+        for (raw in ops) {
+            val op = raw.copy(
+                stakeholder = mapped(raw.stakeholder),
+                targetId = mapped(raw.targetId),
+                profile = raw.profile?.map { ProfilePick(mapped(it.stakeholder)!!, mapped(it.action)!!) }
+            )
+            when (op.type) {
+                OpType.ADD_STAKEHOLDER -> {
+                    val key = op.name?.trim()?.lowercase()
+                    val existing = key?.let { peopleByName[it] }
+                    if (existing == null) {
+                        if (key != null) peopleByName[key] = op.ref!!
+                        out += op
+                    } else {
+                        refMap[op.ref!!] = existing
+                        if (hasDetails(op)) out += op.copy(type = OpType.UPDATE_STAKEHOLDER, targetId = existing, ref = null, name = null, gameRole = null)
+                    }
+                }
+                OpType.ADD_ACTION -> {
+                    val key = op.stakeholder?.let { "$it|${op.label?.trim()?.lowercase()}" }
+                    val existing = key?.let { optionKeys[it] }
+                    if (existing == null) {
+                        if (key != null) optionKeys[key] = op.ref!!
+                        out += op
+                    } else {
+                        refMap[op.ref!!] = existing
+                    }
+                }
+                else -> out += op
+            }
+        }
+        return out
+    }
+
+    private fun hasDetails(op: ChangeOp) =
+        op.goals != null || op.fears != null || op.incentives != null || op.canVeto != null || op.canExit != null ||
+            op.canDelay != null || op.authority != null || op.influence != null || op.credibility != null || op.role != null
 }

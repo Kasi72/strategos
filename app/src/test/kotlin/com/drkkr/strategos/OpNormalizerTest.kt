@@ -49,13 +49,34 @@ class OpNormalizerTest {
         val ops = listOf(
             ChangeOp(OpType.UPDATE_STAKEHOLDER, targetId = "Wife", canDelay = true, rationale = "r"),
             ChangeOp(OpType.REMOVE_ACTION, targetId = "Ask parents", rationale = "r"),
-            ChangeOp(OpType.ADD_STAKEHOLDER, name = "Bank", rationale = "r"),
-            ChangeOp(OpType.ADD_STAKEHOLDER, name = "Bank", rationale = "r")
+            ChangeOp(OpType.ADD_STAKEHOLDER, name = "Bank!", rationale = "r"),
+            ChangeOp(OpType.ADD_STAKEHOLDER, name = "Bank?", rationale = "r")
         )
         val fixed = OpNormalizer.normalize(ops, s)
         assertEquals("wife", fixed[0].targetId)
         assertEquals("askp", fixed[1].targetId)
         assertEquals(listOf("bank", "bank_2"), fixed.drop(2).map { it.ref })
+        assertTrue(ChangeSetValidator.validate(s, fixed).rejected.isEmpty())
+    }
+
+    @Test
+    fun readdedPeopleAndOptionsAreMergedNotDuplicated() {
+        val s = Fx.loanFamily()
+        val ops = parse("""[
+          {"type":"add_stakeholder","ref":"b","name":"brother","game_role":"INFLUENCER","rationale":"r"},
+          {"type":"add_stakeholder","ref":"w","name":"Wife","goals":["Keep our savings"],"rationale":"r"},
+          {"type":"add_stakeholder","ref":"bank","name":"Bank","rationale":"r"},
+          {"type":"add_stakeholder","ref":"bank2","name":"bank","rationale":"r"},
+          {"type":"add_action","ref":"cs","stakeholder":"You","label":"co-sign","rationale":"r"},
+          {"type":"add_action","ref":"loan","stakeholder":"bank2","label":"Lend","rationale":"r"}
+        ]""")
+        val fixed = OpNormalizer.normalize(ops, s)
+        // Brother (exists, no new details) is dropped; Wife (exists, new goals) becomes an update that keeps her role; Bank is added once.
+        assertEquals(listOf(OpType.UPDATE_STAKEHOLDER, OpType.ADD_STAKEHOLDER, OpType.ADD_ACTION), fixed.map { it.type })
+        assertEquals("wife", fixed[0].targetId)
+        assertEquals(null, fixed[0].gameRole)
+        assertEquals("bank", fixed[1].ref)
+        assertEquals("bank", fixed[2].stakeholder)             // the duplicate's ref now points at the first Bank
         assertTrue(ChangeSetValidator.validate(s, fixed).rejected.isEmpty())
     }
 }

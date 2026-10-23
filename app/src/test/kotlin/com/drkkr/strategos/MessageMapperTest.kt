@@ -59,4 +59,15 @@ class MessageMapperTest {
         val answered = MessageMapper.toChatItems(messages + msg("USER", "Re: Who decides? → Me"), emptyList(), null)
         assertTrue(answered.filterIsInstance<ChatItem.Questions>().single().answered)
     }
+
+    @Test
+    fun askWithFiveOptionsShowsFour() {
+        val messages = listOf(
+            msg("USER", "Hi"),
+            msg("TOOL_CALL", callId = "a", payload = """{"ops":[],"ask":{"text":"What matters most?","options":["a","b","c","d","e"]}}"""),
+            msg("TOOL_RESULT", "Asked a question", callId = "a", payload = """{"status":"asked"}""", uiKind = "QUESTIONS")
+        )
+        val q = MessageMapper.toChatItems(messages, emptyList(), null).filterIsInstance<ChatItem.Questions>().single()
+        assertEquals(listOf("a", "b", "c", "d"), q.questions.single().options)
+    }
 }

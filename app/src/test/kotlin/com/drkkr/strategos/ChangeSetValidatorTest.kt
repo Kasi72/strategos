@@ -226,4 +226,18 @@ class ChangeSetValidatorTest {
         val r = reasons(Fx.pd(), op(OpType.ADD_STAKEHOLDER) { copy(ref = "Bad Ref", name = "X") })
         assertEquals("bad_ref", r[0])
     }
+
+    @Test
+    fun fourthPlayerRejected() {
+        val three = Fx.pd().let { it.copy(stakeholders = it.stakeholders + Stakeholder(id = "p3", name = "P3")) }
+        val r = reasons(three,
+            op(OpType.ADD_STAKEHOLDER) { copy(ref = "p4", name = "P4", gameRole = GameRole.PLAYER) },
+            op(OpType.ADD_STAKEHOLDER) { copy(ref = "m2", name = "Media 2") },                       // defaults to INFLUENCER: fine
+            op(OpType.UPDATE_STAKEHOLDER) { copy(targetId = "m2", gameRole = GameRole.PLAYER) }      // promoting to PLAYER: also rejected
+        )
+        assertEquals(mapOf(0 to "too_many_players", 2 to "too_many_players"), r)
+        val updateExisting = reasons(Fx.pdWithInfluencer().copy(stakeholders = three.stakeholders + Fx.pdWithInfluencer().stakeholders.last()),
+            op(OpType.UPDATE_STAKEHOLDER) { copy(targetId = "m1", gameRole = GameRole.PLAYER) })
+        assertEquals("too_many_players", updateExisting[0])
+    }
 }
