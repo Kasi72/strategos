@@ -99,6 +99,11 @@ dependencies {
     testImplementation("androidx.room:room-testing:2.6.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 
+    // BLUEPRINT-QUESTION: instrumented tests (TC_SECRET_01 and the on-device migration/SQLCipher checks) need the AndroidX test runner; not in the 4.2 list.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

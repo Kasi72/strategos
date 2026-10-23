@@ -36,12 +36,13 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 3.3 | done | 2 (FakeLlmClient behaviour) | FakeLlmClient + helpers (textReply, toolCall, error401, error429, networkDown) in the test source set. |
 | 3.4 | done | 0 (XaiLiveSpikeTest, env-gated; ran live) | Provider switched to Groq / openai/gpt-oss-20b on the user's instruction. Spike S1-S3, S5-S7 pass; S4 tool_choice:"none" is rejected so the client omits tools instead. ECHO_STRATEGY=VERBATIM, CONTEXT_ROLE=system. See API_NOTES.md and the PROVIDER OVERRIDE block at the top of BLUEPRINT.md. G1 (spending cap) dropped; LlmErrors maps credit/rate-limit failures to "Not enough credits." |
 | 3.5 | done | 0 (permission + R8 rules; assembleDebug green; release/R8 build not run until Phase 8) | INTERNET permission, usesCleartextTraffic=false, R8 keep rules for domain, llm and net.zetetic. |
+| 2.7 | done | 7 instrumented (TC_SECRET_01, SQLCipher encryption + reopen + wrong passphrase, legacy migration, fresh install) + 1 manual-only PostUpgradeCheckTest | Emulator `strategos_api34` (Android 14 arm64, Google APIs) installed with Homebrew sdkmanager. Real upgrade verified: built the 1.x APK from 03d12a8, seeded two scenarios with the real 1.x ScenarioStorage, `adb install -r` the 2.0 APK, home screen showed "2 total" with both, no crash, save works. BLUEPRINT-QUESTION: added androidTest deps (androidx.test runner 1.6.2, ext:junit 1.2.1, core 1.6.1), not in the 4.2 list. Note for 1.x seeding: ScenarioStorage writes with apply(), so a seeding process must wait before exiting or the write is lost. Run with `sh ./gradlew :app:connectedDebugAndroidTest` (emulator must be booted). |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
 Phase 1 accepted: 106 tests green (77 legacy + 29 new). The 4 templates produce identical status, pathways and candidates through AnalysisPipeline (TC_PIPE_01). Not run on a device; no emulator here.
 
-Phase 2 accepted for everything automatable: cascade delete, seq uniqueness and concurrent append, migrator tests all green (127 tests). **Not done, needs a device/emulator:** "install 1.x, create 2 scenarios, install 2.0, both appear and save works", and TC_SECRET_01 (real Keystore, instrumented). Both go on the manual checklist for the user.
+Phase 2 accepted for everything automatable: cascade delete, seq uniqueness and concurrent append, migrator tests all green (127 tests). **Not done, needs a device/emulator:** "install 1.x, create 2 scenarios, install 2.0, both appear and save works", and TC_SECRET_01 (real Keystore, instrumented). Both go on the manual checklist for the user. **UPDATE: both are now done on an emulator, see step 2.7.**
 
 Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md has S1-S7 for the Groq provider. Provider is Groq / openai/gpt-oss-20b (see the PROVIDER OVERRIDE block in BLUEPRINT.md).
 
