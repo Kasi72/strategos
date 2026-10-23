@@ -72,4 +72,4 @@ Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests 
 
 Phase 5 accepted: 231 tests green (1 skipped = live spike), DomainPurityTest green, assembleDebug OK.
 
-Next step: Re-run the live end-to-end check (XaiLiveSpikeTest.counselEndToEnd) to confirm the model now saves answers, then CP3.
+**CP3 reached (end of Phase 6). Waiting for the user** to try a real Guided conversation (emulator or phone) before Phase 7 (UI) starts. The final live check (`XaiLiveSpikeTest.counselEndToEnd`) was stopped twice by the user, so it has not confirmed the model saves answers after the 6.9 fixes. Next step after CP3: Phase 7.1 (navigation changes).
