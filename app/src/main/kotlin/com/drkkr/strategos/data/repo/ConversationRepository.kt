@@ -44,6 +44,8 @@ class ConversationRepository(private val db: StrategosDatabase) {
         msg
     }
 
+    suspend fun setRefId(messageId: String, refId: String) = db.messageDao().setRefId(messageId, refId)
+
     /** USER messages only (used to verify quotes). */
     suspend fun userTexts(conversationId: String): List<String> =
         messages(conversationId).filter { it.role == MessageRole.USER.name }.map { it.text }

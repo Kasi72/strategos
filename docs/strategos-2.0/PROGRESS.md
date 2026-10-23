@@ -50,6 +50,7 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 5.7 | done | 4 (TC_STRESS_01-04) | Pure and synchronous (the handler wraps it in Dispatchers.Default). Injectable clock, so TC_STRESS_04 is deterministic. `holds_in` = runs that kept the recommendation; `flips` lists up to 5 but `flipCount` counts all of them. FRAGILE when any run flips. |
 | 5.8 | done | 14 (TC_DISP_01-10 + all-rejected, what_if, stress/get, understanding/support) + TC_ASSET_02 now also checks ToolDispatcher.names | ToolDispatcher + 10 handler objects in agent/tools/. Never throws except to propagate CancellationException; handler exceptions are logged as tool name + exception class only. Reuses data.repo.UiKind (it already has UNDERSTANDING and SUPPORT). Expert behaviour only: Guided auto-apply in propose_changes comes in 6.7 (it needs CounselController). BLUEPRINT-QUESTIONs: ask_user and run_analysis return refId=null and the orchestrator sets the TOOL_RESULT message id (§10.2); update_memory with >10 adds → invalid_arguments; the quote isn't stored on the memory item (no column), it is only used to verify. FakeGateway fixture added. |
 | 6.1 | done | 4 (TC_CTX_01-04) | ContextAssembler(systemPrompt, repos, settings, scenarioFor, today). Live context is a fenced JSON block under the §10.3 header, sent with role CONTEXT_ROLE. EVENT messages get the "[App event — not typed by the user] " prefix. ConversationRepository.get added. BLUEPRINT-QUESTION: scenario_changed_since_last_turn is tracked in the assembler (per conversation, in memory) rather than on CounselController. TC_CTX_05 (intake_gaps) comes with IntakeChecklist in 6.7. |
+| 6.2 | done | 9 (TC_ORCH_01-08 + ask_user refId) | Tool loop per §10.2: withTimeoutOrNull(MAX_TURN_MS) → "That took too long"; cancellation appends "Stopped." under NonCancellable and rethrows; errors use LlmErrors.userMessage (provider override); echo strategies VERBATIM/STRIP_IDS/CALLS_ONLY. A TOOL_RESULT with a card but no refId points at itself (MessageDao.setRefId, a query only, no schema change). BLUEPRINT-QUESTIONs: constructor takes `tools: () -> JsonArray` instead of AgentAssets (testable without assets); no callLog param because XaiResponsesClient already writes llm_call rows; summarizer is an `afterTurn` hook launched on an optional background scope (wired in 6.3/6.4); added TurnTrigger.Retry for retryLastTurn. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -63,4 +64,4 @@ Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests 
 
 Phase 5 accepted: 231 tests green (1 skipped = live spike), DomainPurityTest green, assembleDebug OK.
 
-Next step: Phase 6.2 (AgentOrchestrator).
+Next step: Phase 6.3 (ConversationSummarizer).

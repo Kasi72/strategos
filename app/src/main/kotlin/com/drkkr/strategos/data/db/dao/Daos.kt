@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM message WHERE conversation_id = :cid ORDER BY seq ASC") suspend fun all(cid: String): List<MessageEntity>
     @Query("SELECT COALESCE(MAX(seq), 0) FROM message WHERE conversation_id = :cid") suspend fun maxSeq(cid: String): Int
     @Insert suspend fun insert(e: MessageEntity)
+    @Query("UPDATE message SET ref_id = :refId WHERE id = :id") suspend fun setRefId(id: String, refId: String)
     @Query("DELETE FROM message WHERE conversation_id = :cid") suspend fun deleteAll(cid: String)
 }
 
