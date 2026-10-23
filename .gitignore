@@ -21,3 +21,8 @@ keystore.properties
 
 # Windows reserved-name file (cannot be tracked on Windows)
 nul
+
+# Local environment
+.env
+.env.*
+!.env.example
