@@ -75,4 +75,4 @@ Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests 
 
 Phase 5 accepted: 231 tests green (1 skipped = live spike), DomainPurityTest green, assembleDebug OK.
 
-**CP3 reached (end of Phase 6). Waiting for the user.** The simple one-shot flow is built (step 6.11) but not yet run against Groq. Next: run it live on the loan story (XaiLiveSpikeTest.counselEndToEnd), then Phase 7 (a simpler UI: one input box, one result screen).
+**CP3 reached (end of Phase 6). Waiting for the user.** The simple one-shot flow passed a live run against Groq (gpt-oss-20b): loan story + 2 follow-ups, 0 failed turns, full outcome matrices (24/24, 36/36, 54/54), recommendation updated after the follow-up (Co-sign → Refuse once a no-liability limit was added). Next, after the user OKs CP3: Phase 7 (simple UI: one input box, one result screen, Settings with key and consent).
