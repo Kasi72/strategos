@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.Flow
 }
 
 @Dao interface ConversationDao {
+    /** Messages, change sets and summaries go with it (cascade). Scenarios and memory stay. */
+    @Query("DELETE FROM conversation") suspend fun deleteAll()
     @Query("SELECT * FROM conversation WHERE scenario_id = :scenarioId AND status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 1") suspend fun activeFor(scenarioId: String): ConversationEntity?
     @Query("SELECT * FROM conversation WHERE id = :id") suspend fun get(id: String): ConversationEntity?
     @Upsert suspend fun upsert(e: ConversationEntity)

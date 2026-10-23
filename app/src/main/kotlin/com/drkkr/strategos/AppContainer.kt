@@ -3,6 +3,7 @@ package com.drkkr.strategos
 import android.content.Context
 import com.drkkr.strategos.agent.AgentAssets
 import com.drkkr.strategos.agent.CounselDeps
+import com.drkkr.strategos.agent.KeyVault
 import com.drkkr.strategos.data.db.DatabaseKeyManager
 import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
@@ -57,6 +58,18 @@ class AppContainer(
     val agentAssets: AgentAssets by lazy { AgentAssets(context) }
 
     val secretStore: SecretStore? by lazy { database?.let { SecretStore(it.settingDao(), KeystoreCipher(SECRET_KEY_ALIAS)) } }
+
+    /** SecretStore as a KeyVault for the AI settings screen. */
+    val keyVault: KeyVault? by lazy {
+        secretStore?.let { store ->
+            object : KeyVault {
+                override suspend fun put(key: String) = store.putXaiKey(key)
+                override suspend fun get(): String? = store.getXaiKey()
+                override suspend fun clear() = store.clearXaiKey()
+                override suspend fun has(): Boolean = store.hasXaiKey()
+            }
+        }
+    }
 
     val llmClient: LlmClient by lazy {
         llmOverride ?: XaiResponsesClient(keyProvider = { secretStore?.getXaiKey() }, callLog = database?.llmCallDao())

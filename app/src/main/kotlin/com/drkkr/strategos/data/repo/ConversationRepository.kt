@@ -20,6 +20,8 @@ class ConversationRepository(private val db: StrategosDatabase) {
             }
         }
 
+    suspend fun deleteAll() = db.conversationDao().deleteAll()
+
     suspend fun get(id: String): ConversationEntity? = db.conversationDao().get(id)
 
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>> = db.messageDao().observe(conversationId)

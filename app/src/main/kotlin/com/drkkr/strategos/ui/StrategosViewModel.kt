@@ -3,10 +3,12 @@ package com.drkkr.strategos.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.drkkr.strategos.agent.AiSettingsController
 import com.drkkr.strategos.agent.CounselController
 import com.drkkr.strategos.agent.CounselGateway
 import com.drkkr.strategos.agent.CounselUiState
 import com.drkkr.strategos.data.repo.SaveResult
+import com.drkkr.strategos.data.repo.UiMode
 import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.data.storage.RecoverableRecord
 import com.drkkr.strategos.domain.framework.AnalysisResult
@@ -124,6 +126,26 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         override suspend fun analyzeAndPublish() = analyzeAndAwait()
         override fun lastResults() = _state.value.analysisResults
         override suspend fun commitAgentChange(updated: Scenario): SaveResult = this@StrategosViewModel.commitAgentChange(updated)
+    }
+
+    /** AI key, consent and model settings (null when secure storage is unavailable). */
+    val aiSettings: AiSettingsController? = container.settingsRepository?.let { s ->
+        container.keyVault?.let { vault -> AiSettingsController(viewModelScope, s, vault, container.llmClient) }
+    }
+
+    /** Guided (default) or Expert, from the `ui.mode` setting; changes show up at once. */
+    val uiMode: StateFlow<UiMode> = (container.settingsRepository?.observeUiMode() ?: flowOf(null))
+        .map { v -> runCatching { UiMode.valueOf(v.orEmpty()) }.getOrDefault(UiMode.GUIDED) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiMode.GUIDED)
+
+    fun setUiMode(mode: UiMode) { viewModelScope.launch { container.settingsRepository?.setUiMode(mode) } }
+
+    /** Deletes every conversation (messages, summaries, change sets). Scenarios stay. */
+    fun deleteAllConversations() {
+        viewModelScope.launch {
+            container.counselDeps?.conversations?.deleteAll()
+            _state.value.activeScenario?.let { counsel?.bindScenario(it.id) }
+        }
     }
 
     /** Null when secure storage is unavailable (Counsel needs the database). */
