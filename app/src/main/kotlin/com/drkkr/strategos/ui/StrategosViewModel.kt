@@ -72,6 +72,8 @@ import com.drkkr.strategos.framework.tree.BackwardInductionModule
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 data class UiState(
@@ -200,12 +202,13 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         ) }
         viewModelScope.launch {
             try {
-                val allModules = registry.modules()
-                val plan = FrameworkSelector.classify(scenario, allModules)
+                val plan = withContext(Dispatchers.Default) {
+                    FrameworkSelector.classify(scenario, registry.modules())
+                }
                 _state.update { it.copy(analysisPlan = plan) }
 
                 val selectedIds = plan.selected().map { it.moduleId }.toSet()
-                val moduleRuns = registry.runAll(scenario, selectedIds)
+                val moduleRuns = withContext(Dispatchers.Default) { registry.runAll(scenario, selectedIds) }
 
                 // Build debug entries from FAILED modules only — no raw stack traces in state
                 val debugEntries = moduleRuns
@@ -227,7 +230,9 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                 val analysisResults = registry.analysisResultsFrom(moduleRuns)
-                val report = engine.combine(scenario, analysisResults).copy(analysisPlan = plan)
+                val report = withContext(Dispatchers.Default) {
+                    engine.combine(scenario, analysisResults).copy(analysisPlan = plan)
+                }
 
                 // Determine run status from ModuleRunStatus — never string matching
                 val requiredFailed = moduleRuns.any {

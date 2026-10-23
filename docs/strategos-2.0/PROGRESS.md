@@ -16,5 +16,6 @@ Toolchain installed 2026-10-23 with Homebrew:
 | step | status | tests added | notes / BLUEPRINT-QUESTIONs |
 |---|---|---|---|
 | 0.1 | done | 0 (TC_BUILD_01/02 verified by command) | Signing read from keystore.properties or STRATEGOS_* env; release signed only if the store file exists. Needed `import java.util.Properties` (inside `android {}` `java` is the Java extension). |
+| 0.2 | done | 0 | Classify, runAll and combine run in `withContext(Dispatchers.Default)`; state updates stay on main. Full suite + assembleDebug green. |
 
-Next step: Phase 0.2 (analyze() on Dispatchers.Default).
+Next step: Phase 0.3 (DomainPurityTest).
