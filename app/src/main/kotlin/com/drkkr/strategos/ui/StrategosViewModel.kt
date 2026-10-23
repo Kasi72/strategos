@@ -241,6 +241,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                 AnalysisSnapshot(
                     scenarioId = scenario.id,
                     scenarioVersion = scenario.version,
+                    engineVersion = com.drkkr.strategos.agent.AgentConfig.ENGINE_VERSION,
                     scenarioHash = AnalysisSnapshot.hashString(fullPayload),
                     selectedModuleIds = selectedIds.toList().sorted(),
                     executiveStatus = report.executiveStatus.name,

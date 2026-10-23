@@ -29,9 +29,10 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 2.2 | done | 0 (Keystore needs a real device; TC_SECRET_01 is instrumented-only, not written yet) | KeystoreCipher, DatabaseKeyManager (+StorageUnavailableException), DbFactory, SecretStore. DaoTest now uses DbFactory.inMemoryForTests. |
 | 2.3 | done | 0 (wiring only; assembleDebug + full suite green) | StrategosApplication, AppContainer (lazy DB, null + error on failure), manifest android:name. BLUEPRINT-QUESTION: reused existing data.storage.StorageUnavailableException instead of adding a second class with the same name. |
 | 2.4 | done | 7 (TC_DB_03/04/05 + delete, snapshots, orphan snapshot, null db) | ScenarioRepository now Room-backed (db, storageError); ViewModel gets db from AppContainer. save() builds the updated scenario outside the transaction (first run returned a different updatedAt than the stored one). BLUEPRINT-QUESTION: saveSnapshot skips when the scenario row doesn't exist yet (FK); analyze() saves the snapshot before the scenario for never-saved scenarios. |
+| 2.5 | done | 7 (TC_DB_02 + conversation, memory, change set, settings) | AgentConfig (§10.1) created now because SettingsRepository needs DEFAULT_MODEL/CONSENT_VERSION; enums MessageRole, UiKind (incl. UNDERSTANDING, SUPPORT from §17.4), ChangeSetStatus, MemoryKind, UiMode in RepoModels.kt. Snapshots now carry engineVersion = AgentConfig.ENGINE_VERSION (§4.3). FOUND A REAL BUG: with `encodeDefaults=false` kotlinx.serialization drops `updatedAt`/`createdAt`/`timestamp` when the value equals "now" at encode time (same ms), and decoding re-evaluates the default. Caused a flaky TC_DB_04 (stored time 1ms off). ScenarioRepository now encodes with `encodeDefaults=true`. The legacy ScenarioStorage and the ViewModel `snapshotJson` still have the same latent issue (1.x behaviour, not touched). |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
 Phase 1 accepted: 106 tests green (77 legacy + 29 new). The 4 templates produce identical status, pathways and candidates through AnalysisPipeline (TC_PIPE_01). Not run on a device; no emulator here.
 
-Next step: Phase 2.5 (Conversation/ChangeSet/Memory/Settings repositories).
+Next step: Phase 2.6 (LegacyStorageMigrator).

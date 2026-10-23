@@ -30,7 +30,9 @@ class ScenarioRepository(
 ) {
     val isStorageSecure: Boolean = db != null
 
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
+    // encodeDefaults: updatedAt/createdAt/timestamp default to "now". With encodeDefaults=false the encoder drops a value
+    // that equals the default evaluated at encode time (same millisecond), and decoding then re-evaluates "now".
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false; encodeDefaults = true }
 
     private val _scenarios = MutableStateFlow<List<Scenario>>(emptyList())
     val scenarios: StateFlow<List<Scenario>> get() = _scenarios
