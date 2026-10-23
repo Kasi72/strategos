@@ -1,5 +1,6 @@
 package com.drkkr.strategos.nlp
 
+import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.domain.model.*
 
 /**
@@ -24,7 +25,7 @@ object ScenarioParser {
     )
 
     fun parse(rawText: String, existingId: String? = null): ParseResult {
-        val language = detectLanguage(rawText)
+        val language = LanguageDetector.detect(rawText)
         val title = extractTitle(rawText)
         val questions = mutableListOf<String>()
 
@@ -45,17 +46,6 @@ object ScenarioParser {
             )
         )
         return ParseResult(scenario, questions, language)
-    }
-
-    private fun detectLanguage(text: String): String {
-        val tamilCodes = listOf('஀'..'௿')
-        val hasTamil = text.any { ch -> tamilCodes.any { ch in it } }
-        val hasEnglish = text.any { it.isLetter() && it.code < 0x200 }
-        return when {
-            hasTamil && hasEnglish -> "ta-en"
-            hasTamil -> "ta"
-            else -> "en"
-        }
     }
 
     private fun extractTitle(text: String): String =
