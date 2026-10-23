@@ -1,6 +1,7 @@
 package com.drkkr.strategos
 
 import android.content.Context
+import com.drkkr.strategos.agent.AgentAssets
 import com.drkkr.strategos.data.db.DatabaseKeyManager
 import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
@@ -37,6 +38,8 @@ class AppContainer(private val context: Context) {
 
     val scenarioRepository: ScenarioRepository by lazy { ScenarioRepository(database, storageError) }
     val settingsRepository: SettingsRepository? by lazy { database?.let { SettingsRepository(it) } }
+
+    val agentAssets: AgentAssets by lazy { AgentAssets(context) }
 
     private val migrationLock = Mutex()
     private var migrationDone = false
