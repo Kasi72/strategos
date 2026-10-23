@@ -48,6 +48,7 @@ Toolchain installed 2026-10-23 with Homebrew:
 | 5.5 | done | 8 (TC_DIG_01-04 + 2x3/3x2 maths, missing cap, field presence, rounding) | ScenarioDigest + PayoffCoverage (expected = profiles x players, over PLAYERs only) and ReportDigest. Frameworks use AnalysisResult.frameworkCategory / calculationStatus; status_reasons = blockingReasons + requiredActions (≤5); confidence falls back to overallConfidence when there is no ConfidenceProfile. Fx.templates() added. |
 | 5.6 | done | 3 (TC_WHATIF_01-02 + comparison shape) | suspend run(base, ops, pipeline, label): validate → apply accepted ops to a copy → baseline (cached, LRU 4) + variant on Dispatchers.Default → comparison JSON. rejected_ops includes validator rejections and apply-time skips. Persistence and uiKind are the handler's job (5.8). BLUEPRINT-QUESTION: cache key is id + version + hashCode, since unsaved edits don't bump version. |
 | 5.7 | done | 4 (TC_STRESS_01-04) | Pure and synchronous (the handler wraps it in Dispatchers.Default). Injectable clock, so TC_STRESS_04 is deterministic. `holds_in` = runs that kept the recommendation; `flips` lists up to 5 but `flipCount` counts all of them. FRAGILE when any run flips. |
+| 5.8 | done | 14 (TC_DISP_01-10 + all-rejected, what_if, stress/get, understanding/support) + TC_ASSET_02 now also checks ToolDispatcher.names | ToolDispatcher + 10 handler objects in agent/tools/. Never throws except to propagate CancellationException; handler exceptions are logged as tool name + exception class only. Reuses data.repo.UiKind (it already has UNDERSTANDING and SUPPORT). Expert behaviour only: Guided auto-apply in propose_changes comes in 6.7 (it needs CounselController). BLUEPRINT-QUESTIONs: ask_user and run_analysis return refId=null and the orchestrator sets the TOOL_RESULT message id (§10.2); update_memory with >10 adds → invalid_arguments; the quote isn't stored on the memory item (no column), it is only used to verify. FakeGateway fixture added. |
 
 Phase 0 accepted: 78 tests green, assembleDebug OK without keystore.properties, `grep -r strategos123 app/` empty.
 
@@ -59,4 +60,6 @@ Phase 3 accepted: 156 tests (1 skipped = the env-gated live spike), API_NOTES.md
 
 Phase 4 accepted: `opengap validate` passes (12 warnings, no errors), 161 tests green (1 skipped = live spike), assembleDebug OK.
 
-Next step: Phase 5.8 (ToolDispatcher + 10 handlers).
+Phase 5 accepted: 231 tests green (1 skipped = live spike), DomainPurityTest green, assembleDebug OK.
+
+Next step: Phase 6.1 (ContextAssembler).

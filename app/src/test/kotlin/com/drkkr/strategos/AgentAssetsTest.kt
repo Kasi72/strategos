@@ -1,5 +1,6 @@
 package com.drkkr.strategos
 
+import com.drkkr.strategos.agent.ToolDispatcher
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -40,7 +41,6 @@ class AgentAssetsTest {
         assertEquals(names.size, names.toSet().size)
     }
 
-    // BLUEPRINT-QUESTION: TC_ASSET_02 also asks for equality with ToolDispatcher.names; that class arrives in 5.8, so the assertion is added then.
     @Test
     fun TC_ASSET_02_toolNamesMatchBlueprint() {
         val expected = setOf(
@@ -48,6 +48,7 @@ class AgentAssetsTest {
             "what_if", "stress_test_inferred", "update_memory", "show_understanding", "show_support"
         )
         assertEquals(expected, tools().map { it.getValue("name").jsonPrimitive.content }.toSet())
+        assertEquals(expected, ToolDispatcher.default().names)
     }
 
     @Test
