@@ -1,6 +1,10 @@
 package com.drkkr.strategos.fixtures
 
 import com.drkkr.strategos.domain.model.*
+import com.drkkr.strategos.templates.CrisisManagementTemplate
+import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
+import com.drkkr.strategos.templates.ProcurementTemplate
+import com.drkkr.strategos.templates.ResourceAllocationTemplate
 
 /** Shared test fixtures (TEST_CASES §0). */
 object Fx {
@@ -82,6 +86,12 @@ object Fx {
             constraints = listOf(Constraint(id = "peace", label = "Don't risk peace at home", kind = Constraint.Kind.ETHICAL))
         )
     }
+
+    /** The 4 built-in templates. */
+    fun templates(): List<Scenario> = listOf(
+        CrisisManagementTemplate.create(), InstitutionalHealthcareTemplate.create(),
+        ProcurementTemplate.create(), ResourceAllocationTemplate.create()
+    )
 
     /** A 1.x scenario: no factStatus and no gameRole fields anywhere. */
     val v1ScenarioJson: String = """
