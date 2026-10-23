@@ -73,6 +73,7 @@ import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
 import com.drkkr.strategos.domain.analysis.PipelineResult
+import com.drkkr.strategos.domain.analysis.ProvenanceReconciler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -151,7 +152,9 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateActiveScenario(s: Scenario) {
         val hadSnapshot = _state.value.snapshot != null
-        _state.update { it.copy(activeScenario = s, snapshotInvalidated = hadSnapshot) }
+        val current = _state.value.activeScenario
+        val reconciled = if (current != null) ProvenanceReconciler.onManualEdit(current, s) else s
+        _state.update { it.copy(activeScenario = reconciled, snapshotInvalidated = hadSnapshot) }
     }
 
     fun analyze() {
