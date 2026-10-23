@@ -47,3 +47,13 @@ Healthcare template, Expert mode, real agent assets, `openai/gpt-oss-20b`.
 Size of one Counsel request before any history: `system_prompt.md` 17.5 KB (~4.4k tokens) + `tools.json` 22 KB (~5.5k tokens, the change-op schema appears in both `propose_changes` and `what_if`) + the scenario digest. That is ~10k tokens or more per request, and a turn makes 2–4 requests. Groq returns 413 `rate_limit_exceeded` when one request exceeds the account's tokens-per-minute limit, so this account tier can't run Counsel at all. **Needs a decision (CP3).**
 
 `LlmErrors` now maps `rate_limit_exceeded` to "Not enough credits." (provider override rule), so users see that instead of "error (413)".
+
+## CP3 live run after the 6.9 fixes (`XaiLiveSpikeTest.counselEndToEnd`, gpt-oss-20b, scripted loan story)
+**Works:** no 413s (Guided requests ≈2.0–2.6k input tokens); the model now calls `propose_changes` every turn; changes are saved (5 commits, scenario grew to 12 people / 6 options); one request per Guided turn; `run_analysis` ran and returned a digest.
+**Does not work well yet (model quality, 20B):**
+- Re-adds the same people every turn (4 real people became 12 entries) instead of using the ids in the context.
+- Marks almost everyone as PLAYER (10 players), which blows up the matrix; ignores the "2 players, 3 max" rule.
+- Asks the same question repeatedly ("Can your brother stop you…") regardless of the answer; sometimes sends 5 options (max 4).
+- Never reached the outcomes step (0/0 payoffs); the later `set_payoff` calls failed with `bad_profile`.
+- Still gets `400 tool_use_failed` on some calls, and the scripted run hit `429` (8k tokens/minute) after several fast turns.
+**Cheap fixes available (not done, waiting for a decision at CP3):** drop an `add_stakeholder` whose name already exists (turn it into an update); truncate `ask.options` to 4 instead of erroring; reject a 4th PLAYER in the validator; try `openai/gpt-oss-120b` (one setting, 2× price).
