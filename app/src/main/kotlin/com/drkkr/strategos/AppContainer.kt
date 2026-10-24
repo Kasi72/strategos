@@ -90,7 +90,8 @@ class AppContainer(
             settings = settings,
             whatIfs = db.whatIfDao(),
             hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null },
-            oneShot = true      // SIMPLE PROFILE
+            oneShot = true,     // SIMPLE PROFILE
+            coach = true        // COMPANION REPLY
         )
     }
 

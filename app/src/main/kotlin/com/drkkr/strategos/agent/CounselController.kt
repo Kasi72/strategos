@@ -63,7 +63,9 @@ class CounselDeps(
     val pipeline: AnalysisPipeline = AnalysisPipeline(),
     val dispatcher: ToolDispatcher = ToolDispatcher.default(),
     /** SIMPLE PROFILE: true runs the one-shot flow (the app); false keeps the agent loop (tool calls), used by its tests. */
-    val oneShot: Boolean = false
+    val oneShot: Boolean = false,
+    /** COMPANION REPLY: the one-shot flow adds a second request that writes the answer from the engine's result. */
+    val coach: Boolean = false
 )
 
 /**
@@ -91,7 +93,7 @@ class CounselController(
 
     private val oneShotTurn = OneShotTurn(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
-        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize
+        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach
     )
 
     init {

@@ -7,6 +7,7 @@ import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.agent.ApplyResult
+import com.drkkr.strategos.domain.agent.CoachFacts
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
 import com.drkkr.strategos.domain.agent.LiveDigest
 import com.drkkr.strategos.domain.agent.ModelSketch
@@ -52,7 +53,9 @@ class OneShotTurn(
     /** Applies a saved PENDING change set through the normal path (commit, undo stack, history). */
     private val autoApply: suspend (changeSetId: String) -> ApplyResult?,
     private val onSupport: () -> Unit = {},
-    private val afterTurn: suspend (conversationId: String) -> Unit = {}
+    private val afterTurn: suspend (conversationId: String) -> Unit = {},
+    /** COMPANION REPLY: after the engine runs, one more model call writes a warm answer from the engine's result. */
+    private val coach: Boolean = false
 ) {
     suspend fun run(
         conversationId: String, scenarioId: String, trigger: TurnTrigger, onActivity: (String) -> Unit
@@ -134,11 +137,37 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             val reply = PlainResult.build(after, pr, understood)
-            val note = if (nothingNew) "$NOTHING_NEW\n\n" else ""
-            conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$note$reply\n\n${converted.ask}" else "$note$reply")
+            val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
+            val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
+            val body = if (talk != null) "$talk\n\n$reply" else "$note$reply"
+            conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body)
         }
         afterTurn(cid)
         return TurnResult.Done
+    }
+
+    /**
+     * The companion's words: a second request that gets the engine's result and the person's message and answers them.
+     * Null on any failure or an unusable reply, so the app-written view below it still stands on its own.
+     */
+    private suspend fun coachReply(cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult, text: String): String? {
+        val earlier = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }.dropLast(1).takeLast(RECENT)
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", COACH_PROMPT) })
+            add(buildJsonObject {
+                put("role", "user")
+                put("content", buildString {
+                    append("WHAT THE ANALYSIS SHOWS:\n").append(CoachFacts.build(s, pr)).append('\n')
+                    if (earlier.isNotEmpty()) append("EARLIER MESSAGES:\n").append(earlier.joinToString("\n") { "- " + it.take(200) }).append('\n')
+                    append("THE PERSON SAYS:\n").append(text.take(MAX_USER_CHARS))
+                })
+            })
+        }
+        val request = LlmRequest(settings.model(), input, tools = null, maxOutputTokens = AgentConfig.COACH_MAX_OUTPUT_TOKENS, purpose = "COACH", conversationId = cid, turnId = turnId)
+        val r = llm.create(request) as? LlmResult.Ok ?: return null
+        val words = r.output.assistantText().trim()
+        // A JSON object, or nothing, means the model answered the wrong task; use the plain view instead.
+        return words.takeIf { it.length >= MIN_COACH_CHARS && !it.startsWith("{") }
     }
 
     private sealed class Reply {
@@ -223,6 +252,20 @@ class OneShotTurn(
     companion object {
         private const val RECENT = 3
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
+        private const val MAX_USER_CHARS = 1_500
+        private const val MIN_COACH_CHARS = 40
+
+        /** COMPANION REPLY prompt (~250 tokens). The words come from the model; every fact comes from the engine's result. */
+        const val COACH_PROMPT = """You are Strategos, a calm, warm companion who helps a person think through a hard personal decision. You are not a therapist and you do not diagnose.
+You get WHAT THE ANALYSIS SHOWS (from the app's game-theory engine; part of it rests on guesses) and what the person said.
+Write 120-170 words of plain prose. No lists, headings, scores or percentages. Speak to "you".
+1) Answer their actual question, or reflect what they shared, in one or two sentences.
+2) Connect it to the analysis: which option looks best and why, what could go wrong, who matters most.
+3) Suggest one or two small, concrete things they could do or say in the next few days, about their own behaviour.
+4) End with one gentle question, or invite them to share how it goes.
+Use only facts given to you; never invent events or feelings. Say "may" and "could", never promise an outcome.
+If they sound overwhelmed, acknowledge it kindly and suggest leaning on their clinician or someone they trust."""
+
         const val NOTHING_NEW = "There was nothing new in that to add to the model, so this is the same view as before. Tell me who did or said what, or what changed, and I'll update it."
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."
 

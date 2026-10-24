@@ -17,6 +17,8 @@ object AgentConfig {
 
     /** SIMPLE PROFILE: the one-shot sketch holds up to ~9 outcome rows, so it needs more room than a tool call. */
     const val ONE_SHOT_MAX_OUTPUT_TOKENS = 2_000
+    /** COMPANION REPLY: ~170 words plus a little reasoning. Groq reserves this against its per-minute limit, so no more. */
+    const val COACH_MAX_OUTPUT_TOKENS = 700
     const val TEMPERATURE = 0.3
     const val HISTORY_TOKEN_BUDGET = 1_200
     const val HISTORY_TOKEN_TARGET = 600
