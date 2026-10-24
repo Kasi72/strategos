@@ -14,7 +14,8 @@ import org.junit.Test
  * Prints `SPIKE|<check>|<result>|<detail>` lines with statuses, token counts and latency only, never the key or model text.
  */
 class DeepSeekLiveSpikeTest {
-    private val key = System.getenv("DEEPSEEK_API_KEY")?.takeIf { it.isNotBlank() }
+    // XAI_API_KEY is the fallback name (execution prompt CP-DS1), for a dev .env that still uses it.
+    private val key = System.getenv("DEEPSEEK_API_KEY")?.takeIf { it.isNotBlank() } ?: System.getenv("XAI_API_KEY")?.takeIf { it.isNotBlank() }
     private val client by lazy { ChatCompletionsClient(keyProvider = { key }) }
 
     private fun say(check: String, result: String, detail: String = "") = println("SPIKE|$check|$result|$detail")
@@ -33,7 +34,7 @@ class DeepSeekLiveSpikeTest {
 
     @Test
     fun spike() = runBlocking {
-        Assume.assumeTrue("DEEPSEEK_API_KEY not set; live spike skipped", key != null)
+        Assume.assumeTrue("DEEPSEEK_API_KEY (or XAI_API_KEY) not set; live spike skipped", key != null)
 
         val first = client.create(request("Reply with {\"ok\":true}", json = true))
         val jsonOk = first is LlmResult.Ok && runCatching { Json.parseToJsonElement(first.output.assistantText()).jsonObject }.isSuccess

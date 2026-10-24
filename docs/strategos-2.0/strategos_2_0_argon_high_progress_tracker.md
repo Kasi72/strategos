@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **All steps done. At CP-FINAL**: waiting on the user for the manual DeepSeek checklist and the live spike (`DEEPSEEK_API_KEY`). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **All steps done. At CP-FINAL**: live spike passed (see `API_NOTES.md`); waiting on the user for the manual DeepSeek checklist on a phone. Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 

@@ -19,7 +19,7 @@ Branch `strategos-2.0`. Built from `strategos_2_0_argon_high_blueprint.md`; the 
 One existing test was changed with the user's approval: `AiSettingsTest.TC_MODEL_01` now expects `deepseek-chat` as the default model (its old Groq default cannot coexist with `TC_DS_01`).
 
 ## Known gaps and open questions
-- **Live DeepSeek spike not run.** No `DEEPSEEK_API_KEY` in `.env`. `DeepSeekLiveSpikeTest` is ready; results (JSON mode, cache hits, screener latency) still need to go into `API_NOTES.md`. Until then the app has never talked to the real DeepSeek API.
+- **Live DeepSeek spike passed** (JSON mode, 640/842 cache-hit tokens, 831 ms; see `API_NOTES.md`). The full app flow and the coach prompt have not been run against DeepSeek yet; that is the phone checklist below.
 - **No UI tests.** The Compose screens are compile-checked only.
 - **Consent.** `CONSENT_VERSION` stays 1 (blueprint), so people who agreed to Groq are not asked again about DeepSeek or the journal being sent for screening. Bump it before release if that matters.
 - `XaiLiveSpikeTest` still targets the Responses API through `AgentConfig.BASE_URL`, which is now DeepSeek. It is skipped without a key, and would fail if run.

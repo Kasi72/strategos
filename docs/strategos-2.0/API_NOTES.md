@@ -57,3 +57,15 @@ Size of one Counsel request before any history: `system_prompt.md` 17.5 KB (~4.4
 - Never reached the outcomes step (0/0 payoffs); the later `set_payoff` calls failed with `bad_profile`.
 - Still gets `400 tool_use_failed` on some calls, and the scripted run hit `429` (8k tokens/minute) after several fast turns.
 **Cheap fixes available (not done, waiting for a decision at CP3):** drop an `add_stakeholder` whose name already exists (turn it into an update); truncate `ask.options` to 4 instead of erroring; reject a 4th PLAYER in the validator; try `openai/gpt-oss-120b` (one setting, 2× price).
+
+## DeepSeek live spike (Argon A.4, run 2026-10-24)
+
+Endpoint `POST https://api.deepseek.com/v1/chat/completions`, model `deepseek-chat`, via `ChatCompletionsClient`. Run: `set -a; source .env; set +a; ./gradlew :app:testDebugUnitTest --tests "*DeepSeekLiveSpikeTest*" --rerun-tasks`.
+
+| Check | Result | Detail |
+|---|---|---|
+| S1 JSON mode (`response_format: json_object`) | PASS | Reply parses as a JSON object. |
+| S2 prefix cache | PASS | Second identical-prefix call: `prompt_cache_hit_tokens=640` of 842 input tokens. |
+| S3 journal-screener-sized call | PASS | 831 ms round trip (600-token cap, JSON mode). |
+
+Not covered: `deepseek-reasoner`, 429 behaviour, and the full coach prompt. An earlier run with a Groq key returned 401, as expected.
