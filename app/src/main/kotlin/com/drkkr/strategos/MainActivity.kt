@@ -34,6 +34,8 @@ import com.drkkr.strategos.domain.model.NavigationTarget
 import com.drkkr.strategos.domain.model.WorkflowStage
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.counsel.CounselTab
+import com.drkkr.strategos.ui.journal.JournalTab
+import com.drkkr.strategos.ui.overview.ProjectOverviewTab
 import com.drkkr.strategos.ui.review.ReviewInferredScreen
 import com.drkkr.strategos.ui.settings.AiSettingsScreen
 import com.drkkr.strategos.ui.tabs.*
@@ -44,8 +46,10 @@ import com.drkkr.strategos.ui.theme.glowBehind
 import com.drkkr.strategos.ui.theme.ledStripBelow
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    SCENARIOS("Home", Icons.Default.Home),
+    SCENARIOS("Projects", Icons.Default.Home),
+    OVERVIEW("Overview", Icons.Default.Timeline),
     COUNSEL("Talk", Icons.Default.Forum),
+    JOURNAL("Journal", Icons.Default.Book),
     SUMMARY("Summary", Icons.Default.Description),
     SETTINGS("Settings", Icons.Default.Tune),
     MODEL("Model", Icons.Default.Edit),
@@ -54,7 +58,8 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 }
 
 /** Guided users get a short dock; Expert ("Show details") gets the full one. Both have exactly as many items as `ledColors`. */
-private val GUIDED_TABS = listOf(Tab.SCENARIOS, Tab.COUNSEL, Tab.SUMMARY, Tab.SETTINGS)
+// Summary is no longer in the dock; Overview links to it.
+private val GUIDED_TABS = listOf(Tab.SCENARIOS, Tab.OVERVIEW, Tab.COUNSEL, Tab.JOURNAL, Tab.SETTINGS)
 private val EXPERT_TABS = listOf(Tab.SCENARIOS, Tab.COUNSEL, Tab.MODEL, Tab.REPORT, Tab.MORE)
 
 internal enum class ReportSubTab(val label: String, val icon: ImageVector) {
@@ -63,6 +68,8 @@ internal enum class ReportSubTab(val label: String, val icon: ImageVector) {
 }
 
 internal enum class MoreSubTab(val label: String, val icon: ImageVector) {
+    OVERVIEW("Overview", Icons.Default.Timeline),
+    JOURNAL("Journal", Icons.Default.Book),
     MAP("Map", Icons.Default.AccountTree),
     DASHBOARD("Implement", Icons.Default.Dashboard),
     SETTINGS("Settings", Icons.Default.Tune)
@@ -113,14 +120,14 @@ private fun NavigationTarget.toMoreSubTab(): MoreSubTab? = when (this) {
 fun StrategosApp(vm: StrategosViewModel) {
     val state by vm.state.collectAsState()
     var selectedTab by remember { mutableStateOf(Tab.SCENARIOS) }
-    var selectedMoreTab by remember { mutableStateOf(MoreSubTab.MAP) }
+    var selectedMoreTab by remember { mutableStateOf(MoreSubTab.OVERVIEW) }
     var selectedModelSubTab by remember { mutableStateOf(ModelSubTab.FRAME) }
     var selectedReportTab by remember { mutableStateOf(ReportSubTab.DECISION) }
     var showReview by remember { mutableStateOf(false) }
     val mode by vm.uiMode.collectAsState()
     val expert = mode == UiMode.EXPERT
     val dock = if (expert) EXPERT_TABS else GUIDED_TABS
-    val shownTab = if (selectedTab in dock) selectedTab else Tab.SCENARIOS
+    val shownTab = if (selectedTab in dock || (selectedTab == Tab.SUMMARY && !expert)) selectedTab else Tab.SCENARIOS
     val openSettings = {
         if (expert) { selectedTab = Tab.MORE; selectedMoreTab = MoreSubTab.SETTINGS } else selectedTab = Tab.SETTINGS
     }
@@ -170,6 +177,8 @@ fun StrategosApp(vm: StrategosViewModel) {
                     onOpenScenario = { s -> vm.setActiveScenario(s); selectedTab = Tab.COUNSEL },
                     onOpenSettings = openSettings
                 )
+                Tab.OVERVIEW -> ProjectOverviewTab(vm, onOpenThread = { selectedTab = Tab.COUNSEL }, onOpenSummary = { selectedTab = Tab.SUMMARY }, onGoHome = { selectedTab = Tab.SCENARIOS })
+                Tab.JOURNAL -> JournalTab(vm)
                 Tab.COUNSEL -> CounselTab(vm, expert, onOpenSettings = openSettings, onGoHome = { selectedTab = Tab.SCENARIOS }, onReviewAi = { if (expert) showReview = true })
                 Tab.SUMMARY -> SummaryScreen(vm)
                 Tab.SETTINGS -> AiSettingsScreen(vm)
@@ -182,7 +191,8 @@ fun StrategosApp(vm: StrategosViewModel) {
                 Tab.MORE -> MoreTab(
                     vm = vm,
                     selectedSubTab = selectedMoreTab,
-                    onSubTabSelected = { selectedMoreTab = it }
+                    onSubTabSelected = { selectedMoreTab = it },
+                    onOpenTalk = { selectedTab = Tab.COUNSEL }
                 )
             }
         }
@@ -410,7 +420,8 @@ internal fun ModelTab(
 internal fun MoreTab(
     vm: StrategosViewModel,
     selectedSubTab: MoreSubTab,
-    onSubTabSelected: (MoreSubTab) -> Unit
+    onSubTabSelected: (MoreSubTab) -> Unit,
+    onOpenTalk: () -> Unit = {}
 ) {
     Column(Modifier.fillMaxSize()) {
         NeoSubTabBar(
@@ -423,6 +434,8 @@ internal fun MoreTab(
         )
         Box(Modifier.fillMaxSize()) {
             when (selectedSubTab) {
+                MoreSubTab.OVERVIEW -> ProjectOverviewTab(vm, onOpenThread = onOpenTalk, onOpenSummary = {}, onGoHome = {})
+                MoreSubTab.JOURNAL -> JournalTab(vm)
                 MoreSubTab.MAP -> StakeholderMapTab(vm)
                 MoreSubTab.DASHBOARD -> ImplementationDashboardTab(vm)
                 MoreSubTab.SETTINGS -> AiSettingsScreen(vm)

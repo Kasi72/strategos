@@ -29,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.agent.ChatItem
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.components.rememberPalette
@@ -97,9 +99,23 @@ fun CounselTab(vm: StrategosViewModel, expert: Boolean, onOpenSettings: () -> Un
                 action = "OK", onAction = counsel::dismissSupport, p = p, accent = NeoTokens.red
             )
             when {
-                ui.keyInvalid -> NoticeCard("Your Groq key stopped working", "Update it in Settings to keep going. Your conversation is safe on this phone.", "Update key", onOpenSettings, p, NeoTokens.amber)
-                !ui.aiReady && (!ui.hasKey || ui.needsConsent) -> NoticeCard("Set up AI counsel", "Add your Groq key and agree to the privacy note. It takes a minute, and the analysis itself always runs on this phone.", "Open settings", onOpenSettings, p)
+                ui.keyInvalid -> NoticeCard("Your ${AgentConfig.PROVIDER_NAME} key stopped working", "Update it in Settings to keep going. Your conversation is safe on this phone.", "Update key", onOpenSettings, p, NeoTokens.amber)
+                !ui.aiReady && (!ui.hasKey || ui.needsConsent) -> NoticeCard("Set up AI counsel", "Add your ${AgentConfig.PROVIDER_NAME} key and agree to the privacy note. It takes a minute, and the analysis itself always runs on this phone.", "Open settings", onOpenSettings, p)
                 !ui.aiReady -> NoticeCard("AI counsel is off", "Strategos works fully offline. Turn AI counsel on to talk this through.", "Turn on AI counsel", onOpenSettings, p)
+            }
+        }
+
+        // ── Threads and journal note ──────────────────────────────────────────
+        var newThread by remember { mutableStateOf(false) }
+        ThreadSwitcherBar(ui.threads, ui.conversationId, enabled = !ui.running, onSelect = { counsel.selectThread(it) }, onNew = { newThread = true })
+        if (newThread) NewThreadDialog(onDismiss = { newThread = false }, onCreate = { title, tag -> counsel.createNamedThread(title, tag); newThread = false })
+        ui.postNotes.firstOrNull()?.let { note ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = StratTokens.screenPad, vertical = 4.dp).testTag("counsel_post_note"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("✨ Based on your new journal entry: ${note.insightHeadline.removePrefix("Based on your journal entry:").trim()}", color = p.ink, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f), maxLines = 2)
+                TextButton(onClick = { counsel.applyJournalPostNote(note.id) }) { Text("Apply") }
             }
         }
 

@@ -58,7 +58,7 @@ data class AiSettingsUi(
 
 /**
  * Everything on the AI settings screen (blueprint §11.5, §11.5.1, §11.5.2), without any Android types.
- * The provider is Groq (PROVIDER OVERRIDE), so texts say "Groq" where the blueprint says "xAI".
+ * The provider is DeepSeek, so texts use AgentConfig.PROVIDER_NAME where the blueprint says "xAI".
  */
 class AiSettingsController(
     private val scope: CoroutineScope,
@@ -99,12 +99,12 @@ class AiSettingsController(
         when (val r = llm.testKey(key, settings.model())) {
             is LlmResult.Ok -> store(key, note = null)
             is LlmResult.Unauthorized -> _state.update {
-                it.copy(keyState = KeyState.REJECTED, message = "Groq didn't accept this key. Check it and try again.")
+                it.copy(keyState = KeyState.REJECTED, message = "${AgentConfig.PROVIDER_NAME} didn't accept this key. Check it and try again.")
             }
             is LlmResult.Network -> _state.update {
-                it.copy(keyState = KeyState.OFFLINE, message = "Couldn't reach Groq. Your key wasn't saved. Try again when you're online.")
+                it.copy(keyState = KeyState.OFFLINE, message = "Couldn't reach ${AgentConfig.PROVIDER_NAME}. Your key wasn't saved. Try again when you're online.")
             }
-            is LlmResult.RateLimited -> store(key, note = "Saved. Groq is busy right now, so the first reply may be slow.")
+            is LlmResult.RateLimited -> store(key, note = "Saved. ${AgentConfig.PROVIDER_NAME} is busy right now, so the first reply may be slow.")
             is LlmResult.HttpError ->
                 if (r.status in 500..599 || LlmErrors.isCreditProblem(r)) store(key, note = "Saved. ${LlmErrors.userMessage(r)}")
                 else _state.update { it.copy(keyState = KeyState.ERROR, message = LlmErrors.userMessage(r)) }

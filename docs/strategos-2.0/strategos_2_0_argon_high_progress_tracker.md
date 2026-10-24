@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `E.3`** (CounselTab switcher, MainActivity dock, settings labels). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **Start at Step `E.4`** (final verification, ManualSeedDemoTest, release notes). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -33,5 +33,5 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **D.2** | Phase D | `CounselUiState`, `CounselController`, `AppContainer` & `StrategosViewModel` wiring for threads, journal, post-notes & trajectory (`TC_CTRL2_01`–`04`) | done | 5 | `ArgonControllerTest` (CTRL2_01–04, CTX2_04). `AppContainer` now uses `ChatCompletionsClient` (the app would otherwise call DeepSeek's `/v1/responses`, which does not exist). `submitQuickCheck` commits the trust baseline through the gateway. `StrategosViewModel` already exposes `counsel`/`counselState`; the new controller methods are used from there. |
 | **E.1** | Phase E | Space 3 UI: `ProjectOverviewTab` (`SigmoidTrajectoryCard`, `JournalPostNoteCard`, `QuickCheckCard`, `ProjectThreadsSection`) | done | 0 (UI; compile-checked, no automated UI test) | `ui/overview/ProjectOverviewTab.kt`; `ui/counsel/ThreadSwitcher.kt` holds the shared `ThreadSwitcherBar`/`NewThreadDialog`. Clear-Win playbook card reads the latest assistant reply that contains a guide. |
 | **E.2** | Phase E | Space 2 UI: `JournalTab` (non-judgmental composer, voice input, instant ack banner, encrypted timeline) | done | 0 (UI) | `ui/journal/JournalTab.kt`. Shows only the ack; screener results appear on Overview. |
-| **E.3** | Phase E | Space 1 UI: `CounselTab` Thread Switcher bar + `+ Thread` dialog + Post-Note banner + `MainActivity` Guided dock & DeepSeek settings | pending | 0 | Guided dock: `Projects · Overview · Talk · Journal · Settings`. |
+| **E.3** | Phase E | Space 1 UI: `CounselTab` Thread Switcher bar + `+ Thread` dialog + Post-Note banner + `MainActivity` Guided dock & DeepSeek settings | done | 0 (UI) | Guided dock is now `Projects · Overview · Talk · Journal · Settings`; Summary is reached from Overview ("Full summary"). Expert dock unchanged; Overview and Journal are sub-tabs of More. Provider text is DeepSeek via `AgentConfig.PROVIDER_NAME`. BLUEPRINT-QUESTION: `CONSENT_VERSION` stays 1, so earlier consent covers DeepSeek and the journal. |
 | **E.4** | Phase E | Update `ManualSeedDemoTest`, run full clean test/lint/build verification & write `RELEASE_NOTES_v2.0.md` (`CP-FINAL`) | pending | 0 | Stop at `CP-FINAL` and present summary to user. |

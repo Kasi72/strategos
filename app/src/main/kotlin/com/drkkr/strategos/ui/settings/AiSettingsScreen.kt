@@ -57,22 +57,25 @@ import com.drkkr.strategos.data.repo.UiMode
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.components.UiPalette
 import com.drkkr.strategos.ui.components.rememberPalette
+import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.ui.theme.NeoTokens
 import com.drkkr.strategos.ui.theme.StratTokens
 
-/** Privacy text shown before AI is turned on (blueprint §11.5, with Groq as the provider). */
+/** Privacy text shown before AI is turned on (blueprint §11.5, with DeepSeek as the provider). */
 object AiConsentText {
     const val TITLE = "Turn on AI counsel?"
     val POINTS = listOf(
         "Your decisions, models and history stay encrypted on this phone.",
-        "When you chat, your messages and a short summary of what's saved are sent to Groq, an AI company, to write replies. Groq's data policies apply.",
+        "When you chat, your messages and a short summary of what's saved are sent to DeepSeek, an AI company, to write replies. DeepSeek's data policies apply.",
+        "If you use the Journal, each entry is also sent to DeepSeek in the background to look for patterns. It stays encrypted on this phone, and you never see a reply to it there.",
         "The analysis always runs on this phone. The AI helps build the model and never calculates the results.",
         "Don't include patient identifiers, names, addresses or anything you aren't allowed to share with a third party. Check your institution's data policy.",
         "You can turn AI off at any time. Strategos works fully offline without it."
     )
 }
 
-private const val KEYS_URL = "https://console.groq.com/keys"
+// BLUEPRINT-QUESTION: §3.1 keeps CONSENT_VERSION = 1, so people who agreed under Groq are not asked again about DeepSeek and the journal.
+private const val KEYS_URL = AgentConfig.CONSOLE_URL
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -160,7 +163,7 @@ private fun KeySection(ui: AiSettingsUi, p: UiPalette, onSave: (String) -> Unit,
     LaunchedEffect(ui.keyState) { if (ui.keyState == KeyState.CONNECTED) { text = ""; changing = false } }   // never keep the key in memory
     val checking = ui.keyState == KeyState.CHECKING
 
-    Text("Groq API key", color = p.ink, style = MaterialTheme.typography.titleMedium)
+    Text("${AgentConfig.PROVIDER_NAME} API key", color = p.ink, style = MaterialTheme.typography.titleMedium)
     if (ui.hasKey && !changing) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("●", color = NeoTokens.green)
@@ -172,7 +175,7 @@ private fun KeySection(ui: AiSettingsUi, p: UiPalette, onSave: (String) -> Unit,
     } else {
         OutlinedTextField(
             value = text, onValueChange = { text = it }, enabled = !checking, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("key_field"),
-            label = { Text("Paste your Groq API key") },
+            label = { Text("Paste your ${AgentConfig.PROVIDER_NAME} API key") },
             visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
             trailingIcon = { IconButton(onClick = { visible = !visible }) { Icon(if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility, if (visible) "Hide key" else "Show key") } }
