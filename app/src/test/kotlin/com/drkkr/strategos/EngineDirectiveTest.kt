@@ -28,17 +28,16 @@ class EngineDirectiveTest {
         assertFalse("the pick is never listed as blocked", d.blockedOrDominatedMoves.any { it.move == pick })
     }
 
-    @Test fun aFragilePickSwitchesToTheMoveTheStressTestFlipsTo() {
+    @Test fun aFlipToAnotherCalmMoveIsBlendedNotFragile() {
         val own = s.actionsFor(IntakeChecklist.self(s)!!.id).map { it.label }
         val pick = pr.report!!.pathways.first { it.label == "Recommended" }.action
         val other = own.first { !it.equals(pick, ignoreCase = true) }
         val stress = StressResult(StressVerdict.FRAGILE, 4, listOf(StressFlip("Brother", "A / B", StressDirection.WORSEN, other)), 1, 3, false)
         val d = EngineDirectiveBuilder.build(s, pr, stress)
-        assertEquals(other, d.safeFallbackMove)
-        assertEquals(other, d.moveToImplement)
-        assertEquals("FRAGILE", d.stressVerdict)
+        assertEquals("ROBUST", d.stressVerdict)                    // only a flip to a reactive or excluded move makes it fragile
+        assertEquals(pick, d.moveToImplement)                      // the #1 move stays the main one
+        assertEquals(other, d.complementaryMove)                   // the flip target is blended in
         assertTrue(d.stressFlip!!.contains(other))
-        assertTrue(d.badge().endsWith("Fragile") && d.badge().contains(other.take(30)))
     }
 
     @Test fun blockedMovesCarryTheOtherSidesLikelyReply() {

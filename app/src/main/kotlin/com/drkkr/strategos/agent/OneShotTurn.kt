@@ -154,7 +154,7 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, after, pr, understood, text, onActivity)
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -173,12 +173,18 @@ class OneShotTurn(
      * deterministic text is shown instead, so the answer never contradicts the engine.
      */
     private suspend fun engineGroundedReply(
-        cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
+        cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
         understood: List<String>, text: String, onActivity: (String) -> Unit
     ): String {
         onActivity("Checking how solid the pick is…")
-        val stress = withContext(Dispatchers.Default) { runCatching { InferredStressTest.run(s, pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()) }.getOrNull() }
-        val directive = EngineDirectiveBuilder.build(s, pr, stress)
+        // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
+        val snap = argon?.trajectory?.current(sid)
+        val view = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
+        val (viewResult, stress) = withContext(Dispatchers.Default) {
+            val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
+            pipeline.run(view) to runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull()
+        }
+        val directive = EngineDirectiveBuilder.build(view, viewResult, stress)
         DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
         if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n" + directive.badge()
         onActivity("Writing my reply…")
@@ -200,13 +206,18 @@ class OneShotTurn(
             settings.model(), input, tools = null, maxOutputTokens = INTERPRET_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
             purpose = "COACH", conversationId = cid, turnId = turnId, jsonObjectMode = true
         )
+        // A reply with a [bracketed placeholder] gets one retry; if it still has one, the brackets are stripped here so they never show.
+        var usable: CoachReply? = null
         repeat(2) { attempt ->
-            val r = llm.create(request) as? LlmResult.Ok ?: return null
+            val r = llm.create(request) as? LlmResult.Ok ?: return usable?.stripped()
             val reply = CoachReply.parse(r.output.assistantText())
-            if (reply != null && reply.implements(directive.moveToImplement)) return reply
-            DebugLog.d { "INTERPRET rejected (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement}" }
+            if (reply != null && reply.implements(directive.moveToImplement)) {
+                if (!reply.hasPlaceholder()) return reply
+                usable = reply
+            }
+            DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()}" }
         }
-        return null
+        return usable?.stripped()
     }
 
     /**

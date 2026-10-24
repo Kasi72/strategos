@@ -80,7 +80,7 @@ data class SketchPerson(
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class SketchOption(@SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "")
+data class SketchOption(@SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "", val posture: String? = null)
 
 @Serializable
 data class SketchOutcome(
@@ -162,10 +162,12 @@ object SketchConverter {
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(
                 decisionOwner = if (s.decisionOwner.isBlank()) "You" else null,
-                stakes = sketch.goal?.takeIf { s.stakes.isBlank() && it.isNotBlank() }?.take(200)
+                stakes = sketch.goal?.takeIf { s.stakes.isBlank() && it.isNotBlank() }?.take(200),
+                // A relationship that goes on: this is what lets the repeated-game modules apply.
+                repeated = true.takeIf { !s.repeated && sketch.options.any { o -> Postures.clean(o.posture) != null } }
             )
         )
-        if (fields.scenarioFields!!.decisionOwner != null || fields.scenarioFields.stakes != null) ops += fields
+        if (fields.scenarioFields!!.decisionOwner != null || fields.scenarioFields.stakes != null || fields.scenarioFields.repeated != null) ops += fields
 
         for (p in people) {
             val name = p.name.trim()
@@ -225,7 +227,7 @@ object SketchConverter {
             val r = ref("${o.owner}_$label")
             optionIds[k] = r
             optionCount[owner] = (optionCount[owner] ?: 0) + 1
-            ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label, rationale = RATIONALE)
+            ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label, description = Postures.tag(o.posture).ifEmpty { null }, rationale = RATIONALE)
         }
 
         // ── Limits ────────────────────────────────────────────────────────────
@@ -255,7 +257,11 @@ object SketchConverter {
         }
         val nameOf = idByName.entries.associate { (n, id) -> id to n }
         val seen = mutableSetOf<String>()
-        for (o in sketch.outcomes) {
+        val youKey = playerList.firstOrNull { nameOf[it] == "you" } ?: playerList.firstOrNull()
+        val otherKey = playerList.firstOrNull { it != youKey }
+        val outcomes = if (youKey != null && otherKey != null)
+            PostureContrast.apply(sketch.outcomes, sketch.options, nameOf.getValue(youKey), nameOf.getValue(otherKey), dims) else sketch.outcomes
+        for (o in outcomes) {
             // The Argon form: when = [first player's option, second player's option], scores in the same player order.
             val byOrder = o.whenPicks.size >= 2 && playerList.size >= 2
             val picks = if (byOrder) playerList.take(2).mapIndexed { i, pid -> nameOf.getValue(pid) to key(o.whenPicks[i]) }.toMap()

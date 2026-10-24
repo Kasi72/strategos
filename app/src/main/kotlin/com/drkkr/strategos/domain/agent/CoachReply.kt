@@ -16,6 +16,15 @@ data class CoachReply(
 ) {
     fun guide() = CoachGuideSketch(whatHappened, clearWinMove, exactWords, doThis, dontDoThis)
 
+    private fun all() = listOf(whatHappened, clearWinMove, exactWords) + doThis + dontDoThis
+    fun hasPlaceholder() = all().any(Placeholders::has)
+
+    /** The same reply with any `[bracketed placeholder]` removed. */
+    fun stripped() = copy(
+        whatHappened = Placeholders.strip(whatHappened), clearWinMove = Placeholders.strip(clearWinMove), exactWords = Placeholders.strip(exactWords),
+        doThis = doThis.map(Placeholders::strip).filter { it.isNotBlank() }, dontDoThis = dontDoThis.map(Placeholders::strip).filter { it.isNotBlank() }
+    )
+
     /** True when the reply says it implements [move] (case, spacing and hyphen style ignored). */
     fun implements(move: String?): Boolean = move != null && engineMove != null && norm(engineMove) == norm(move)
 

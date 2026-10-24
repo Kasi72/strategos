@@ -114,7 +114,7 @@ class DeepSeekLiveFlowTest {
                 out.append("(a) CALL 1 extracted options\n")
                 val sketch = turnCalls.firstOrNull { it.purpose == "TURN" }?.let { SketchParser.parse(it.text) }
                 if (sketch == null) out.append("  (no parseable extraction)\n") else {
-                    sketch.options.groupBy { it.owner }.forEach { (who, opts) -> out.append("  $who: ${opts.joinToString(" | ") { it.label }}\n") }
+                    sketch.options.groupBy { it.owner }.forEach { (who, opts) -> out.append("  $who: ${opts.joinToString(" | ") { "${it.label} <${it.posture}>" }}\n") }
                     out.append("  archetype=${sketch.archetype} trust_delta=${sketch.trustDelta} tension_delta=${sketch.tensionDelta} backstory_only=${sketch.backstoryOnly} support=${sketch.support}\n")
                 }
 
@@ -124,7 +124,7 @@ class DeepSeekLiveFlowTest {
                     fun str(k: String) = (d[k] as? JsonPrimitive)?.contentOrNull
                     out.append("  RECOMMENDED: ${str("recommended_move")}   (why: ${str("recommended_why")})\n")
                     out.append("  supporting: ${d["supporting_frameworks"]?.jsonArray?.joinToString { it.jsonPrimitive.content }}\n")
-                    out.append("  SAFE FALLBACK: ${str("safe_fallback_move")}\n")
+                    out.append("  SAFE FALLBACK: ${str("safe_fallback_move")}\n  COMPLEMENTARY: ${str("complementary_move")}   influencers: ${d["influencers_in_play"]}\n")
                     d["blocked_or_dominated_moves"]?.jsonArray?.forEach { b ->
                         val o = b.jsonObject
                         out.append("  DOMINATED/BLOCKED: ${o["move"]?.jsonPrimitive?.content}   [${o["reason"]?.jsonPrimitive?.content}]   triggers: ${(o["triggers"] as? JsonPrimitive)?.contentOrNull}\n")

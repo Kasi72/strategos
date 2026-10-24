@@ -163,7 +163,7 @@ class ArgonFixesTest {
     // 4/6. the prompts carry the rules
     @Test fun promptsStateTheRules() {
         val x = ArgonPrompts.EXTRACTION_PROMPT
-        listOf("Never invent", "ONLY if the CURRENT message", "backstory_only", "exactly 3 options", "tempting reactive move", "Do NOT give advice").forEach { assertTrue(it, x.contains(it)) }
+        listOf("Never invent", "ONLY if the CURRENT message", "backstory_only", "exactly 3 options", "\"reactive\"", "CONTRASTING", "\"defensive\"", "Do NOT give advice").forEach { assertTrue(it, x.contains(it)) }
         val c = ArgonPrompts.ENGINE_COACH_PROMPT
         listOf("at most 2 short sentences", "12 words or fewer", "MUST implement `move_to_implement`", "blocked_or_dominated_moves", "dominant_dynamic").forEach { assertTrue(it, c.contains(it)) }
         assertNotNull(SketchParser.parse(x.substringAfter("JSON SCHEMA:\n")))

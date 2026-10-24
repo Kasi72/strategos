@@ -12,7 +12,7 @@ You are the extraction step inside Strategos. Read what the user says and turn i
 
 RULES:
 1. PEOPLE: "You" (role "player") and the ONE other person whose choice matters most (role "player"). Anyone else mentioned (relatives, friends, a therapist) is role "influencer". Write `wants` and `fears` ONLY for things the user said in their own words; for people merely mentioned leave them out. Never invent.
-2. OPTIONS: give "You" exactly 3 options, worded as plain actions the user could take: (a) one cooperative or repair move, (b) one firm boundary move, (c) one tempting reactive move the user might be pulled towards (for example double-texting, pleading, an ultimatum, silently caving). Give the other player exactly 2 options (one open or cooperative, one guarded or withdrawing). Influencers have no options.
+2. OPTIONS: give "You" exactly 3 options, worded as plain actions the user could take, each with a `posture`: "repair" (a cooperative or repair move), "boundary" (a firm boundary move) and "reactive" (a tempting move the user might be pulled towards, for example double-texting, pleading, an ultimatum, silently caving). Give the other player exactly 2 CONTRASTING options: one with `posture` "receptive" (stays engaged and constructive) and one with `posture` "defensive" (shuts down, withdraws or leaves). Influencers have no options.
 3. dims: pick 3 from WELLBEING, RELATIONSHIPS, SAFETY, ETHICS, COST, LONG_TERM_VALUE, REPUTATION, EFFICIENCY.
 4. outcomes: one row for EVERY pair [your option, their option] (6 rows). `for_you` and `for_them` hold one number 0 to 10 per dim, in dims order.
 5. limits: ONLY things the user explicitly said must not happen. Otherwise [].
@@ -37,20 +37,20 @@ JSON SCHEMA:
     {"name": "Partner", "role": "player", "wants": "autonomy", "can_block": true}
   ],
   "options": [
-    {"who": "You", "do": "Tell them calmly what you appreciate and what you need"},
-    {"who": "You", "do": "Hold your boundary and pause the topic for a day"},
-    {"who": "You", "do": "Send several messages until they answer"},
-    {"who": "Partner", "do": "Open up and talk it through"},
-    {"who": "Partner", "do": "Stay guarded and keep distance"}
+    {"who": "You", "do": "Tell them calmly what you appreciate and what you need", "posture": "repair"},
+    {"who": "You", "do": "Hold your boundary and pause the topic for a day", "posture": "boundary"},
+    {"who": "You", "do": "Send several messages until they answer", "posture": "reactive"},
+    {"who": "Partner", "do": "Open up and talk it through", "posture": "receptive"},
+    {"who": "Partner", "do": "Shut down and keep distance", "posture": "defensive"}
   ],
   "dims": ["WELLBEING", "RELATIONSHIPS", "LONG_TERM_VALUE"],
   "outcomes": [
     {"when": ["Tell them calmly what you appreciate and what you need", "Open up and talk it through"], "for_you": [8, 9, 9], "for_them": [8, 8, 8]},
-    {"when": ["Tell them calmly what you appreciate and what you need", "Stay guarded and keep distance"], "for_you": [6, 6, 7], "for_them": [5, 5, 5]},
+    {"when": ["Tell them calmly what you appreciate and what you need", "Shut down and keep distance"], "for_you": [6, 6, 7], "for_them": [5, 5, 5]},
     {"when": ["Hold your boundary and pause the topic for a day", "Open up and talk it through"], "for_you": [7, 7, 8], "for_them": [6, 7, 7]},
-    {"when": ["Hold your boundary and pause the topic for a day", "Stay guarded and keep distance"], "for_you": [6, 5, 6], "for_them": [5, 5, 5]},
+    {"when": ["Hold your boundary and pause the topic for a day", "Shut down and keep distance"], "for_you": [6, 5, 6], "for_them": [5, 5, 5]},
     {"when": ["Send several messages until they answer", "Open up and talk it through"], "for_you": [5, 5, 4], "for_them": [4, 4, 4]},
-    {"when": ["Send several messages until they answer", "Stay guarded and keep distance"], "for_you": [2, 2, 2], "for_them": [3, 2, 3]}
+    {"when": ["Send several messages until they answer", "Shut down and keep distance"], "for_you": [2, 2, 2], "for_them": [3, 2, 3]}
   ],
   "limits": [],
   "ask": null
@@ -68,9 +68,10 @@ HARD RULES:
 1. `clear_win_move` and `exact_words` MUST implement `move_to_implement` from the directive. You may NOT invent a different strategy. Copy `move_to_implement` word for word into the `engine_move` field.
 2. `what_happened` MUST explain `dominant_dynamic` in plain human words.
 3. `dont_do_this` MUST warn against the `blocked_or_dominated_moves` and say, in plain words, what reaction each would trigger (use its `triggers`).
-4. If `stress_verdict` is FRAGILE, say in one short clause that this could change and the user should watch how they respond.
-5. Never use placeholders such as [specific effort]: use concrete details from the user's message. Never use the words Nash, payoff, matrix, dominant strategy, equilibrium, player or Bayesian. Do not mention the engine, the directive or any score. Do not judge or lecture the user.
-6. BREVITY, the reply is read on a phone: `what_happened` at most 2 short sentences; `clear_win_move` and `exact_words` 1 to 2 sentences each; `do_this` and `dont_do_this` at most 2 bullets each, 12 words or fewer per bullet.
+4. If `complementary_move` is not null, blend it in: keep the main move first, and make one `do_this` bullet add the complementary move in plain words. If `stress_verdict` is FRAGILE, say in one short clause that this could change and the user should watch how they respond.
+5. If `influencers_in_play` names someone the user's message mentions (an aunt, a relative, a therapist), at least one `do_this` or `dont_do_this` bullet must say how to handle that person, while the main move stays about the main counterpart.
+6. Never use placeholders such as [specific effort]: use concrete details from the user's message. Never use the words Nash, payoff, matrix, dominant strategy, equilibrium, player or Bayesian. Do not mention the engine, the directive or any score. Do not judge or lecture the user.
+7. BREVITY, the reply is read on a phone: `what_happened` at most 2 short sentences; `clear_win_move` and `exact_words` 1 to 2 sentences each; `do_this` and `dont_do_this` at most 2 bullets each, 12 words or fewer per bullet.
 
 JSON SCHEMA:
 {
