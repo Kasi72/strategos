@@ -10,6 +10,7 @@ import com.drkkr.strategos.domain.analysis.TrajectorySnapshot
 import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
+import kotlin.math.roundToInt
 
 /** Space 3 state. Everything here is deterministic Kotlin: no LLM call is ever made from this class (invariant I12). */
 class TrajectoryRepository(
@@ -57,11 +58,21 @@ class TrajectoryRepository(
         return snapshot
     }
 
-    /** One finished chat turn: the model's trust/tension deltas and archetype, applied to the latest point. */
-    suspend fun recordTurn(scenarioId: String, threadId: String?, trustDelta: Double, tensionDelta: Double, archetype: String?): TrajectorySnapshot {
+    /**
+     * One finished chat turn. The model's deltas are damped so one message cannot swing the numbers:
+     * smoothed = round(prev * 0.75 + raw * 0.25), moved by at most 5 per turn, or 2 when the message is only backstory.
+     */
+    suspend fun recordTurn(
+        scenarioId: String, threadId: String?, trustDelta: Double, tensionDelta: Double, archetype: String?, backstoryOnly: Boolean = false
+    ): TrajectorySnapshot {
         val before = current(scenarioId)
+        val cap = if (backstoryOnly) BACKSTORY_MAX_SHIFT else MAX_SHIFT
+        fun smooth(prev: Double, delta: Double): Double {
+            val raw = (prev + delta.coerceIn(-20.0, 20.0)).coerceIn(0.0, 100.0)
+            return (prev * 0.75 + raw * 0.25).roundToInt().toDouble().coerceIn(prev - cap, prev + cap).coerceIn(0.0, 100.0)
+        }
         val snapshot = TrajectoryCalculator.buildSnapshot(
-            before.trustScore + trustDelta.coerceIn(-20.0, 20.0), before.tensionScore + tensionDelta.coerceIn(-20.0, 20.0),
+            smooth(before.trustScore, trustDelta), smooth(before.tensionScore, tensionDelta),
             before.sigmoidProgress, before.consistencyStreak, archetype?.takeIf { it.isNotBlank() } ?: before.activeArchetype
         )
         db.trajectoryDao().insert(point(scenarioId, threadId, "THREAD_TURN", snapshot, now()))
@@ -84,5 +95,5 @@ class TrajectoryRepository(
         consistencyStreak = s.consistencyStreak, activeArchetype = s.activeArchetype, timestamp = at
     )
 
-    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME"; const val JOURNAL_MOMENTUM = 3.0 }
+    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME"; const val JOURNAL_MOMENTUM = 3.0; const val MAX_SHIFT = 5.0; const val BACKSTORY_MAX_SHIFT = 2.0 }
 }

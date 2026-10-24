@@ -23,7 +23,7 @@ class PlainResultTest {
         assertTrue(text.contains("1. "))
         assertTrue(text.contains("my own guesses"))
         assertTrue(text.contains("Other options you have: Co-sign, Give a fixed amount."))
-        assertTrue(text.contains("Wife can stop this"))
+        assertFalse(text.contains("can stop this"))                      // cold veto line is gone from chat replies
         assertTrue(text.endsWith(PlainResult.FOOTER))
         val lower = text.substringAfter("Here's what I see").lowercase()
         banned.forEach { assertFalse("'$it' in: $lower", lower.contains(it)) }

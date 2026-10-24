@@ -24,9 +24,10 @@ class ArgonPromptTest {
     @Test fun TC_PROMPT_02_plainResultIncludesClearWinDoAndDont() {
         val s = Fx.loanFamily()
         val text = PlainResult.build(s, AnalysisPipeline().run(s), emptyList(), SketchParser.parse(coachJson)!!.coachGuide)
-        listOf("What's happening underneath:", "Clear-win move:", "What to say:", "Do this:", "Don't do this:", "Options to consider")
+        listOf("What's happening underneath:", "Clear-win move:", "What to say:", "Do this:", "Don't do this:")
             .forEach { assertTrue("missing $it in\n$text", text.contains(it)) }
-        assertTrue(text.endsWith(PlainResult.FOOTER))
+        // The engine's raw option list and watch-list are not appended to a coach answer any more.
+        listOf("Options to consider", "What to watch for", "Here's what I see").forEach { assertFalse("'$it' in\n$text", text.contains(it)) }
     }
 
     @Test fun TC_PROMPT_03_backwardCompatibleSketchWithoutCoachGuide() {
@@ -101,7 +102,7 @@ class ArgonPromptTest {
         assertEquals("CHICKEN_GAME | PRISONERS_DILEMMA | STAG_HUNT | ULTIMATUM | TRUST_GAME | RELATIONAL_REPAIR".length > 0, true)
         val ops = SketchConverter.toOps(sketch!!, com.drkkr.strategos.domain.model.Scenario(title = "t")).ops
         assertEquals(4, ops.count { it.type == OpType.ADD_ACTION })
-        assertTrue(ops.any { it.type == OpType.ADD_CONSTRAINT })
+        assertTrue(ops.any { it.type == OpType.ADD_CONSTRAINT })      // this copy is the blueprint's original reply, with limits as plain strings; keep it as a tolerance check
         assertNotNull(sketch.coachGuide)
     }
 

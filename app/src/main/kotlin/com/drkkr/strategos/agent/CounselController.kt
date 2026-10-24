@@ -109,7 +109,7 @@ class CounselController(
 
     private val oneShotTurn = OneShotTurn(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
-        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
+        onSupport = { showModelSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
         argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!) }
     )
 
@@ -256,7 +256,21 @@ class CounselController(
         return startTurn(TurnTrigger.User(text.trim()))
     }
 
+    /** Conversations where the support card has already been shown. */
+    private val supportShownIn = mutableSetOf<String>()
+
+    /**
+     * The model's own `support` flag shows the card once per conversation. After that only a new message that matches
+     * [SafetyKeywordScreen] shows it again (see [send]), so it does not come back on every turn after being dismissed.
+     */
+    private fun showModelSupport() {
+        val cid = _state.value.conversationId
+        if (cid != null && !supportShownIn.add(cid)) return
+        showSupport()
+    }
+
     private fun showSupport() {
+        _state.value.conversationId?.let { supportShownIn += it }
         _state.update { it.copy(supportVisible = true) }
         scope.launch { _state.update { it.copy(supportText = deps.settings.supportText()) } }
     }

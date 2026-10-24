@@ -34,7 +34,9 @@ data class ModelSketch(
     val archetype: String? = null,
     @SerialName("trust_delta") val trustDelta: Double = 0.0,
     @SerialName("tension_delta") val tensionDelta: Double = 0.0,
-    @SerialName("coach_guide") val coachGuide: CoachGuideSketch? = null
+    @SerialName("coach_guide") val coachGuide: CoachGuideSketch? = null,
+    /** True when the message is history only, so the trajectory moves less ([TrajectoryRepository.recordTurn]). */
+    @SerialName("backstory_only") val backstoryOnly: Boolean = false
 )
 
 @Serializable
@@ -196,6 +198,17 @@ object SketchConverter {
         // ── Options (players only) ────────────────────────────────────────────
         val optionIds = s.actions.associate { "${it.stakeholderId}|${key(it.label)}" to it.id }.toMutableMap()
         val optionCount = s.actions.groupingBy { it.stakeholderId }.eachCount().toMutableMap()
+        // A fresh list of 2+ options for a player replaces that player's earlier AI-guessed options, so rewordings don't pile up.
+        // Options the user confirmed or estimated are never touched.
+        val freshLabels = sketch.options.mapNotNull { o -> idByName[key(o.owner)]?.let { it to key(o.label.trim()) } }.distinct().groupBy({ it.first }, { it.second })
+        for ((owner, labels) in freshLabels) {
+            if (owner !in players || labels.size < 2) continue
+            for (old in s.actions.filter { it.stakeholderId == owner && it.factStatus == com.drkkr.strategos.domain.model.FactStatus.AI_INFERRED && key(it.label) !in labels }) {
+                ops += ChangeOp(OpType.REMOVE_ACTION, targetId = old.id, rationale = RATIONALE)
+                optionIds.remove("$owner|${key(old.label)}")
+                optionCount[owner] = (optionCount[owner] ?: 1) - 1
+            }
+        }
         for (o in sketch.options) {
             val owner = idByName[key(o.owner)] ?: continue
             val label = o.label.trim()

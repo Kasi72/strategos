@@ -77,7 +77,7 @@ class ArgonContextTest {
         assertEquals("STATIC PROMPT", content(input.first()))
         assertEquals("system", role(input[0])); assertEquals("system", role(input[1]))
         val ctx = Json.parseToJsonElement(content(input[1]).substringAfter("```json\n").substringBeforeLast("\n```")).jsonObject
-        assertEquals(56.0, ctx.getValue("trajectory").jsonObject.getValue("trust").jsonPrimitive.double, 0.0)
+        assertEquals(52.0, ctx.getValue("trajectory").jsonObject.getValue("trust").jsonPrimitive.double, 0.0)
         assertEquals("Wait a day", ctx.getValue("active_journal_post_notes").jsonArray.single().jsonObject.getValue("do_this").jsonPrimitive.content)
         val sib = ctx.getValue("sibling_thread_summaries").jsonArray.single().jsonObject
         assertEquals("Thread B", sib.getValue("title").jsonPrimitive.content)
@@ -122,7 +122,7 @@ class ArgonContextTest {
             req.input.first().jsonObject.getValue("content").jsonPrimitive.content.contains("Strategos Counsel"))
         val points = trajectory.points("loan")
         assertEquals("THREAD_TURN", points.single().source)
-        assertEquals(56.0, points.single().trustScore, 0.0); assertEquals(42.0, points.single().tensionScore, 0.0)
+        assertEquals(52.0, points.single().trustScore, 0.0); assertEquals(48.0, points.single().tensionScore, 0.0)   // damped: 50 + 0.25 * delta
         assertEquals("STAG_HUNT", points.single().activeArchetype)
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
         assertTrue(reply, reply.contains("Do this:") && reply.contains("Don't do this:") && reply.contains("Clear-win move: Pause for a day."))

@@ -153,6 +153,7 @@ internal fun SigmoidTrajectoryCard(snap: TrajectorySnapshot?, points: List<Traje
                     Legend("↗ If you hold this behavior", NeoTokens.green)
                     Legend("↘ If reactive habits repeat", Coral)
                 }
+                NeoChip(snap.band, phaseColor(snap), glowing = true, modifier = Modifier.testTag("trajectory_band"))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     NeoChip("Trust τ ${snap.trustScore.toInt()}/100", NeoTokens.green)
                     NeoChip("Tension ε ${snap.tensionScore.toInt()}/100", Coral)

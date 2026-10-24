@@ -13,7 +13,9 @@ data class TrajectorySnapshot(
     val positiveProjection: List<Double>,      // 5 future points if the user follows the Do's
     val negativeProjection: List<Double>,      // 5 future points if reactive habits repeat
     val phaseLabel: String
-)
+) {
+    val band: String get() = TrajectoryCalculator.momentumBand(trustScore, tensionScore, momentumDelta)
+}
 
 object TrajectoryCalculator {
     private const val STEPS = 5
@@ -46,6 +48,16 @@ object TrajectoryCalculator {
             negativeProjection = project(trust, tension, streak, dTrust = -6.0, dTension = 8.0, positive = false),
             phaseLabel = phaseLabel(sigmoid, tension)
         )
+    }
+
+    /** A plain-words band for the chart, so a 2-point swing is not read as a result. */
+    fun momentumBand(trust: Double, tension: Double, momentumDelta: Double): String = when {
+        tension >= 65.0 -> "High Tension · Guarded"
+        momentumDelta <= -1.5 -> "Strain Rising · Careful"
+        momentumDelta >= 1.5 && tension >= 50.0 -> "Tension Easing · Cautious"
+        momentumDelta >= 1.5 -> "Rebuilding Trust"
+        trust >= 65.0 && tension < 40.0 -> "Steady Trust · Open"
+        else -> "Holding Steady · Guarded"
     }
 
     fun phaseLabel(sigmoid: Double, tension: Double): String = when {

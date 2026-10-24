@@ -105,9 +105,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao interface TrajectoryDao {
     @Insert suspend fun insert(point: TrajectoryPointEntity)
-    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC") fun observeForScenario(scenarioId: String): Flow<List<TrajectoryPointEntity>>
-    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC") suspend fun forScenario(scenarioId: String): List<TrajectoryPointEntity>
-    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp DESC LIMIT 1") suspend fun latestForScenario(scenarioId: String): TrajectoryPointEntity?
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC, rowid ASC") fun observeForScenario(scenarioId: String): Flow<List<TrajectoryPointEntity>>
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC, rowid ASC") suspend fun forScenario(scenarioId: String): List<TrajectoryPointEntity>
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp DESC, rowid DESC LIMIT 1") suspend fun latestForScenario(scenarioId: String): TrajectoryPointEntity?
 }
 
 @Dao interface QuickCheckDao {

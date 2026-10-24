@@ -70,14 +70,15 @@ class AiReviewTest {
 
     @Test
     fun summaryIsPlain() {
-        val text = PlainSummary.build(aiModel(), "What I understood\n• Wife: can stop this\n\nHere's what I see\nEarly view.")
+        val text = PlainSummary.build(aiModel(), "What I understood\n• Wife: involved\n\nHere's what I see\nEarly view.")
         assertTrue(text.startsWith("Loan for my brother"))
         assertTrue(text.contains("People involved"))
-        assertTrue(text.contains("• Wife: can stop this"))
+        assertTrue(text.contains("• Needs Wife's willingness to work"))      // was "can stop this"
+        assertFalse(text.contains("Limits you set"))                          // the only limit is an AI guess
         assertTrue(text.contains("Your options"))
         assertTrue(text.contains("• Co-sign"))
         assertTrue(text.contains("The latest view\nHere's what I see\nEarly view."))
-        assertEquals(1, Regex("• Wife: can stop this").findAll(text).count())      // not repeated in the latest view
+        assertEquals(1, Regex("Needs Wife's willingness to work").findAll(text).count())      // not repeated in the latest view
         listOf("player", "influencer", "payoff", "matrix", "equilibrium").forEach { assertFalse("'$it' in summary", text.lowercase().contains(it)) }
     }
 }

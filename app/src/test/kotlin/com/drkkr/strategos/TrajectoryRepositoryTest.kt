@@ -48,7 +48,7 @@ class TrajectoryRepositoryTest {
         val s = (scenarios.save(Fx.loanFamily()) as com.drkkr.strategos.data.repo.SaveResult.Success).saved
         val repo = TrajectoryRepository(db, scenarios)
         val snap = repo.recordTurn(s.id, null, 6.0, -8.0, "STAG_HUNT")
-        assertEquals(56.0, snap.trustScore, 0.0); assertEquals(42.0, snap.tensionScore, 0.0)
+        assertEquals(52.0, snap.trustScore, 0.0); assertEquals(48.0, snap.tensionScore, 0.0)    // damped: 50 + 0.25 * delta
         assertEquals("STAG_HUNT", repo.current(s.id).activeArchetype)
         assertEquals("THREAD_TURN", repo.points(s.id).single().source)
     }

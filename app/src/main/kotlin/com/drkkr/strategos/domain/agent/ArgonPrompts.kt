@@ -25,7 +25,14 @@ CRITICAL RULES:
    - `clear_win_move`: 1 clear sentence naming the user's best strategic move right now.
    - `exact_words`: A natural, ready-to-say script (1–2 sentences) the user can actually say or text.
    - `do_this`: 2–3 concrete positive behaviors that build leverage and emotional safety.
-   - `dont_do_this`: 2–3 specific behavioral traps to avoid right now (e.g., double-texting, over-explaining, issuing an ultimatum while tension is high, or silently caving).
+   - `dont_do_this`: 2 specific behavioral traps to avoid right now (e.g., double-texting, over-explaining, issuing an ultimatum while tension is high, or silently caving).
+6. BREVITY. The reply is read on a phone and must fit one screen:
+   - `what_happened`: at most 2 short sentences.
+   - `clear_win_move` and `exact_words`: 1 to 2 short sentences each.
+   - `do_this` and `dont_do_this`: at most 2 bullets each, 12 words or fewer per bullet.
+7. NEVER INVENT. Write `wants`, `fears` and `limits` only for things the user said in their own words. For a person the user merely mentions (an aunt, a therapist, a friend, a relative) leave `wants` and `fears` out. Use `"limits": []` unless the user stated a limit.
+8. `support`: set true ONLY if the CURRENT message shows active self-harm, suicide, abuse or immediate danger. Recounting past panic attacks, therapy or old crises is NOT a reason. Otherwise false.
+9. `backstory_only`: true when the user is only telling history or background and there is no new interaction to react to. Then keep `trust_delta` and `tension_delta` between -2 and 2. Otherwise false.
 
 JSON SCHEMA:
 {
@@ -51,7 +58,8 @@ JSON SCHEMA:
     {"when": ["Push for an immediate commitment tonight", "Open up and collaborate on a shared plan"], "for_you": [6, 5, 5], "for_them": [4, 4, 4]},
     {"when": ["Push for an immediate commitment tonight", "Stonewall and withdraw"], "for_you": [2, 2, 2], "for_them": [3, 2, 3]}
   ],
-  "limits": ["Do not sacrifice self-respect or use threats"],
+  "limits": [],
+  "backstory_only": false,
   "coach_guide": {
     "what_happened": "When you pressed for an immediate timeline, they felt cornered and shifted into defensive withdrawal.",
     "clear_win_move": "Step back from the timeline pressure for 24 hours while calmly holding your boundary.",

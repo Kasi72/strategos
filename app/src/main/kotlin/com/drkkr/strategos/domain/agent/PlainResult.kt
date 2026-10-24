@@ -2,6 +2,7 @@ package com.drkkr.strategos.domain.agent
 
 import com.drkkr.strategos.domain.analysis.PipelineResult
 import com.drkkr.strategos.domain.framework.ExecutiveStatus
+import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.Scenario
 
@@ -15,7 +16,14 @@ object PlainResult {
     private const val MAX_WATCH = 2
     const val FOOTER = "This is a best guess based on what you told me. Tell me what happened or what's different, and I'll update it."
 
+    /** Phone-screen budget for a coach answer, in characters. */
+    const val COACH_MAX_CHARS = 950
+    const val COACH_FOOTER = "A best guess from what you told me. Tell me what happens next."
+
     fun build(s: Scenario, pr: PipelineResult, understood: List<String>, coachGuide: CoachGuideSketch? = null): String {
+        // With a coach guide the guide IS the answer. The engine still shaped it (archetype, trust, tension), but its raw
+        // option labels and watch-list would only repeat it, so they are not appended.
+        if (coachGuide != null && coachGuide.clearWinMove.isNotBlank()) return coach(coachGuide)
         val report = pr.report ?: return needsMore(pr)
         return buildString {
             if (understood.isNotEmpty()) {
@@ -69,28 +77,33 @@ object PlainResult {
                 appendLine("What to watch for")
                 watch.forEach { appendLine("• $it") }
             }
-            if (coachGuide != null && coachGuide.clearWinMove.isNotBlank()) {
-                appendLine()
-                if (coachGuide.whatHappened.isNotBlank()) appendLine("What's happening underneath: ${coachGuide.whatHappened}")
-                appendLine("Clear-win move: ${coachGuide.clearWinMove}")
-                if (coachGuide.exactWords.isNotBlank()) appendLine("What to say: \"${coachGuide.exactWords}\"")
-                if (coachGuide.doThis.isNotEmpty()) { appendLine("Do this:"); coachGuide.doThis.forEach { appendLine("• $it") } }
-                if (coachGuide.dontDoThis.isNotEmpty()) { appendLine("Don't do this:"); coachGuide.dontDoThis.forEach { appendLine("• $it") } }
-            }
             appendLine()
             append(FOOTER)
         }.trim()
+    }
+
+    /** The coach answer on one phone screen: at most 2 bullets per list, 2 sentences per paragraph, [COACH_MAX_CHARS] in all. */
+    fun coach(g: CoachGuideSketch): String {
+        fun sentences(t: String, n: Int) = Regex("(?<=[.!?])\\s+").split(t.trim()).take(n).joinToString(" ")
+        fun render(dos: Int, donts: Int) = buildString {
+            if (g.whatHappened.isNotBlank()) appendLine("What's happening underneath: ${sentences(g.whatHappened, 2)}")
+            appendLine("Clear-win move: ${sentences(g.clearWinMove, 2)}")
+            if (g.exactWords.isNotBlank()) appendLine("What to say: \"${sentences(g.exactWords, 2)}\"")
+            if (dos > 0 && g.doThis.isNotEmpty()) { appendLine("Do this:"); g.doThis.take(dos).forEach { appendLine("• $it") } }
+            if (donts > 0 && g.dontDoThis.isNotEmpty()) { appendLine("Don't do this:"); g.dontDoThis.take(donts).forEach { appendLine("• $it") } }
+            append(COACH_FOOTER)
+        }.trim()
+        // Trim from the end if a long reply still doesn't fit: second don't, second do, then the lists' tails.
+        return listOf(2 to 2, 2 to 1, 1 to 1, 1 to 0).map { (d, n) -> render(d, n) }.firstOrNull { it.length <= COACH_MAX_CHARS } ?: render(1, 0)
     }
 
     private fun ownerOf(s: Scenario) = IntakeChecklist.self(s)
 
     /** From the saved facts, not the engine's forecast text: who can stop this, and what people worry about. */
     private fun watchFor(s: Scenario, ownerId: String?): List<String> = buildList {
-        s.stakeholders.filter { it.id != ownerId }.forEach { p ->
-            when {
-                p.canVeto -> add("${p.name} can stop this, so keep them on board.")
-                p.fears.isNotEmpty() -> add("${p.name} worries about: ${p.fears.first().trimEnd('.')}.")
-            }
+        // Only what the person stated or confirmed: an AI-guessed worry is not put in anyone's mouth.
+        s.stakeholders.filter { it.id != ownerId && it.factStatus != FactStatus.AI_INFERRED }.forEach { p ->
+            if (p.fears.isNotEmpty()) add("${p.name} worries about: ${p.fears.first().trimEnd('.')}.")
         }
     }.take(MAX_WATCH + 1)
 
@@ -103,7 +116,6 @@ object PlainResult {
         ops.filter { it.type == OpType.ADD_STAKEHOLDER && !it.name.isNullOrBlank() && !it.name.equals("You", ignoreCase = true) }.forEach { p ->
             lines += when {
                 p.gameRole == GameRole.PLAYER -> "${p.name}: makes a choice that matters here"
-                p.canVeto == true -> "${p.name}: can stop this"
                 else -> "${p.name}: involved"
             }
         }
@@ -111,7 +123,7 @@ object PlainResult {
             val names = list.joinToString(", ") { it.label!! }
             lines += if (who.equals("You", ignoreCase = true) || who.isEmpty()) "Your options: $names" else "$who could: $names"
         }
-        ops.filter { it.type == OpType.ADD_CONSTRAINT && !it.label.isNullOrBlank() }.forEach { lines += "A limit: ${it.label}" }
+        // Limits are not listed here: the model proposes them, so they are not "what I understood" from the person.
         return lines
     }
 

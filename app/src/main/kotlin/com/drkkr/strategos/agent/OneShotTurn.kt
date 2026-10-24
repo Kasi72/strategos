@@ -93,7 +93,7 @@ class OneShotTurn(
         }
         // BLUEPRINT-QUESTION: §D.1 says a point after every turn; a reply with no deltas and no archetype says nothing new, so it adds none.
         if (argon != null && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
-            argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype)
+            argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype, parsed.backstoryOnly)
         }
         val converted = SketchConverter.toOps(parsed, scenario)
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
@@ -291,9 +291,9 @@ Rules:
 - dims: pick 3 of SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE (COST 10 = very costly). If the app context lists dims, use exactly those.
 - outcomes: one entry for EVERY combination of the players' options. In scores, give each player 3 numbers 0-10 (one per dim, in dims order) for how that combination is for them.
 - limits: things that must not happen. kind is LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL or RESOURCE.
-- Only fill wants, fears and limits when the user said or clearly implied them; otherwise leave them out. Never write placeholder text.
+- Only fill wants, fears and limits when the user said them. Never invent them for people the user only mentions (a relative, a doctor, a friend). Never write placeholder text.
 - ask: leave out unless the story is far too thin to model; then ONE short question and nothing else.
-- support: true only if the user mentions self-harm, harming someone, abuse or danger.
+- support: true only if the CURRENT message shows self-harm, harming someone, abuse or danger now. Past panic attacks or therapy are not a reason.
 - The app context shows what is saved. Do not repeat saved people or options; return only what is new or changed, with the same names. For a follow-up ("I did X and he reacted Y"), add or change what that implies, and give outcomes for any new combinations. A fact about someone's past or character ("he repaid late before") goes into that person's fears or wants, using the saved name.
 Example for "My manager wants me on night shift. My partner hates that idea." (a different situation):
 {"goal":"Keep my job without hurting my home life","people":[{"name":"You","role":"PLAYER","fears":"Losing sleep and time with my partner"},{"name":"Manager","role":"PLAYER","wants":"Night cover"},{"name":"Partner","role":"INFLUENCER","veto":true,"fears":"Never seeing me"}],"options":[{"for":"You","label":"Accept nights"},{"for":"You","label":"Refuse"},{"for":"Manager","label":"Insist"},{"for":"Manager","label":"Offer a swap"}],"dims":["WELLBEING","RELATIONSHIPS","COST"],"outcomes":[{"picks":{"You":"Accept nights","Manager":"Insist"},"scores":{"You":[3,4,5],"Manager":[8,6,2]}},{"picks":{"You":"Accept nights","Manager":"Offer a swap"},"scores":{"You":[5,5,4],"Manager":[7,7,3]}},{"picks":{"You":"Refuse","Manager":"Insist"},"scores":{"You":[6,5,7],"Manager":[3,3,6]}},{"picks":{"You":"Refuse","Manager":"Offer a swap"},"scores":{"You":[8,8,3],"Manager":[6,7,4]}}],"limits":[{"label":"No night work during my partner's treatment","kind":"ETHICAL"}]}"""

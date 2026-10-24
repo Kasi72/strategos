@@ -1,5 +1,6 @@
 package com.drkkr.strategos.domain.agent
 
+import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.Scenario
 
 /**
@@ -18,7 +19,7 @@ object PlainSummary {
         val others = s.stakeholders.filter { it.id != owner?.id }
         if (others.isNotEmpty()) {
             appendLine("People involved")
-            others.forEach { appendLine("• ${it.name}: ${roleLine(s, it.id)}") }
+            others.forEach { appendLine(if (it.canVeto) "• Needs ${it.name}'s willingness to work${wantsOf(it)}" else "• ${it.name}: ${roleLine(s, it.id)}") }
             appendLine()
         }
         val mine = owner?.let { s.actionsFor(it.id) }.orEmpty()
@@ -27,9 +28,11 @@ object PlainSummary {
             mine.forEach { appendLine("• ${it.label}") }
             appendLine()
         }
-        if (s.constraints.isNotEmpty()) {
+        // "Limits you set": only ones the person stated or confirmed, never the model's proposals.
+        val limits = s.constraints.filter { it.factStatus != FactStatus.AI_INFERRED }
+        if (limits.isNotEmpty()) {
             appendLine("Limits you set")
-            s.constraints.forEach { appendLine("• ${it.label}") }
+            limits.forEach { appendLine("• ${it.label}") }
             appendLine()
         }
         // The answer starts with "What I understood", which the sections above already cover; keep it from "Here's what I see".
@@ -39,11 +42,13 @@ object PlainSummary {
         }
     }.trim()
 
+    private fun wantsOf(p: com.drkkr.strategos.domain.model.Stakeholder): String =
+        p.goals.firstOrNull()?.takeIf { p.factStatus != FactStatus.AI_INFERRED }?.let { ". Wants: ${it.trimEnd('.')}" }.orEmpty()
+
     fun roleLine(s: Scenario, id: String): String {
         val p = s.stakeholders.firstOrNull { it.id == id } ?: return "involved"
-        val wants = p.goals.firstOrNull()?.trimEnd('.')
+        val wants = p.goals.firstOrNull()?.takeIf { p.factStatus != FactStatus.AI_INFERRED }?.trimEnd('.')
         val base = when {
-            p.canVeto -> "can stop this"
             p.gameRole == com.drkkr.strategos.domain.model.GameRole.PLAYER -> "makes a choice that matters here"
             else -> "involved"
         }
