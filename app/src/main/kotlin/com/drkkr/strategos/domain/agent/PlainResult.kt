@@ -15,7 +15,7 @@ object PlainResult {
     private const val MAX_WATCH = 2
     const val FOOTER = "This is a best guess based on what you told me. Tell me what happened or what's different, and I'll update it."
 
-    fun build(s: Scenario, pr: PipelineResult, understood: List<String>): String {
+    fun build(s: Scenario, pr: PipelineResult, understood: List<String>, coachGuide: CoachGuideSketch? = null): String {
         val report = pr.report ?: return needsMore(pr)
         return buildString {
             if (understood.isNotEmpty()) {
@@ -68,6 +68,14 @@ object PlainResult {
                 appendLine()
                 appendLine("What to watch for")
                 watch.forEach { appendLine("• $it") }
+            }
+            if (coachGuide != null && coachGuide.clearWinMove.isNotBlank()) {
+                appendLine()
+                if (coachGuide.whatHappened.isNotBlank()) appendLine("What's happening underneath: ${coachGuide.whatHappened}")
+                appendLine("Clear-win move: ${coachGuide.clearWinMove}")
+                if (coachGuide.exactWords.isNotBlank()) appendLine("What to say: \"${coachGuide.exactWords}\"")
+                if (coachGuide.doThis.isNotEmpty()) { appendLine("Do this:"); coachGuide.doThis.forEach { appendLine("• $it") } }
+                if (coachGuide.dontDoThis.isNotEmpty()) { appendLine("Don't do this:"); coachGuide.dontDoThis.forEach { appendLine("• $it") } }
             }
             appendLine()
             append(FOOTER)

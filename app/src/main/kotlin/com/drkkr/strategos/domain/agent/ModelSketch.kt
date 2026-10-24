@@ -8,7 +8,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNames
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.contentOrNull
@@ -26,7 +28,21 @@ data class ModelSketch(
     val outcomes: List<SketchOutcome> = emptyList(),
     val limits: List<SketchLimit> = emptyList(),
     val ask: String? = null,
-    val support: Boolean? = null
+    val support: Boolean? = null,
+    // Argon: coach fields. All default, so v2.0 sketches parse unchanged.
+    val archetype: String? = null,
+    @SerialName("trust_delta") val trustDelta: Double = 0.0,
+    @SerialName("tension_delta") val tensionDelta: Double = 0.0,
+    @SerialName("coach_guide") val coachGuide: CoachGuideSketch? = null
+)
+
+@Serializable
+data class CoachGuideSketch(
+    @SerialName("what_happened") val whatHappened: String = "",
+    @SerialName("clear_win_move") val clearWinMove: String = "",
+    @SerialName("exact_words") val exactWords: String = "",
+    @SerialName("do_this") val doThis: List<String> = emptyList(),
+    @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList()
 )
 
 /**
@@ -39,20 +55,29 @@ object TextOrListSerializer : JsonTransformingSerializer<String>(String.serializ
         else element
 }
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class SketchPerson(
-    val name: String = "", val role: String? = null, val veto: Boolean? = null,
+    val name: String = "", val role: String? = null,
+    @JsonNames("can_block") val veto: Boolean? = null,
     @Serializable(with = TextOrListSerializer::class) val wants: String? = null,
     @Serializable(with = TextOrListSerializer::class) val fears: String? = null,
     // The saved-model digest calls wants "goals"; accept that spelling too.
     @Serializable(with = TextOrListSerializer::class) val goals: String? = null
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class SketchOption(@SerialName("for") val owner: String = "", val label: String = "")
+data class SketchOption(@SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "")
 
 @Serializable
-data class SketchOutcome(val picks: Map<String, String> = emptyMap(), val scores: Map<String, List<Double>> = emptyMap())
+data class SketchOutcome(
+    val picks: Map<String, String> = emptyMap(), val scores: Map<String, List<Double>> = emptyMap(),
+    // BLUEPRINT-QUESTION: the §5.1 prompt writes outcomes as when/for_you/for_them (first and second player), not picks/scores. Both are read.
+    @SerialName("when") val whenPicks: List<String> = emptyList(),
+    @SerialName("for_you") val forYou: List<Double> = emptyList(),
+    @SerialName("for_them") val forThem: List<Double> = emptyList()
+)
 
 @Serializable
 data class SketchLimit(val label: String = "", val kind: String? = null)
@@ -205,7 +230,10 @@ object SketchConverter {
         val nameOf = idByName.entries.associate { (n, id) -> id to n }
         val seen = mutableSetOf<String>()
         for (o in sketch.outcomes) {
-            val picks = o.picks.entries.associate { key(it.key) to key(it.value) }
+            // The Argon form: when = [first player's option, second player's option], scores in the same player order.
+            val byOrder = o.whenPicks.size >= 2 && playerList.size >= 2
+            val picks = if (byOrder) playerList.take(2).mapIndexed { i, pid -> nameOf.getValue(pid) to key(o.whenPicks[i]) }.toMap()
+                        else o.picks.entries.associate { key(it.key) to key(it.value) }
             val profile = playerList.map { pid ->
                 val label = picks[nameOf[pid]] ?: return@map null
                 val aid = optionFor(pid, label) ?: return@map null
@@ -213,7 +241,8 @@ object SketchConverter {
             }
             if (profile.any { it == null }) continue
             val picksList = profile.filterNotNull()
-            val scores = o.scores.entries.associate { key(it.key) to it.value }
+            val scores = if (byOrder) mapOf(nameOf.getValue(playerList[0]) to o.forYou, nameOf.getValue(playerList[1]) to o.forThem)
+                         else o.scores.entries.associate { key(it.key) to it.value }
             for (pid in playerList) {
                 val values = scores[nameOf[pid]] ?: continue
                 if (values.size < dims.size) continue
