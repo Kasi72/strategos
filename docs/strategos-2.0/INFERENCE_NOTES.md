@@ -1,8 +1,8 @@
 # Inference notes (Groq, gpt-oss-20b, real phone, 2026-10-24)
 
 Written for a deeper review by a stronger model. Observations come from the debug request trace (`DebugLog`, tag `StrategosDebug`)
-on a CPH2659 running the 2.0.0 debug build. The raw trace holds the tester's personal story, so it is **not** in the repo.
-Nothing below quotes the tester's text.
+on a CPH2659 running the 2.0.0 debug build. The full conversation, kept with the tester's consent, is in `PHONE_TRACE_2026-10-24.md`.
+The tables and findings below do not quote it.
 
 ## 1. What the app does per message (SIMPLE PROFILE)
 1. One request: system prompt (~800 tokens) + app context (the saved model as JSON) + earlier messages + the new message.
