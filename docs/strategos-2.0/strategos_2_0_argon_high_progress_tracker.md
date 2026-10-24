@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `A.3`** (named threads in `ConversationRepository`).
+👉 **Start at Step `A.4`** (env-gated DeepSeek live spike).
 
 ---
 
@@ -22,7 +22,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 |---|---|---|---|---|---|
 | **A.1** | Phase A | DeepSeek config, price table, `<think>` strip, `prompt_cache_hit_tokens` & `jsonObjectMode` (`TC_DS_01`–`05`) | done | 7 | `DeepSeekTransportTest`. User approved editing `AiSettingsTest.TC_MODEL_01` (default model moved to deepseek-chat). gpt-oss ids kept in `MODEL_OPTIONS`. Spec files are the `strategos_2_0_argon_high_*` names. |
 | **A.2** | Phase A | `JournalCrypto` (`TextCipher`) + Room `StrategosDatabase` v2 entities, DAOs & `MIGRATION_1_2` (`TC_DB2_01`–`05`) | done | 5 | `JournalDbTest`; schema `2.json` exported; `TextCipher` is a plain interface (BLUEPRINT-QUESTION: `fun interface` can't have 2 methods). |
-| **A.3** | Phase A | Named multi-thread support in `ConversationRepository` (`TC_THREAD_01`–`04`) | pending | 0 | Keep `getOrCreateActive` compatible with baseline tests. |
+| **A.3** | Phase A | Named multi-thread support in `ConversationRepository` (`TC_THREAD_01`–`04`) | done | 4 | `ThreadTest`; `switchThread` bumps `updatedAt` above the newest sibling so it wins `getOrCreateActive`. |
 | **A.4** | Phase A | Env-gated `DeepSeekLiveSpikeTest` (`CP-DS1` check) | pending | 0 | If `DEEPSEEK_API_KEY` is absent in `.env`, leave gated and continue to Phase B. |
 | **B.1** | Phase B | Pure domain `TrajectoryCalculator` with Sigmoid $S(t)$ & +/- projections (`TC_TRAJ_01`–`05`) | pending | 0 | Must have zero `android.*` imports (`DomainPurityTest`). |
 | **B.2** | Phase B | Pure domain `QuickCheckUpdater` 3-tap deterministic math (`TC_QC_01`–`04`) | pending | 0 | Updates trust, tension, streak, archetype, and `Scenario` trust baseline. |

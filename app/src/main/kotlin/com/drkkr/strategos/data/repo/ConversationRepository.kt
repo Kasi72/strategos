@@ -1,6 +1,7 @@
 package com.drkkr.strategos.data.repo
 
 import androidx.room.withTransaction
+import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.ConversationEntity
 import com.drkkr.strategos.data.db.entities.MessageEntity
@@ -19,6 +20,36 @@ class ConversationRepository(private val db: StrategosDatabase) {
                 ).also { db.conversationDao().upsert(it) }
             }
         }
+
+    suspend fun listThreads(scenarioId: String): List<ConversationEntity> = db.conversationDao().listThreadsForScenario(scenarioId)
+
+    fun observeThreads(scenarioId: String): Flow<List<ConversationEntity>> = db.conversationDao().observeThreadsForScenario(scenarioId)
+
+    suspend fun createNamedThread(
+        scenarioId: String, title: String, topicTag: String = "GENERAL",
+        modelId: String = AgentConfig.DEFAULT_MODEL, agentVersion: String = AgentConfig.ENGINE_VERSION
+    ): ConversationEntity {
+        val now = System.currentTimeMillis()
+        return ConversationEntity(
+            id = UUID.randomUUID().toString(), scenarioId = scenarioId, status = "ACTIVE", modelId = modelId,
+            agentVersion = agentVersion, createdAt = now, updatedAt = now,
+            title = title.trim().ifEmpty { "Main Thread" }, topicTag = topicTag.trim().ifEmpty { "GENERAL" }
+        ).also { db.conversationDao().upsert(it) }
+    }
+
+    suspend fun renameThread(id: String, title: String, topicTag: String) =
+        db.conversationDao().renameThread(id, title.trim().ifEmpty { "Main Thread" }, topicTag.trim().ifEmpty { "GENERAL" }, System.currentTimeMillis())
+
+    suspend fun setPinned(id: String, pinned: Boolean) {
+        db.conversationDao().get(id)?.let { db.conversationDao().upsert(it.copy(isPinned = pinned)) }
+    }
+
+    /** Makes the thread the most recently updated one, so `getOrCreateActive` returns it. Null if it does not exist. */
+    suspend fun switchThread(id: String): ConversationEntity? = db.withTransaction {
+        val t = db.conversationDao().get(id) ?: return@withTransaction null
+        val newest = db.conversationDao().listThreadsForScenario(t.scenarioId).maxOfOrNull { it.updatedAt } ?: 0L
+        t.copy(updatedAt = maxOf(System.currentTimeMillis(), newest + 1)).also { db.conversationDao().upsert(it) }   // +1: a tie would not win
+    }
 
     suspend fun deleteAll() = db.conversationDao().deleteAll()
 
