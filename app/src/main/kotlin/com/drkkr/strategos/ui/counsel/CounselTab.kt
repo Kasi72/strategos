@@ -39,6 +39,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -108,7 +110,15 @@ fun CounselTab(vm: StrategosViewModel, expert: Boolean, onOpenSettings: () -> Un
         // ── Threads and journal note ──────────────────────────────────────────
         var newThread by remember { mutableStateOf(false) }
         ThreadSwitcherBar(ui.threads, ui.conversationId, enabled = !ui.running, onSelect = { counsel.selectThread(it) }, onNew = { newThread = true })
-        if (newThread) NewThreadDialog(onDismiss = { newThread = false }, onCreate = { title, tag -> counsel.createNamedThread(title, tag); newThread = false })
+        if (newThread) {
+            val focusManager = LocalFocusManager.current
+            val keyboard = LocalSoftwareKeyboardController.current
+            // The dialog's own text field can leave the keyboard bound to a now-destroyed view: typing in the
+            // composer right after looks focused (cursor blinks) but nothing the user types arrives (seen live).
+            // Clearing focus and hiding the keyboard here forces a clean IME session on the next tap.
+            fun closeDialog() { newThread = false; focusManager.clearFocus(force = true); keyboard?.hide() }
+            NewThreadDialog(onDismiss = ::closeDialog, onCreate = { title, tag -> counsel.createNamedThread(title, tag); closeDialog() })
+        }
         ui.postNotes.firstOrNull()?.let { note ->
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = StratTokens.screenPad, vertical = 4.dp).testTag("counsel_post_note"),
