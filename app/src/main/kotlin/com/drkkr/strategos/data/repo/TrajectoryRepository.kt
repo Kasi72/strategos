@@ -64,11 +64,21 @@ class TrajectoryRepository(
         return snapshot
     }
 
+    /** A caught trigger (journal insight) nudges momentum up by [JOURNAL_MOMENTUM]; trust and tension are untouched. */
+    suspend fun recordJournalShift(scenarioId: String): TrajectoryPointEntity {
+        val s = current(scenarioId)
+        val p = point(scenarioId, null, "JOURNAL_SHIFT", s.copy(
+            sigmoidProgress = (s.sigmoidProgress + JOURNAL_MOMENTUM).coerceAtMost(100.0), momentumDelta = JOURNAL_MOMENTUM
+        ), now())
+        db.trajectoryDao().insert(p)
+        return p
+    }
+
     private fun point(scenarioId: String, threadId: String?, source: String, s: TrajectorySnapshot, at: Long) = TrajectoryPointEntity(
         id = UUID.randomUUID().toString(), scenarioId = scenarioId, threadId = threadId, source = source,
         trustScore = s.trustScore, tensionScore = s.tensionScore, sigmoidProgress = s.sigmoidProgress, momentumDelta = s.momentumDelta,
         consistencyStreak = s.consistencyStreak, activeArchetype = s.activeArchetype, timestamp = at
     )
 
-    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME" }
+    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME"; const val JOURNAL_MOMENTUM = 3.0 }
 }

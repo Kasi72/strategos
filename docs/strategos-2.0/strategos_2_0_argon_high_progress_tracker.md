@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `C.2`** (`JournalRepository`, `JournalScreenerService`). Phase B accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **Start at Step `D.1`** (`ContextAssembler` 4-layer + `OneShotTurn` trajectory). Phases A, B, C accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -28,7 +28,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **B.2** | Phase B | Pure domain `QuickCheckUpdater` 3-tap deterministic math (`TC_QC_01`–`04`) | done | 4 | BLUEPRINT-QUESTION: `Stakeholder.trustBaseline: Double?` added (no numeric trust field existed). Rows missing from §7.2 use the nearest row. |
 | **B.3** | Phase B | `TrajectoryRepository` wiring DAOs + calculators (`TC_QC_05`) | done | 2 | `TrajectoryRepositoryTest`; also `recordTurn` for D.1. |
 | **C.1** | Phase C | `ArgonPrompts` (`INTERACTION_COACH_PROMPT` + `JOURNAL_SCREENER_PROMPT`), `CoachGuideSketch`, & `PlainResult` enrichment (`TC_PROMPT_01`–`04`) | done | 5 | `ArgonPromptTest`. BLUEPRINT-QUESTION: the §5.1 prompt schema (`who`/`do`, `when`/`for_you`/`for_them`, `can_block`) differs from the parser's (`for`/`label`, `picks`/`scores`, `veto`); the parser now reads both. |
-| **C.2** | Phase C | `JournalRepository` & `JournalScreenerService` instant encrypted save + async `Dispatchers.IO` screener + post-notes (`TC_JRN_01`–`06`) | pending | 0 | Instant `"Recorded privately 🍃"`, resilient `PENDING_SCREEN` fallback when offline. |
+| **C.2** | Phase C | `JournalRepository` & `JournalScreenerService` instant encrypted save + async `Dispatchers.IO` screener + post-notes (`TC_JRN_01`–`06`) | done | 8 | `JournalTest`. `recordEntry` queues as PENDING_SCREEN only when AI is on (else RECORDED, zero calls). BLUEPRINT-QUESTION: `applyPostNote` does not change payoff weights (§6.3 lists no such step). |
 | **D.1** | Phase D | 4-Layer Prefix-Cached `ContextAssembler` + `OneShotTurn` trajectory & post-note integration (`TC_CTX2_01`–`04`) | pending | 0 | Enforce `MAX_REQUEST_TOKEN_BUDGET = 2_800`. |
 | **D.2** | Phase D | `CounselUiState`, `CounselController`, `AppContainer` & `StrategosViewModel` wiring for threads, journal, post-notes & trajectory (`TC_CTRL2_01`–`04`) | pending | 0 | Expose reactive flows for all Three Spaces. |
 | **E.1** | Phase E | Space 3 UI: `ProjectOverviewTab` (`SigmoidTrajectoryCard`, `JournalPostNoteCard`, `QuickCheckCard`, `ProjectThreadsSection`) | pending | 0 | Custom Compose Canvas S-curve with green/coral projections. |
