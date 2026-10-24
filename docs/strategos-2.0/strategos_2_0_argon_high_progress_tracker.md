@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `B.1`** (`TrajectoryCalculator`). Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **Start at Step `B.3`** (`TrajectoryRepository`). Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -24,8 +24,8 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **A.2** | Phase A | `JournalCrypto` (`TextCipher`) + Room `StrategosDatabase` v2 entities, DAOs & `MIGRATION_1_2` (`TC_DB2_01`–`05`) | done | 5 | `JournalDbTest`; schema `2.json` exported; `TextCipher` is a plain interface (BLUEPRINT-QUESTION: `fun interface` can't have 2 methods). |
 | **A.3** | Phase A | Named multi-thread support in `ConversationRepository` (`TC_THREAD_01`–`04`) | done | 4 | `ThreadTest`; `switchThread` bumps `updatedAt` above the newest sibling so it wins `getOrCreateActive`. |
 | **A.4** | Phase A | Env-gated `DeepSeekLiveSpikeTest` (`CP-DS1` check) | done (gated) | 1 (skipped) | `DEEPSEEK_API_KEY` absent in `.env` (only empty `XAI_API_KEY`), so the spike is skipped. Run it at CP-FINAL and write results to `API_NOTES.md`. Phase A accepted. |
-| **B.1** | Phase B | Pure domain `TrajectoryCalculator` with Sigmoid $S(t)$ & +/- projections (`TC_TRAJ_01`–`05`) | pending | 0 | Must have zero `android.*` imports (`DomainPurityTest`). |
-| **B.2** | Phase B | Pure domain `QuickCheckUpdater` 3-tap deterministic math (`TC_QC_01`–`04`) | pending | 0 | Updates trust, tension, streak, archetype, and `Scenario` trust baseline. |
+| **B.1** | Phase B | Pure domain `TrajectoryCalculator` with Sigmoid $S(t)$ & +/- projections (`TC_TRAJ_01`–`05`) | done | 5 | `TrajectoryTest` (shared with B.2, one commit). NaN/Infinity inputs fall back to 50. |
+| **B.2** | Phase B | Pure domain `QuickCheckUpdater` 3-tap deterministic math (`TC_QC_01`–`04`) | done | 4 | BLUEPRINT-QUESTION: `Stakeholder.trustBaseline: Double?` added (no numeric trust field existed). Rows missing from §7.2 use the nearest row. |
 | **B.3** | Phase B | `TrajectoryRepository` wiring DAOs + calculators (`TC_QC_05`) | pending | 0 | Zero LLM calls on quick-check submission (`I12`). |
 | **C.1** | Phase C | `ArgonPrompts` (`INTERACTION_COACH_PROMPT` + `JOURNAL_SCREENER_PROMPT`), `CoachGuideSketch`, & `PlainResult` enrichment (`TC_PROMPT_01`–`04`) | pending | 0 | Preserve existing `PlainResult` sections so `PlainResultTest` stays green. |
 | **C.2** | Phase C | `JournalRepository` & `JournalScreenerService` instant encrypted save + async `Dispatchers.IO` screener + post-notes (`TC_JRN_01`–`06`) | pending | 0 | Instant `"Recorded privately 🍃"`, resilient `PENDING_SCREEN` fallback when offline. |

@@ -92,6 +92,8 @@ data class Stakeholder(
     val approvalRole: String = "",                     // e.g. "Final sign-off", "Recommender"
     val fears: List<String> = emptyList(),             // losses / risks they want to avoid
     val trustRelationships: List<String> = emptyList(),// stakeholder ids they trust
+    // BLUEPRINT-QUESTION: §7.2 wants a numeric trust baseline on the counterpart but the model only has the id list above. 0.0..1.0, null = never measured.
+    val trustBaseline: Double? = null,
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
     val notes: String = "",
