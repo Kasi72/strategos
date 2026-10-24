@@ -1,5 +1,9 @@
 package com.drkkr.strategos.agent
 
+import com.drkkr.strategos.data.db.entities.JournalInsightPostNoteEntity
+import com.drkkr.strategos.data.db.entities.TrajectoryPointEntity
+import com.drkkr.strategos.data.repo.JournalEntryView
+import com.drkkr.strategos.domain.analysis.TrajectorySnapshot
 import com.drkkr.strategos.domain.model.WorkflowStage
 import kotlinx.serialization.json.JsonObject
 
@@ -12,8 +16,20 @@ data class CounselUiState(
     // §17.4: shown by SafetyKeywordScreen before any LLM call, or by the show_support tool (as a chat item)
     val supportVisible: Boolean = false, val supportText: String = "",
     /** A turn got 401: the Talk tab offers "Update key" (§11.5.1). */
-    val keyInvalid: Boolean = false
+    val keyInvalid: Boolean = false,
+    // Argon, Space 1: named threads of the active project. [conversationId] is the selected one.
+    val threads: List<ThreadUi> = emptyList(),
+    // Argon, Space 3: where the project sits, its history, and the journal notes waiting for a decision.
+    val trajectory: TrajectorySnapshot? = null,
+    val trajectoryPoints: List<TrajectoryPointEntity> = emptyList(),
+    val postNotes: List<JournalInsightPostNoteEntity> = emptyList(),
+    // Argon, Space 2: the decrypted journal, newest first. Never log or persist this.
+    val journalEntries: List<JournalEntryView> = emptyList(),
+    /** "Recorded privately 🍃" after a save; the Journal tab shows it and clears it. */
+    val journalAck: String? = null
 )
+
+data class ThreadUi(val id: String, val title: String, val topicTag: String, val pinned: Boolean, val updatedAt: Long)
 
 sealed class ChatItem {
     abstract val id: String

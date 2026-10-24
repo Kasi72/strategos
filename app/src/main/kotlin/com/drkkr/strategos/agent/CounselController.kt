@@ -15,6 +15,7 @@ import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SaveResult
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.JournalRecordResult
 import com.drkkr.strategos.data.repo.JournalRepository
 import com.drkkr.strategos.data.repo.TrajectoryRepository
 import com.drkkr.strategos.domain.agent.ArgonPrompts
@@ -115,6 +116,8 @@ class CounselController(
     init {
         // §11.5.1: screens update the moment a key, consent or the toggle changes; no restart.
         scope.launch { deps.settings.observeAiFlags().collect { refreshAiStatus() } }
+        // Space 2 is global: the whole journal, whichever project is open.
+        deps.journal?.let { j -> scope.launch { j.observeEntries(null).collect { list -> _state.update { it.copy(journalEntries = list) } } } }
     }
 
     private var scenarioId: String? = null
@@ -134,7 +137,29 @@ class CounselController(
         startObserving(cid, scenarioId)
     }
 
+    /** Per-project flows: the thread list, the trajectory series and the journal notes. Restarted when the project changes. */
+    private var extrasJob: Job? = null
+
+    private fun observeProject(sid: String) {
+        extrasJob?.cancel()
+        extrasJob = scope.launch {
+            launch { deps.conversations.observeThreads(sid).collect { list ->
+                _state.update { st -> st.copy(threads = list.map { ThreadUi(it.id, it.title, it.topicTag, it.isPinned, it.updatedAt) }) }
+            } }
+            deps.trajectory?.let { t ->
+                launch { t.observePoints(sid).collect { points ->
+                    val snap = runCatching { t.current(sid) }.getOrNull()
+                    _state.update { it.copy(trajectoryPoints = points, trajectory = snap) }
+                } }
+            }
+            deps.journal?.let { j ->
+                launch { j.observeActivePostNotes(sid).collect { notes -> _state.update { it.copy(postNotes = notes.filter { n -> !n.applied }) } } }
+            }
+        }
+    }
+
     private fun startObserving(cid: String, sid: String) {
+        observeProject(sid)
         _state.update { it.copy(conversationId = cid) }
         observeJob?.cancel()
         observeJob = scope.launch {
@@ -151,6 +176,63 @@ class CounselController(
             }
         }
     }
+
+    // ── Argon: named threads (Space 1) ────────────────────────────────────────
+
+    /** Starts a new named thread in the open project and switches to it. */
+    fun createNamedThread(title: String, topicTag: String = "GENERAL"): Job = scope.launch {
+        val sid = scenarioId ?: return@launch
+        if (turnJob?.isActive == true) return@launch
+        val thread = runCatching { deps.conversations.createNamedThread(sid, title, topicTag, deps.settings.model(), deps.agentVersion()) }.getOrNull()
+            ?: return@launch
+        startObserving(thread.id, sid)
+    }
+
+    /** Shows another thread of the same project. The project model is shared; only the messages change. */
+    fun selectThread(threadId: String): Job = scope.launch {
+        val sid = scenarioId ?: return@launch
+        if (turnJob?.isActive == true || _state.value.conversationId == threadId) return@launch
+        val thread = deps.conversations.get(threadId)?.takeIf { it.scenarioId == sid } ?: return@launch
+        deps.conversations.switchThread(thread.id)
+        startObserving(thread.id, sid)
+    }
+
+    fun renameThread(threadId: String, title: String, topicTag: String): Job = scope.launch { deps.conversations.renameThread(threadId, title, topicTag) }
+
+    fun setThreadPinned(threadId: String, pinned: Boolean): Job = scope.launch { deps.conversations.setPinned(threadId, pinned) }
+
+    // ── Argon: journal (Space 2) and quick-check / post-notes (Space 3) ───────
+
+    /**
+     * Saves the entry locally and returns at once (I11); the screener runs in the background. A crisis phrase shows the
+     * support card here, before any network call. Null when the journal is not available.
+     */
+    suspend fun recordJournalEntry(rawText: String, moodTag: String, linkedScenarioId: String?): JournalRecordResult? {
+        val journal = deps.journal ?: return null
+        if (rawText.isBlank()) return null
+        val result = journal.recordEntry(rawText.trim(), moodTag, linkedScenarioId)
+        if (result.safetyTriggered) showSupport()
+        _state.update { it.copy(journalAck = result.ack) }
+        deps.journalScreener?.screenAsync(result.entryId)
+        return result
+    }
+
+    fun clearJournalAck() = _state.update { it.copy(journalAck = null) }
+
+    /** Three taps. Deterministic: no model call (I12). */
+    fun submitQuickCheck(executionChoice: String, counterpartReaction: String, selfFeeling: String, note: String = "", recommendedLabel: String = ""): Job = scope.launch {
+        val sid = scenarioId ?: return@launch
+        val t = deps.trajectory ?: return@launch
+        val snap = t.submitQuickCheck(
+            sid, _state.value.conversationId, recommendedLabel, executionChoice, counterpartReaction, selfFeeling, note,
+            scenario = gateway.activeScenario()?.takeIf { it.id == sid }, commit = { gateway.commitAgentChange(it) }
+        )
+        _state.update { it.copy(trajectory = snap) }
+    }
+
+    fun applyJournalPostNote(noteId: String): Job = scope.launch { deps.journal?.applyPostNote(noteId) }
+
+    fun dismissJournalPostNote(noteId: String): Job = scope.launch { deps.journal?.dismissPostNote(noteId) }
 
     suspend fun refreshAiStatus() {
         val s = deps.settings
@@ -236,6 +318,7 @@ class CounselController(
                 val result = if (deps.oneShot) oneShotTurn.run(cid, sid, trigger, onActivity)
                 else orchestrator.runTurn(cid, sid, trigger, { turnId -> toolContext(cid, sid, turnId) }, onActivity)
                 if (result is TurnResult.Failed) _state.update { it.copy(error = result.userMessage, canRetry = result.retryable) }
+                else deps.journalScreener?.let { svc -> scope.launch { svc.retryPendingScreens() } }   // online again: screen what was queued
             } finally {
                 _state.update { it.copy(running = false, activity = null) }
             }

@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `D.2`** (`CounselUiState`/`CounselController`/`AppContainer`/`StrategosViewModel` wiring). Phases A, B, C accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **Start at Step `E.1`** (Space 3 UI). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -30,7 +30,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **C.1** | Phase C | `ArgonPrompts` (`INTERACTION_COACH_PROMPT` + `JOURNAL_SCREENER_PROMPT`), `CoachGuideSketch`, & `PlainResult` enrichment (`TC_PROMPT_01`–`04`) | done | 5 | `ArgonPromptTest`. BLUEPRINT-QUESTION: the §5.1 prompt schema (`who`/`do`, `when`/`for_you`/`for_them`, `can_block`) differs from the parser's (`for`/`label`, `picks`/`scores`, `veto`); the parser now reads both. |
 | **C.2** | Phase C | `JournalRepository` & `JournalScreenerService` instant encrypted save + async `Dispatchers.IO` screener + post-notes (`TC_JRN_01`–`06`) | done | 8 | `JournalTest`. `recordEntry` queues as PENDING_SCREEN only when AI is on (else RECORDED, zero calls). BLUEPRINT-QUESTION: `applyPostNote` does not change payoff weights (§6.3 lists no such step). |
 | **D.1** | Phase D | 4-Layer Prefix-Cached `ContextAssembler` + `OneShotTurn` trajectory & post-note integration (`TC_CTX2_01`–`04`) | done | 3 | `ArgonContextTest` (CTX2_01–03). Layered mode is on only when `trajectory` is passed, so legacy tests are untouched. `CounselDeps` got optional `trajectory`/`journal`/`journalScreener`. TC_CTX2_04 moves to D.2 (controller-level). A turn with no deltas and no archetype records no point. |
-| **D.2** | Phase D | `CounselUiState`, `CounselController`, `AppContainer` & `StrategosViewModel` wiring for threads, journal, post-notes & trajectory (`TC_CTRL2_01`–`04`) | pending | 0 | Expose reactive flows for all Three Spaces. |
+| **D.2** | Phase D | `CounselUiState`, `CounselController`, `AppContainer` & `StrategosViewModel` wiring for threads, journal, post-notes & trajectory (`TC_CTRL2_01`–`04`) | done | 5 | `ArgonControllerTest` (CTRL2_01–04, CTX2_04). `AppContainer` now uses `ChatCompletionsClient` (the app would otherwise call DeepSeek's `/v1/responses`, which does not exist). `submitQuickCheck` commits the trust baseline through the gateway. `StrategosViewModel` already exposes `counsel`/`counselState`; the new controller methods are used from there. |
 | **E.1** | Phase E | Space 3 UI: `ProjectOverviewTab` (`SigmoidTrajectoryCard`, `JournalPostNoteCard`, `QuickCheckCard`, `ProjectThreadsSection`) | pending | 0 | Custom Compose Canvas S-curve with green/coral projections. |
 | **E.2** | Phase E | Space 2 UI: `JournalTab` (non-judgmental composer, voice input, instant ack banner, encrypted timeline) | pending | 0 | Never show judgmental chat bubbles in Journal tab. |
 | **E.3** | Phase E | Space 1 UI: `CounselTab` Thread Switcher bar + `+ Thread` dialog + Post-Note banner + `MainActivity` Guided dock & DeepSeek settings | pending | 0 | Guided dock: `Projects · Overview · Talk · Journal · Settings`. |

@@ -20,7 +20,14 @@ import com.drkkr.strategos.data.storage.LoadResult
 import com.drkkr.strategos.data.storage.ScenarioStorage
 import com.drkkr.strategos.domain.model.AnalysisSnapshot
 import com.drkkr.strategos.llm.LlmClient
-import com.drkkr.strategos.llm.XaiResponsesClient
+import com.drkkr.strategos.llm.ChatCompletionsClient
+import com.drkkr.strategos.agent.JournalScreenerService
+import com.drkkr.strategos.data.repo.JournalRepository
+import com.drkkr.strategos.data.repo.TrajectoryRepository
+import com.drkkr.strategos.data.secure.KeystoreTextCipher
+import com.drkkr.strategos.data.secure.TextCipher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,7 +41,8 @@ import java.io.File
 class AppContainer(
     private val context: Context,
     private val openDatabase: (Context) -> StrategosDatabase = { DbFactory.open(it, DatabaseKeyManager(it).getOrCreatePassphrase()) },
-    private val llmOverride: LlmClient? = null
+    private val llmOverride: LlmClient? = null,
+    private val journalCipherOverride: TextCipher? = null
 ) {
 
     private class DbHolder(val db: StrategosDatabase?, val error: String?)
@@ -72,7 +80,29 @@ class AppContainer(
     }
 
     val llmClient: LlmClient by lazy {
-        llmOverride ?: XaiResponsesClient(keyProvider = { secretStore?.getXaiKey() }, callLog = database?.llmCallDao())
+        // DeepSeek speaks Chat Completions. XaiResponsesClient stays in the code for a Responses-API provider.
+        llmOverride ?: ChatCompletionsClient(keyProvider = { secretStore?.getXaiKey() }, callLog = database?.llmCallDao())
+    }
+
+    // Argon: Space 2 (journal) and Space 3 (trajectory).
+    val trajectoryRepository: TrajectoryRepository? by lazy { database?.let { TrajectoryRepository(it, scenarioRepository) } }
+
+    private val journalCipher: TextCipher by lazy { journalCipherOverride ?: KeystoreTextCipher() }
+
+    val journalRepository: JournalRepository? by lazy {
+        val db = database ?: return@lazy null
+        val settings = settingsRepository ?: return@lazy null
+        JournalRepository(db, journalCipher, MemoryRepository(db), ConversationRepository(db), aiEnabled = { settings.aiReady() })
+    }
+
+    val journalScreener: JournalScreenerService? by lazy {
+        val journal = journalRepository ?: return@lazy null
+        val trajectory = trajectoryRepository ?: return@lazy null
+        val settings = settingsRepository ?: return@lazy null
+        JournalScreenerService(
+            llmClient, journal, scenarioRepository, trajectory, settings = { settings.aiReady() to settings.model() },
+            scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        )
     }
 
     /** Null when secure storage is unavailable: Counsel can't run without its database. */
@@ -91,7 +121,8 @@ class AppContainer(
             whatIfs = db.whatIfDao(),
             hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null },
             oneShot = true,     // SIMPLE PROFILE
-            coach = true        // COMPANION REPLY
+            coach = true,       // COMPANION REPLY
+            trajectory = trajectoryRepository, journal = journalRepository, journalScreener = journalScreener
         )
     }
 

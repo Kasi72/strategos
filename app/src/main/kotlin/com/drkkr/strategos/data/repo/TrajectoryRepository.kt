@@ -7,6 +7,7 @@ import com.drkkr.strategos.data.db.entities.TrajectoryPointEntity
 import com.drkkr.strategos.domain.analysis.QuickCheckUpdater
 import com.drkkr.strategos.domain.analysis.TrajectoryCalculator
 import com.drkkr.strategos.domain.analysis.TrajectorySnapshot
+import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
@@ -28,11 +29,14 @@ class TrajectoryRepository(
 
     suspend fun submitQuickCheck(
         scenarioId: String, threadId: String?, recommendedActionLabel: String,
-        executionChoice: String, counterpartReaction: String, selfFeeling: String, note: String = ""
+        executionChoice: String, counterpartReaction: String, selfFeeling: String, note: String = "",
+        /** The project to update. A caller that owns the live copy (the view model) passes it and a [commit] that saves through it. */
+        scenario: Scenario? = scenarios.find(scenarioId),
+        commit: (suspend (Scenario) -> Unit)? = null
     ): TrajectorySnapshot {
         val before = current(scenarioId)
         val outcome = QuickCheckUpdater.update(
-            scenarios.find(scenarioId), before.trustScore, before.tensionScore, before.consistencyStreak, before.activeArchetype,
+            scenario, before.trustScore, before.tensionScore, before.consistencyStreak, before.activeArchetype,
             executionChoice, counterpartReaction, selfFeeling
         )
         val at = now()
@@ -49,7 +53,7 @@ class TrajectoryRepository(
             db.trajectoryDao().insert(point(scenarioId, threadId, "QUICK_CHECK", snapshot, at))
         }
         // A newer stored scenario version (SaveResult.Conflict) just skips the trust-baseline write; the point is already kept.
-        outcome.scenario?.let { scenarios.save(it) }
+        outcome.scenario?.let { if (commit != null) commit(it) else scenarios.save(it) }
         return snapshot
     }
 
