@@ -18,7 +18,7 @@ class SensitivityModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val focal = 0
         val strats = sf.strategies[sf.players[focal]]!!
 
@@ -31,7 +31,7 @@ class SensitivityModule : FrameworkModule {
             if (baseW == 0.0) continue
             for (factor in listOf(1.0 - delta, 1.0 + delta)) {
                 val perturbed = baseWeights.toMutableMap().also { it[dim] = baseW * factor }
-                val sfP = MatrixSupport.build(model, perturbed)!!
+                val sfP = MatrixSupport.buildOrThrow(model, perturbed)
                 // Best action for focal under perturbed weights
                 val euP = DoubleArray(strats.size) { aIdx ->
                     sfP.utility[focal].indices.filter { sfP.profileFor(it)[focal] == aIdx }

@@ -16,7 +16,7 @@ class MinimaxModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val focal = 0
         val playerSid = sf.players[focal]
         val strats = sf.strategies[playerSid]!!

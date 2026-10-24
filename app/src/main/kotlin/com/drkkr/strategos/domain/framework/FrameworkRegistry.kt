@@ -1,6 +1,7 @@
 package com.drkkr.strategos.domain.framework
 
 import com.drkkr.strategos.domain.model.Scenario
+import com.drkkr.strategos.framework.InsufficientInputException
 import java.util.UUID
 
 class FrameworkRegistry {
@@ -28,6 +29,8 @@ class FrameworkRegistry {
                         val result = m.analyze(scenario).copy(applicability = app)
                         ModuleRunResult.success(result, System.currentTimeMillis() - t0)
                     }
+                } catch (e: InsufficientInputException) {
+                    ModuleRunResult.skippedInsufficientInput(m, e.message ?: "Insufficient input for this framework.")
                 } catch (e: Exception) {
                     ModuleRunResult.failed(m, e, UUID.randomUUID().toString().take(8))
                 }

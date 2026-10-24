@@ -21,7 +21,7 @@ class LevelKModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val findings = mutableListOf<Finding>()
 
         // Level-0 belief: uniform random over each player's strategies

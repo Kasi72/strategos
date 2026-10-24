@@ -6,6 +6,13 @@ import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 
 /**
+ * Signals that a module cannot run because the scenario lacks the structured
+ * input it needs (not an error). The registry maps this to a clean SKIP rather
+ * than a FAILED result, so the user sees "not enough input" instead of a crash.
+ */
+class InsufficientInputException(message: String) : Exception(message)
+
+/**
  * Utilities converting Scenario payoff entries into per-player scalar matrices.
  * Assumes normal-form two-or-more player games; expects each PayoffEntry to
  * carry a full actionProfile (map of every stakeholderId -> chosen actionId).
@@ -52,6 +59,16 @@ object MatrixSupport {
     /** Full build — returns null if any required field is missing (stakeholders, actions, payoffs). */
     fun build(scenario: Scenario, weights: Map<PayoffDimension, Double> = scenario.weights): StrategicForm? =
         buildChecked(scenario, weights)?.form
+
+    /**
+     * Like [build] but throws [InsufficientInputException] instead of returning
+     * null, so modules can one-line the guard: `val sf = MatrixSupport.buildOrThrow(model)`.
+     * The registry converts the exception into a SKIPPED_INSUFFICIENT_INPUT result.
+     */
+    fun buildOrThrow(scenario: Scenario, weights: Map<PayoffDimension, Double> = scenario.weights): StrategicForm =
+        build(scenario, weights) ?: throw InsufficientInputException(
+            "This framework needs a payoff matrix: at least 2 stakeholders, one or more actions per stakeholder, and at least one payoff entry."
+        )
 
     /**
      * Build with coverage reporting. Missing payoff profiles remain NaN — never zero-filled.

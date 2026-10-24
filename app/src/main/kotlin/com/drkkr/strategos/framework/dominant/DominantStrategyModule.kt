@@ -19,7 +19,7 @@ class DominantStrategyModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val dominant = mutableMapOf<String, String>()
         val dominated = mutableMapOf<String, MutableList<String>>()
         val findings = mutableListOf<Finding>()
