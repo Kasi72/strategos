@@ -8,6 +8,7 @@ import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.data.repo.TrajectoryRepository
 import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.agent.ApplyResult
+import com.drkkr.strategos.domain.agent.BayesianUpdater
 import com.drkkr.strategos.domain.agent.CoachFacts
 import com.drkkr.strategos.domain.agent.ArgonPrompts
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
@@ -86,7 +87,7 @@ class OneShotTurn(
     private class Applied(val result: ApplyResult, val accepted: List<com.drkkr.strategos.domain.agent.ChangeOp>)
 
     private suspend fun turn(cid: String, sid: String, turnId: String, onActivity: (String) -> Unit): TurnResult {
-        val scenario = gateway.activeScenario() ?: return fail(cid, turnId, "Save the scenario first.", retryable = false)
+        val loaded = gateway.activeScenario() ?: return fail(cid, turnId, "Save the scenario first.", retryable = false)
         val userTexts = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }
         val text = userTexts.lastOrNull() ?: return TurnResult.Done
         // Phase F.5: read before this turn's saveLastReport overwrites it, so the directive can name what it told you last time.
@@ -95,7 +96,7 @@ class OneShotTurn(
         onActivity("Reading your situation…")
         // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
         val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
-                    else askModel(input(LiveDigest.build(scenario, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
+                    else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
@@ -104,6 +105,9 @@ class OneShotTurn(
         if (argon != null && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
             argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype, parsed.backstoryOnly)
         }
+        // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
+        // the engine that reads the saved scenario afterward both see the same just-updated numbers in one commit.
+        val scenario = if (argon != null) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
         val converted = SketchConverter.toOps(parsed, scenario)
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
         if (converted.support) onSupport()

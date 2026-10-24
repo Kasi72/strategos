@@ -132,6 +132,8 @@ class DeepSeekLiveFlowTest {
                     out.append("  dominant dynamic: ${d["dominant_dynamic"]?.jsonArray?.joinToString(" // ") { it.jsonPrimitive.content }}\n")
                     out.append("  stress: ${str("stress_verdict")} ${str("stress_flip") ?: ""}\n")
                     out.append("  move_to_implement: ${str("move_to_implement")}\n")
+                    out.append("  known_stakeholder_facts: ${d["known_stakeholder_facts"]?.jsonArray?.joinToString(" | ") { it.jsonPrimitive.content }}\n")
+                    out.append("  bayesian_learning_note: ${str("bayesian_learning_note")}\n")
                 }
 
                 out.append("\n(c) CALL 2 translation\n")

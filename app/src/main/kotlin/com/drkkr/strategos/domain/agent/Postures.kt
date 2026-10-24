@@ -84,6 +84,39 @@ object PostureContrast {
     }
 }
 
+/**
+ * Phase F.6: nudges the owner's own score for a repair/boundary option toward or away from the counterpart's
+ * learned Bayesian priors ([BayesianUpdater]), so a repeatedly-unreciprocated repair move loses its lead and a
+ * repeatedly-respected boundary gains one. Must run after [PostureContrast.apply], which (whenever it has
+ * anything to adjust) always normalises outcomes into the `picks`/`scores` map form, even when they arrive in
+ * the Argon `when`/`for_you` form — this reads that same normalised form.
+ */
+object BayesianPayoffAdjustment {
+    private const val SCALE = 4.0
+    private const val NEUTRAL = 0.50
+
+    fun apply(outcomes: List<SketchOutcome>, options: List<SketchOption>, ownerName: String, probSoftensOnRepair: Double, probRespectsBoundary: Double): List<SketchOutcome> {
+        fun key(s: String) = SketchConverter.norm(s)
+        val owner = key(ownerName)
+        val postureByLabel = options.filter { key(it.owner) == owner }.mapNotNull { o -> Postures.clean(o.posture)?.let { key(o.label) to it } }.toMap()
+        if (postureByLabel.values.none { it == Postures.REPAIR || it == Postures.BOUNDARY }) return outcomes
+        fun delta(label: String) = when (postureByLabel[label]) {
+            Postures.REPAIR -> (probSoftensOnRepair - NEUTRAL) * SCALE
+            Postures.BOUNDARY -> (probRespectsBoundary - NEUTRAL) * SCALE
+            else -> 0.0
+        }
+        return outcomes.map { o ->
+            val ownerLabel = o.picks[owner] ?: return@map o
+            val d = delta(ownerLabel)
+            val scores = o.scores[owner]
+            // Spread across the dimensions (not applied per dimension) so the nudge moves the overall score by
+            // roughly `d`, not by `d * dims.size` — otherwise a 3-dimension model triples the intended swing.
+            if (d == 0.0 || scores.isNullOrEmpty()) o
+            else o.copy(scores = o.scores + (owner to scores.map { v -> (v + d / scores.size).coerceIn(0.0, 10.0) }))
+        }
+    }
+}
+
 /** `[bracketed placeholders]` must never reach the screen. */
 object Placeholders {
     private val bracket = Regex("\\s*\\[[^\\]]{1,60}]")

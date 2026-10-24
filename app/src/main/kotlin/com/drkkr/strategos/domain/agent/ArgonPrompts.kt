@@ -4,6 +4,8 @@ package com.drkkr.strategos.domain.agent
  * Argon High prompts, verbatim from the blueprint §5.1. Do not shorten or reword them.
  * Phase F.5 (post-blueprint, live-testing fix) added rule 13 to [EXTRACTION_PROMPT] and rule 8 to
  * [ENGINE_COACH_PROMPT]: a stated fear/want was found being re-asked as a "discovery" question on a later turn.
+ * Phase F.6 added rule 14 to [EXTRACTION_PROMPT] (classifies the user's move and the counterpart's reaction, read
+ * only by [BayesianUpdater]) and rule 9 to [ENGINE_COACH_PROMPT] (lets the learned pattern shape the wording).
  */
 object ArgonPrompts {
 
@@ -28,6 +30,7 @@ RULES:
 11. Every turn, return a FRESH set of options for what the user is facing NOW (3 for "You", 2 for the other player), reusing the wording of a saved option only when it still fits. Do not repeat saved options that no longer fit the situation.
 12. SCORING. Rate each of the other person's options by what THEY would gain, given how the user describes their behavior so far. If they have been withdrawing or guarded, that option should score well for them unless the user gives a reason it will change. Tempting reactive moves often feel good now but score low on RELATIONSHIPS and LONG_TERM_VALUE. Do not give one option the top score in every row.
 13. STAGE PROGRESSION. APP CONTEXT already lists each saved person's known `fears`/`goals` and the limits on record, plus `last_analysis.recommended` (what was advised last turn). Before writing a "repair" option for "You", check them and the current message. If the other person's underlying fear or want is already known (stated now or saved), do NOT propose a discovery option that only asks about or re-surfaces that fear or want (for example "ask how they are feeling", "find out what's really wrong"). Propose the next concrete step that acts on what is already known instead — name it back to them and offer something specific (a plan, a schedule, a trial, a boundary), not another question about it.
+14. OBSERVED REACTION. On any message after the first (there is already a saved person or option), classify what the message reports and return it in `user_last_move_posture` and `counterpart_observed_reaction`. `user_last_move_posture`: "repair" if the user describes a cooperative/repair move they actually made, "boundary" if a firm boundary, "reactive" if a tempting/reactive move (chasing, pleading, an ultimatum, caving), otherwise "none". `counterpart_observed_reaction`: "softened" if the other person opened up, warmed or came closer, "withdrew_or_escalated" if they shut down, pulled back or escalated, "stayed_neutral" if neither, otherwise "none" (nothing was reported, or this is the first message). These two fields are read only to update the engine's own numbers; never invent one to fit a story.
 
 JSON SCHEMA:
 {
@@ -58,7 +61,9 @@ JSON SCHEMA:
     {"when": ["Send several messages until they answer", "Shut down and keep distance"], "for_you": [2, 2, 2], "for_them": [3, 2, 3]}
   ],
   "limits": [],
-  "ask": null
+  "ask": null,
+  "user_last_move_posture": "none",
+  "counterpart_observed_reaction": "none"
 }
 """
 
@@ -78,6 +83,7 @@ HARD RULES:
 6. Never use placeholders such as [specific effort]: use concrete details from the user's message. Never use the words Nash, payoff, matrix, dominant strategy, equilibrium, player or Bayesian. Do not mention the engine, the directive or any score. Do not judge or lecture the user.
 7. BREVITY, the reply is read on a phone: `what_happened` at most 2 short sentences; `clear_win_move` and `exact_words` 1 to 2 sentences each; `do_this` and `dont_do_this` at most 2 bullets each, 12 words or fewer per bullet.
 8. Check `known_stakeholder_facts` in the directive, and the person's own message, before writing anything. Never tell the user to ask about, find out, or wonder what the other person feels, wants or fears when that is already in `known_stakeholder_facts` or already said in the current message. Instead name what they already shared in your own words and build the next step on top of it.
+9. If `bayesian_learning_note` is not null, let it quietly shape `what_happened` or `clear_win_move` in plain words (e.g. "this has worked before" or "this hasn't been landing lately") without naming it, a percentage, or the word "learned", "prior" or "confidence".
 
 JSON SCHEMA:
 {

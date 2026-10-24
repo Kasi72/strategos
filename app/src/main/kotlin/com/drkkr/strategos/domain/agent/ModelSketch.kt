@@ -35,7 +35,14 @@ data class ModelSketch(
     @SerialName("trust_delta") val trustDelta: Double = 0.0,
     @SerialName("tension_delta") val tensionDelta: Double = 0.0,
     /** True when the message is history only, so the trajectory moves less ([TrajectoryRepository.recordTurn]). */
-    @SerialName("backstory_only") val backstoryOnly: Boolean = false
+    @SerialName("backstory_only") val backstoryOnly: Boolean = false,
+    /**
+     * Phase F.6: what Call 1 observed about this turn's interaction, read only to update the counterpart's learned
+     * Bayesian priors in Kotlin ([BayesianUpdater]) — never shown to the user and never itself a fact or a score.
+     * "repair" | "boundary" | "reactive" | "none"; "softened" | "stayed_neutral" | "withdrew_or_escalated" | "none".
+     */
+    @SerialName("user_last_move_posture") val userLastMovePosture: String? = null,
+    @SerialName("counterpart_observed_reaction") val counterpartObservedReaction: String? = null
 )
 
 /** The coach guide. It is no longer part of [ModelSketch] (call 1 extracts only); call 2's [CoachReply] carries it. */
@@ -259,8 +266,15 @@ object SketchConverter {
         val seen = mutableSetOf<String>()
         val youKey = playerList.firstOrNull { nameOf[it] == "you" } ?: playerList.firstOrNull()
         val otherKey = playerList.firstOrNull { it != youKey }
-        val outcomes = if (youKey != null && otherKey != null)
-            PostureContrast.apply(sketch.outcomes, sketch.options, nameOf.getValue(youKey), nameOf.getValue(otherKey), dims) else sketch.outcomes
+        val outcomes = if (youKey != null && otherKey != null) {
+            val contrasted = PostureContrast.apply(sketch.outcomes, sketch.options, nameOf.getValue(youKey), nameOf.getValue(otherKey), dims)
+            // Phase F.6: the learned priors already live on `s` (OneShotTurn applies BayesianUpdater before calling toOps).
+            val other = s.stakeholders.firstOrNull { it.id == otherKey }
+            BayesianPayoffAdjustment.apply(
+                contrasted, sketch.options, nameOf.getValue(youKey),
+                other?.probSoftensOnRepair ?: BayesianUpdater.DEFAULT_SOFTENS, other?.probRespectsBoundary ?: BayesianUpdater.DEFAULT_BOUNDARY
+            )
+        } else sketch.outcomes
         for (o in outcomes) {
             // The Argon form: when = [first player's option, second player's option], scores in the same player order.
             val byOrder = o.whenPicks.size >= 2 && playerList.size >= 2

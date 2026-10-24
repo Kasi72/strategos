@@ -94,6 +94,11 @@ data class Stakeholder(
     val trustRelationships: List<String> = emptyList(),// stakeholder ids they trust
     // BLUEPRINT-QUESTION: §7.2 wants a numeric trust baseline on the counterpart but the model only has the id list above. 0.0..1.0, null = never measured.
     val trustBaseline: Double? = null,
+    // Phase F.6: Bayesian responsiveness priors, learned turn by turn from what the user reports (BayesianUpdater),
+    // never written by the model directly. 0.10..0.90 range, null = not yet learned (the engine uses its own defaults).
+    val probSoftensOnRepair: Double? = null,
+    val probRespectsBoundary: Double? = null,
+    val probEscalatesOnReactive: Double? = null,
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
     val notes: String = "",

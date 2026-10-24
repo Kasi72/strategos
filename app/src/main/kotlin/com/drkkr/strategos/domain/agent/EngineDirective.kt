@@ -45,7 +45,9 @@ data class EngineDirective(
      * advice, so it stops re-asking a question whose answer is already here (seen live: Mark's stated fear of eating
      * dinner alone being ignored in favor of "ask how he's feeling").
      */
-    val knownFacts: List<String> = emptyList()
+    val knownFacts: List<String> = emptyList(),
+    /** Phase F.6: the strongest pattern [BayesianUpdater] has learned about the counterpart's track record, or null if nothing has moved off the defaults yet. */
+    val bayesianLearningNote: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -62,6 +64,7 @@ data class EngineDirective(
         put("stress_verdict", stressVerdict)
         put("stress_flip", stressFlip)
         putJsonArray("known_stakeholder_facts") { knownFacts.forEach { add(JsonPrimitive(it)) } }
+        put("bayesian_learning_note", bayesianLearningNote)
     }
 
     /**
@@ -185,7 +188,8 @@ object EngineDirectiveBuilder {
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
             stressVerdict = if (fragile) "FRAGILE" else "ROBUST", stressFlip = flipText,
             moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
-            knownFacts = knownFacts(s, previousMove, recommended.label)
+            knownFacts = knownFacts(s, previousMove, recommended.label),
+            bayesianLearningNote = BayesianUpdater.learningNote(s)
         )
     }
 
