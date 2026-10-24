@@ -101,6 +101,22 @@ class OneShotFlowTest {
     }
 
     @Test
+    fun aFollowUpWithNothingNewStillAnswersInsteadOfFailing() = runBlocking {
+        // Seen on a phone: after the first answer, a message that only restated known people and options looped on "I couldn't turn that into options".
+        val restated = """{"people":[{"name":"Brother","role":"PLAYER"}],"options":[{"for":"Brother","label":"Take the loan"}]}"""
+        fake.enqueue(textReply(Sketches.loanStory)).enqueue(textReply(restated))
+        send("My brother wants me to co-sign a loan for his shop.")
+        send("He did this before and repaid late.")
+
+        val last = conversations.messages(cid()).last()
+        assertEquals(MessageRole.ASSISTANT.name, last.role)
+        assertTrue(last.text, !last.text.contains(OneShotTurn.COULD_NOT_READ))
+        assertTrue(last.text, last.text.contains("Here's what I see"))
+        assertTrue(last.text, last.text.contains("nothing new"))
+        assertEquals(null, controller.state.value.error)
+    }
+
+    @Test
     fun followUpUpdatesTheSavedModelAndRunsAgain() = runBlocking {
         fake.enqueue(textReply(Sketches.loanStory)).enqueue(textReply(Sketches.followUp))
         send("My brother wants me to co-sign a loan for his shop.")

@@ -83,18 +83,30 @@ class OneShotTurn(
         }
         val converted = SketchConverter.toOps(parsed, scenario)
         if (converted.support) onSupport()
+        // A follow-up that only restates what is already saved has nothing to add. With a model in place that is not a
+        // failure: run the analysis again and say so (seen on a phone: the same error repeated on every follow-up).
+        val hasModel = scenario.actions.isNotEmpty()
+        var nothingNew = false
+        val understood = mutableListOf<String>()
         if (converted.ops.isEmpty()) {
-            conversations.append(cid, turnId, MessageRole.ASSISTANT, converted.ask ?: COULD_NOT_READ)
-            return TurnResult.Done
+            if (converted.ask != null || !hasModel) {
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, converted.ask ?: COULD_NOT_READ)
+                return TurnResult.Done
+            }
+            nothingNew = true
+        } else {
+            val applied = apply(cid, sid, scenario, converted.ops)
+            if (applied == null || applied.result.applied == 0) {
+                if (!hasModel) return fail(cid, turnId, COULD_NOT_READ, retryable = true)
+                nothingNew = true
+            } else {
+                understood += PlainResult.understood(applied.accepted, scenario)
+            }
         }
-        val applied = apply(cid, sid, scenario, converted.ops)
-            ?: return fail(cid, turnId, COULD_NOT_READ, retryable = true)
-        if (applied.result.applied == 0) return fail(cid, turnId, COULD_NOT_READ, retryable = true)
-        val understood = PlainResult.understood(applied.accepted, scenario).toMutableList()
 
         // One targeted follow-up request when options or outcome scores are missing (best effort: a failure here still
         // leaves a saved model and an honest answer).
-        gateway.activeScenario()?.let { saved ->
+        gateway.activeScenario()?.takeIf { !nothingNew }?.let { saved ->
             SketchGaps.describe(saved)?.let { gaps ->
                 onActivity("Filling in what's missing…")
                 val repair = askModel(input(LiveDigest.build(saved, forSketch = true), emptyList(), "$REPAIR_HEADER\n$gaps"), cid, turnId)
@@ -120,7 +132,8 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             val reply = PlainResult.build(after, pr, understood)
-            conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$reply\n\n${converted.ask}" else reply)
+            val note = if (nothingNew) "$NOTHING_NEW\n\n" else ""
+            conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$note$reply\n\n${converted.ask}" else "$note$reply")
         }
         afterTurn(cid)
         return TurnResult.Done
@@ -204,6 +217,7 @@ class OneShotTurn(
     companion object {
         private const val RECENT = 3
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
+        const val NOTHING_NEW = "There was nothing new in that to add to the model, so this is the same view as before. Tell me who did or said what, or what changed, and I'll update it."
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."
 
         /** The whole prompt (~800 tokens). The reply is one JSON object; the app does everything else. */
@@ -219,7 +233,7 @@ Rules:
 - Only fill wants, fears and limits when the user said or clearly implied them; otherwise leave them out. Never write placeholder text.
 - ask: leave out unless the story is far too thin to model; then ONE short question and nothing else.
 - support: true only if the user mentions self-harm, harming someone, abuse or danger.
-- The app context shows what is saved. Do not repeat saved people or options; return only what is new or changed, with the same names. For a follow-up ("I did X and he reacted Y"), add or change what that implies, and give outcomes for any new combinations.
+- The app context shows what is saved. Do not repeat saved people or options; return only what is new or changed, with the same names. For a follow-up ("I did X and he reacted Y"), add or change what that implies, and give outcomes for any new combinations. A fact about someone's past or character ("he repaid late before") goes into that person's fears or wants, using the saved name.
 Example for "My manager wants me on night shift. My partner hates that idea." (a different situation):
 {"goal":"Keep my job without hurting my home life","people":[{"name":"You","role":"PLAYER","fears":"Losing sleep and time with my partner"},{"name":"Manager","role":"PLAYER","wants":"Night cover"},{"name":"Partner","role":"INFLUENCER","veto":true,"fears":"Never seeing me"}],"options":[{"for":"You","label":"Accept nights"},{"for":"You","label":"Refuse"},{"for":"Manager","label":"Insist"},{"for":"Manager","label":"Offer a swap"}],"dims":["WELLBEING","RELATIONSHIPS","COST"],"outcomes":[{"picks":{"You":"Accept nights","Manager":"Insist"},"scores":{"You":[3,4,5],"Manager":[8,6,2]}},{"picks":{"You":"Accept nights","Manager":"Offer a swap"},"scores":{"You":[5,5,4],"Manager":[7,7,3]}},{"picks":{"You":"Refuse","Manager":"Insist"},"scores":{"You":[6,5,7],"Manager":[3,3,6]}},{"picks":{"You":"Refuse","Manager":"Offer a swap"},"scores":{"You":[8,8,3],"Manager":[6,7,4]}}],"limits":[{"label":"No night work during my partner's treatment","kind":"ETHICAL"}]}"""
     }
