@@ -101,7 +101,7 @@ class CounselController(
 
     private val argonAssembler = deps.trajectory?.let { t ->
         ContextAssembler(
-            { ArgonPrompts.INTERACTION_COACH_PROMPT }, deps.conversations, deps.changeSets, deps.memory, deps.settings,
+            { ArgonPrompts.EXTRACTION_PROMPT }, deps.conversations, deps.changeSets, deps.memory, deps.settings,
             scenarioFor = { id -> gateway.activeScenario()?.takeIf { it.id == id } },
             journal = deps.journal, trajectory = t
         )

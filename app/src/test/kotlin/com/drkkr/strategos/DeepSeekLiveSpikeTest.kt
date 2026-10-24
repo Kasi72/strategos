@@ -68,10 +68,10 @@ class DeepSeekLiveSpikeTest {
                 LlmRequest(
                     model = AgentConfig.DEFAULT_MODEL,
                     input = buildJsonArray {
-                        add(buildJsonObject { put("role", "system"); put("content", com.drkkr.strategos.domain.agent.ArgonPrompts.INTERACTION_COACH_PROMPT) })
+                        add(buildJsonObject { put("role", "system"); put("content", com.drkkr.strategos.domain.agent.ArgonPrompts.EXTRACTION_PROMPT) })
                         add(buildJsonObject { put("role", "user"); put("content", "USER SAYS:\n$story") })
                     },
-                    tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS, jsonObjectMode = true, purpose = "SPIKE"
+                    tools = null, maxOutputTokens = 900, temperature = 0.1, jsonObjectMode = true, purpose = "SPIKE"
                 )
             )
             val text = (r as? LlmResult.Ok)?.output?.assistantText()
@@ -82,9 +82,10 @@ class DeepSeekLiveSpikeTest {
             val ops = com.drkkr.strategos.domain.agent.SketchConverter.toOps(sketch, com.drkkr.strategos.domain.model.Scenario(title = "t")).ops
             val actions = ops.count { it.type == com.drkkr.strategos.domain.agent.OpType.ADD_ACTION }
             val payoffs = ops.count { it.type == com.drkkr.strategos.domain.agent.OpType.SET_PAYOFF }
-            val guide = sketch.coachGuide?.clearWinMove?.isNotBlank() == true
-            say("S4_story_$i", if (ops.isNotEmpty() && actions >= 2 && guide) "PASS" else "FAIL", "ops=${ops.size} actions=$actions payoffs=$payoffs guide=$guide archetype=${sketch.archetype} chars=${text.length}")
-            if (ops.isEmpty() || actions < 2 || !guide) failures += "story $i: ops=${ops.size} actions=$actions payoffs=$payoffs guide=$guide reply=${text.take(1500)}"
+            // Extraction should give 3 options for the user + 2 for the other side, and all 6 outcome pairs (12 payoff rows).
+            val ok = actions == 5 && payoffs >= 10
+            say("S4_story_$i", if (ok) "PASS" else "FAIL", "ops=${ops.size} actions=$actions payoffs=$payoffs archetype=${sketch.archetype} chars=${text.length}")
+            if (!ok) failures += "story $i: ops=${ops.size} actions=$actions payoffs=$payoffs reply=${text.take(1800)}"
         }
         assertTrue(failures.joinToString("\n"), failures.isEmpty())
     }

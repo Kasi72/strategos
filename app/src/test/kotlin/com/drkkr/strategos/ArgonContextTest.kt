@@ -99,32 +99,58 @@ class ArgonContextTest {
         assertEquals("final question", content(input.last()))
     }
 
-    @Test fun TC_CTX2_03_oneShotTurnUpdatesTrajectoryAndCoachGuide() = runBlocking {
-        val fake = FakeLlmClient()
-        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+    private fun controllerWith(llm: com.drkkr.strategos.llm.LlmClient): CounselController {
         val gateway = CommittingGateway(Scenario(id = "loan", title = "Loan", description = "My brother wants me to co-sign a loan."))
-        val controller = CounselController(scope, CounselDeps(
-            llm = fake, systemPrompt = { "unused" }, tools = { JsonArray(emptyList()) }, agentVersion = { "2.0.0" },
+        return CounselController(scope, CounselDeps(
+            llm = llm, systemPrompt = { "unused" }, tools = { JsonArray(emptyList()) }, agentVersion = { "2.0.0" },
             conversations = conversations, changeSets = ChangeSetRepository(db), memory = MemoryRepository(db), settings = settings,
             whatIfs = db.whatIfDao(), hasKey = { true }, oneShot = true, trajectory = trajectory, journal = journal
         ), gateway)
+    }
+
+    private val extraction = Sketches.loanStory.dropLast(1) + ""","archetype":"STAG_HUNT","trust_delta":6,"tension_delta":-8}"""
+
+    @Test fun TC_CTX2_03_oneShotTurnUpdatesTrajectoryAndCoachGuide() = runBlocking {
+        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+        val llm = com.drkkr.strategos.fixtures.EngineEchoLlm(listOf(extraction))
+        val controller = controllerWith(llm)
         controller.bindScenario("loan").join()
-        val withGuide = Sketches.loanStory.dropLast(1) + ""","archetype":"STAG_HUNT","trust_delta":6,"tension_delta":-8,
-            "coach_guide":{"what_happened":"They felt cornered.","clear_win_move":"Pause for a day.","exact_words":"Let's talk tomorrow.",
-            "do_this":["Give space"],"dont_do_this":["Don't double-text"]}}"""
-        fake.enqueue(textReply(withGuide))
 
         controller.send("My brother wants me to co-sign a loan.")!!.join(); controller.awaitIdle()
 
-        val req = fake.requests.first()
-        assertTrue(req.jsonObjectMode)
-        assertTrue(req.input.first().jsonObject.getValue("content").jsonPrimitive.content.startsWith("\nYou are Strategos Counsel") ||
-            req.input.first().jsonObject.getValue("content").jsonPrimitive.content.contains("Strategos Counsel"))
+        // Call 1: extraction only, small and nearly deterministic, with no advice in its prompt.
+        val c1 = llm.requests.first { it.purpose == "TURN" }
+        assertTrue(c1.jsonObjectMode); assertEquals(900, c1.maxOutputTokens); assertEquals(0.1, c1.temperature, 0.0)
+        assertTrue(c1.input.first().jsonObject.getValue("content").jsonPrimitive.content.contains("extraction step"))
+        // Call 2: gets the engine's directive and may only implement it.
+        val c2 = llm.requests.first { it.purpose == "COACH" }
+        assertEquals(600, c2.maxOutputTokens); assertEquals(0.3, c2.temperature, 0.0)
+        val directive = llm.lastDirective!!
+        val pick = directive.getValue("move_to_implement").jsonPrimitive.content
+        assertTrue(pick.isNotBlank())
+        assertTrue(directive.getValue("blocked_or_dominated_moves").jsonArray.isNotEmpty())
+        // The visible reply implements the engine's pick and carries the engine badge built from the same data.
+        val reply = conversations.messages(controller.state.value.conversationId!!).last().text
+        assertTrue(reply, reply.contains("Clear-win move: Do this: $pick"))
+        assertTrue(reply, reply.lines().last().startsWith("Engine: "))
+        assertFalse(reply.contains("Options to consider"))
+        // Trajectory from call 1's deltas, damped.
         val points = trajectory.points("loan")
         assertEquals("THREAD_TURN", points.single().source)
-        assertEquals(52.0, points.single().trustScore, 0.0); assertEquals(48.0, points.single().tensionScore, 0.0)   // damped: 50 + 0.25 * delta
+        assertEquals(52.0, points.single().trustScore, 0.0); assertEquals(48.0, points.single().tensionScore, 0.0)
         assertEquals("STAG_HUNT", points.single().activeArchetype)
+    }
+
+    @Test fun aReplyThatIgnoresTheEnginePickIsNotShown() = runBlocking {
+        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+        val llm = com.drkkr.strategos.fixtures.EngineEchoLlm(listOf(extraction), wrongMove = "Send ten messages tonight")
+        val controller = controllerWith(llm)
+        controller.bindScenario("loan").join()
+        controller.send("My brother wants me to co-sign a loan.")!!.join(); controller.awaitIdle()
+        assertEquals(2, llm.requests.count { it.purpose == "COACH" })                    // tried twice, then gave up
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
-        assertTrue(reply, reply.contains("Do this:") && reply.contains("Don't do this:") && reply.contains("Clear-win move: Pause for a day."))
+        assertFalse(reply.contains("Send ten messages tonight"))
+        assertTrue("falls back to the engine's own text", reply.contains("Options to consider"))
+        assertTrue(reply.lines().last().startsWith("Engine: "))
     }
 }

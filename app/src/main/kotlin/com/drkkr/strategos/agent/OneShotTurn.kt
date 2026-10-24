@@ -9,7 +9,12 @@ import com.drkkr.strategos.data.repo.TrajectoryRepository
 import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.agent.ApplyResult
 import com.drkkr.strategos.domain.agent.CoachFacts
+import com.drkkr.strategos.domain.agent.ArgonPrompts
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
+import com.drkkr.strategos.domain.agent.CoachReply
+import com.drkkr.strategos.domain.agent.EngineDirective
+import com.drkkr.strategos.domain.agent.EngineDirectiveBuilder
+import com.drkkr.strategos.domain.agent.InferredStressTest
 import com.drkkr.strategos.domain.agent.LiveDigest
 import com.drkkr.strategos.domain.agent.ModelSketch
 import com.drkkr.strategos.domain.agent.OpNormalizer
@@ -27,6 +32,7 @@ import com.drkkr.strategos.llm.LlmResult
 import com.drkkr.strategos.llm.ModelListResult
 import com.drkkr.strategos.llm.assistantText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -85,7 +91,8 @@ class OneShotTurn(
         val text = userTexts.lastOrNull() ?: return TurnResult.Done
 
         onActivity("Reading your situation…")
-        val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true)
+        // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
+        val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
                     else askModel(input(LiveDigest.build(scenario, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
@@ -146,15 +153,60 @@ class OneShotTurn(
                 cid, turnId, MessageRole.TOOL_RESULT, text = "Ran $ran frameworks in ${System.currentTimeMillis() - started} ms on device",
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
-            val reply = PlainResult.build(after, pr, understood, parsed.coachGuide)
-            val hasGuide = parsed.coachGuide?.clearWinMove?.isNotBlank() == true
-            val talk = if (coach && !hasGuide) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
-            val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
-            val body = if (talk != null) "$talk\n\n$reply" else "$note$reply"
+            val body = if (argon != null) {
+                engineGroundedReply(cid, turnId, after, pr, understood, text, onActivity)
+            } else {
+                val reply = PlainResult.build(after, pr, understood)
+                val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
+                val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
+                if (talk != null) "$talk\n\n$reply" else "$note$reply"
+            }
             conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body)
         }
         afterTurn(cid)
         return TurnResult.Done
+    }
+
+    /**
+     * Engine, then interpret. The stress test and the engine's pick are computed here in Kotlin; the second model call may only
+     * put that pick into words, and its echo of the pick is checked. If it cannot (or the engine has no pick yet), the app's own
+     * deterministic text is shown instead, so the answer never contradicts the engine.
+     */
+    private suspend fun engineGroundedReply(
+        cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
+        understood: List<String>, text: String, onActivity: (String) -> Unit
+    ): String {
+        onActivity("Checking how solid the pick is…")
+        val stress = withContext(Dispatchers.Default) { runCatching { InferredStressTest.run(s, pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()) }.getOrNull() }
+        val directive = EngineDirectiveBuilder.build(s, pr, stress)
+        DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
+        if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n" + directive.badge()
+        onActivity("Writing my reply…")
+        val reply = interpret(cid, turnId, directive, text)
+        return if (reply != null) PlainResult.coach(reply.guide()) + "\n" + directive.badge()
+        else PlainResult.build(s, pr, understood) + "\n" + directive.badge()
+    }
+
+    /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
+    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String): CoachReply? {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
+            add(buildJsonObject {
+                put("role", "user")
+                put("content", "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+            })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = INTERPRET_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
+            purpose = "COACH", conversationId = cid, turnId = turnId, jsonObjectMode = true
+        )
+        repeat(2) { attempt ->
+            val r = llm.create(request) as? LlmResult.Ok ?: return null
+            val reply = CoachReply.parse(r.output.assistantText())
+            if (reply != null && reply.implements(directive.moveToImplement)) return reply
+            DebugLog.d { "INTERPRET rejected (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement}" }
+        }
+        return null
     }
 
     /**
@@ -187,10 +239,13 @@ class OneShotTurn(
     }
 
     /** One request; a second try when the reply isn't usable JSON. */
-    private suspend fun askModel(input: JsonArray, cid: String, turnId: String, mayChangeModel: Boolean = true, jsonMode: Boolean = false): Reply {
+    private suspend fun askModel(
+        input: JsonArray, cid: String, turnId: String, mayChangeModel: Boolean = true, jsonMode: Boolean = false,
+        maxTokens: Int = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS, temperature: Double = AgentConfig.TEMPERATURE
+    ): Reply {
         val model = settings.model()
         val request = LlmRequest(
-            model, input, tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS,
+            model, input, tools = null, maxOutputTokens = maxTokens, temperature = temperature,
             purpose = "TURN", conversationId = cid, turnId = turnId, jsonObjectMode = jsonMode
         )
         repeat(2) {
@@ -212,7 +267,7 @@ class OneShotTurn(
                     if (fallback != null) {
                         settings.setModel(fallback)
                         conversations.append(cid, turnId, MessageRole.EVENT, "The model you chose isn't available anymore. Switched to $fallback. Change it in Settings.")
-                        return askModel(input, cid, turnId, mayChangeModel = false, jsonMode = jsonMode)
+                        return askModel(input, cid, turnId, mayChangeModel = false, jsonMode = jsonMode, maxTokens = maxTokens, temperature = temperature)
                     }
                     return Reply.Failed(LlmErrors.userMessage(r), retryable = true)
                 }
@@ -263,6 +318,10 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        private const val EXTRACTION_MAX_TOKENS = 900
+        private const val EXTRACTION_TEMPERATURE = 0.1
+        private const val INTERPRET_MAX_TOKENS = 600
+        private const val INTERPRET_TEMPERATURE = 0.3
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
         private const val MAX_USER_CHARS = 1_500
         private const val MIN_COACH_CHARS = 40

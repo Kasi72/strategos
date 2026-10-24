@@ -34,11 +34,11 @@ data class ModelSketch(
     val archetype: String? = null,
     @SerialName("trust_delta") val trustDelta: Double = 0.0,
     @SerialName("tension_delta") val tensionDelta: Double = 0.0,
-    @SerialName("coach_guide") val coachGuide: CoachGuideSketch? = null,
     /** True when the message is history only, so the trajectory moves less ([TrajectoryRepository.recordTurn]). */
     @SerialName("backstory_only") val backstoryOnly: Boolean = false
 )
 
+/** The coach guide. It is no longer part of [ModelSketch] (call 1 extracts only); call 2's [CoachReply] carries it. */
 @Serializable
 data class CoachGuideSketch(
     @SerialName("what_happened") val whatHappened: String = "",
