@@ -54,14 +54,14 @@ data class EngineDirective(
         put("stress_flip", stressFlip)
     }
 
-    /** One line from the same data, never from model text: `Engine: <move> · <pattern> · Robust`. */
-    fun badge(): String {
-        if (!ready || moveToImplement == null) return "Engine: not enough detail to rank your options yet"
-        val move = if (moveToImplement.length > MAX_BADGE_MOVE) moveToImplement.take(MAX_BADGE_MOVE - 1).trimEnd() + "…" else moveToImplement
-        return "Engine: $move · ${dynamicLabel ?: "no single dominant pattern"} · ${if (stressVerdict == "FRAGILE") "Fragile" else "Robust"}"
-    }
-
-    companion object { private const val MAX_BADGE_MOVE = 60 }
+    /**
+     * One line from the same data, never from model text: `Engine: <move> · <pattern> · Robust`.
+     * The move is shown in full: a hard character cap previously chopped it mid-word (e.g. "share small t…"
+     * instead of "share small things"), which read as a cut-off or broken answer. Nothing here is ever trimmed.
+     */
+    fun badge(): String =
+        if (!ready || moveToImplement == null) "Engine: not enough detail to rank your options yet"
+        else "Engine: $moveToImplement · ${dynamicLabel ?: "no single dominant pattern"} · ${if (stressVerdict == "FRAGILE") "Fragile" else "Robust"}"
 }
 
 object EngineDirectiveBuilder {

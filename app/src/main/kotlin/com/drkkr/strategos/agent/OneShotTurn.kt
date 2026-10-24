@@ -186,11 +186,11 @@ class OneShotTurn(
         }
         val directive = EngineDirectiveBuilder.build(view, viewResult, stress)
         DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
-        if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n" + directive.badge()
+        if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n\n" + directive.badge()
         onActivity("Writing my reply…")
         val reply = interpret(cid, turnId, directive, text)
-        return if (reply != null) PlainResult.coach(reply.guide()) + "\n" + directive.badge()
-        else PlainResult.build(s, pr, understood) + "\n" + directive.badge()
+        return if (reply != null) PlainResult.coach(reply.guide()) + "\n\n" + directive.badge()
+        else PlainResult.build(s, pr, understood) + "\n\n" + directive.badge()
     }
 
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
