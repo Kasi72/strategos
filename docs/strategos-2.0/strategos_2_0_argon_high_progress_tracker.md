@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `E.2`** (Space 2 UI). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **Start at Step `E.3`** (CounselTab switcher, MainActivity dock, settings labels). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -32,6 +32,6 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **D.1** | Phase D | 4-Layer Prefix-Cached `ContextAssembler` + `OneShotTurn` trajectory & post-note integration (`TC_CTX2_01`–`04`) | done | 3 | `ArgonContextTest` (CTX2_01–03). Layered mode is on only when `trajectory` is passed, so legacy tests are untouched. `CounselDeps` got optional `trajectory`/`journal`/`journalScreener`. TC_CTX2_04 moves to D.2 (controller-level). A turn with no deltas and no archetype records no point. |
 | **D.2** | Phase D | `CounselUiState`, `CounselController`, `AppContainer` & `StrategosViewModel` wiring for threads, journal, post-notes & trajectory (`TC_CTRL2_01`–`04`) | done | 5 | `ArgonControllerTest` (CTRL2_01–04, CTX2_04). `AppContainer` now uses `ChatCompletionsClient` (the app would otherwise call DeepSeek's `/v1/responses`, which does not exist). `submitQuickCheck` commits the trust baseline through the gateway. `StrategosViewModel` already exposes `counsel`/`counselState`; the new controller methods are used from there. |
 | **E.1** | Phase E | Space 3 UI: `ProjectOverviewTab` (`SigmoidTrajectoryCard`, `JournalPostNoteCard`, `QuickCheckCard`, `ProjectThreadsSection`) | done | 0 (UI; compile-checked, no automated UI test) | `ui/overview/ProjectOverviewTab.kt`; `ui/counsel/ThreadSwitcher.kt` holds the shared `ThreadSwitcherBar`/`NewThreadDialog`. Clear-Win playbook card reads the latest assistant reply that contains a guide. |
-| **E.2** | Phase E | Space 2 UI: `JournalTab` (non-judgmental composer, voice input, instant ack banner, encrypted timeline) | pending | 0 | Never show judgmental chat bubbles in Journal tab. |
+| **E.2** | Phase E | Space 2 UI: `JournalTab` (non-judgmental composer, voice input, instant ack banner, encrypted timeline) | done | 0 (UI) | `ui/journal/JournalTab.kt`. Shows only the ack; screener results appear on Overview. |
 | **E.3** | Phase E | Space 1 UI: `CounselTab` Thread Switcher bar + `+ Thread` dialog + Post-Note banner + `MainActivity` Guided dock & DeepSeek settings | pending | 0 | Guided dock: `Projects · Overview · Talk · Journal · Settings`. |
 | **E.4** | Phase E | Update `ManualSeedDemoTest`, run full clean test/lint/build verification & write `RELEASE_NOTES_v2.0.md` (`CP-FINAL`) | pending | 0 | Stop at `CP-FINAL` and present summary to user. |
