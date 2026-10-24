@@ -197,8 +197,9 @@ class OneShotTurn(
             when (val r = llm.create(request)) {
                 is LlmResult.Ok -> {
                     val reply = r.output.assistantText()
-                    SketchParser.parse(reply)?.let { return Reply.Sketch(it) }
-                    DebugLog.d { "UNPARSEABLE reply (attempt ${it + 1}), ${reply.length} chars, output items=${r.output.size}" }
+                    val parsed = SketchParser.tryParse(reply)
+                    parsed.getOrNull()?.let { return Reply.Sketch(it) }
+                    DebugLog.d { "UNPARSEABLE reply (attempt ${it + 1}), ${reply.length} chars, output items=${r.output.size}, why: ${parsed.exceptionOrNull()?.message?.take(300)}" }
                 }
                 is LlmResult.Unauthorized -> {
                     settings.setKeyInvalid(true)                  // the Talk tab then offers "Update key" (§11.5.1)

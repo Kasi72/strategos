@@ -49,4 +49,43 @@ class DeepSeekLiveSpikeTest {
 
         assertTrue("json mode must return parseable JSON", jsonOk)
     }
+
+    /**
+     * S4: the real coach prompt on real stories, through the same parse and convert code the app uses. This is the check
+     * that was missing when a phone run failed on a reply shape the hand-written fakes never produced.
+     */
+    @Test
+    fun coachRepliesParseAndConvert() = runBlocking {
+        Assume.assumeTrue("DEEPSEEK_API_KEY (or XAI_API_KEY) not set; live spike skipped", key != null)
+        val stories = listOf(
+            "My brother wants me to co-sign a big loan for his shop. My wife is strongly against it and my parents take his side.",
+            "My partner went silent after I asked when we will move in together. I texted five times and now they seem cold.",
+            "My co-founder wants to give an investor 30 percent. I think that is too much and we argued in front of the team."
+        )
+        val failures = mutableListOf<String>()
+        for ((i, story) in stories.withIndex()) {
+            val r = client.create(
+                LlmRequest(
+                    model = AgentConfig.DEFAULT_MODEL,
+                    input = buildJsonArray {
+                        add(buildJsonObject { put("role", "system"); put("content", com.drkkr.strategos.domain.agent.ArgonPrompts.INTERACTION_COACH_PROMPT) })
+                        add(buildJsonObject { put("role", "user"); put("content", "USER SAYS:\n$story") })
+                    },
+                    tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS, jsonObjectMode = true, purpose = "SPIKE"
+                )
+            )
+            val text = (r as? LlmResult.Ok)?.output?.assistantText()
+            if (text == null) { failures += "story $i: ${r::class.simpleName}"; continue }
+            val parsed = com.drkkr.strategos.domain.agent.SketchParser.tryParse(text)
+            val sketch = parsed.getOrNull()
+            if (sketch == null) { failures += "story $i: unparseable (${parsed.exceptionOrNull()?.message?.take(200)}) reply=${text.take(1500)}"; continue }
+            val ops = com.drkkr.strategos.domain.agent.SketchConverter.toOps(sketch, com.drkkr.strategos.domain.model.Scenario(title = "t")).ops
+            val actions = ops.count { it.type == com.drkkr.strategos.domain.agent.OpType.ADD_ACTION }
+            val payoffs = ops.count { it.type == com.drkkr.strategos.domain.agent.OpType.SET_PAYOFF }
+            val guide = sketch.coachGuide?.clearWinMove?.isNotBlank() == true
+            say("S4_story_$i", if (ops.isNotEmpty() && actions >= 2 && guide) "PASS" else "FAIL", "ops=${ops.size} actions=$actions payoffs=$payoffs guide=$guide archetype=${sketch.archetype} chars=${text.length}")
+            if (ops.isEmpty() || actions < 2 || !guide) failures += "story $i: ops=${ops.size} actions=$actions payoffs=$payoffs guide=$guide reply=${text.take(1500)}"
+        }
+        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+    }
 }

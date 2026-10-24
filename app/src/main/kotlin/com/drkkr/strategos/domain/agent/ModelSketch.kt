@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNames
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.contentOrNull
@@ -26,8 +27,8 @@ data class ModelSketch(
     val options: List<SketchOption> = emptyList(),
     val dims: List<String> = emptyList(),
     val outcomes: List<SketchOutcome> = emptyList(),
-    val limits: List<SketchLimit> = emptyList(),
-    val ask: String? = null,
+    val limits: List<@Serializable(with = LimitSerializer::class) SketchLimit> = emptyList(),
+    @Serializable(with = TextOrListSerializer::class) val ask: String? = null,
     val support: Boolean? = null,
     // Argon: coach fields. All default, so v2.0 sketches parse unchanged.
     val archetype: String? = null,
@@ -50,9 +51,18 @@ data class CoachGuideSketch(
  * form back (seen live: the whole follow-up reply was rejected over `"fears":["…"]`). A list becomes one string.
  */
 object TextOrListSerializer : JsonTransformingSerializer<String>(String.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement = when (element) {
+        is JsonArray -> JsonPrimitive(element.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { t -> t.isNotEmpty() } }.joinToString("; "))
+        // The Argon prompt mentions `ask.text`, so a question may arrive as {"text": "...", "options": [...]}.
+        is JsonObject -> (element["text"] as? JsonPrimitive) ?: JsonPrimitive("")
+        else -> element
+    }
+}
+
+/** A limit may be a plain string (the Argon prompt's example does this) or {label, kind}. */
+object LimitSerializer : JsonTransformingSerializer<SketchLimit>(SketchLimit.serializer()) {
     override fun transformDeserialize(element: JsonElement): JsonElement =
-        if (element is JsonArray) JsonPrimitive(element.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { t -> t.isNotEmpty() } }.joinToString("; "))
-        else element
+        if (element is JsonPrimitive) JsonObject(mapOf("label" to element)) else element
 }
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -89,11 +99,14 @@ object SketchParser {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     /** Finds the first JSON object in [text] (models add prose or code fences) and decodes it. Null when it doesn't parse. */
-    fun parse(text: String): ModelSketch? {
+    fun parse(text: String): ModelSketch? = tryParse(text).getOrNull()
+
+    /** Like [parse] but keeps the reason, so the debug trace can say why a reply was rejected. */
+    fun tryParse(text: String): Result<ModelSketch> {
         val start = text.indexOf('{')
         val end = text.lastIndexOf('}')
-        if (start < 0 || end <= start) return null
-        return runCatching { json.decodeFromString(ModelSketch.serializer(), text.substring(start, end + 1)) }.getOrNull()
+        if (start < 0 || end <= start) return Result.failure(IllegalArgumentException("no JSON object in the reply"))
+        return runCatching { json.decodeFromString(ModelSketch.serializer(), text.substring(start, end + 1)) }
     }
 }
 
