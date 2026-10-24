@@ -15,6 +15,9 @@ import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SaveResult
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.JournalRepository
+import com.drkkr.strategos.data.repo.TrajectoryRepository
+import com.drkkr.strategos.domain.agent.ArgonPrompts
 import com.drkkr.strategos.domain.agent.ChangeOp
 import com.drkkr.strategos.domain.agent.ChangeOpDescriber
 import com.drkkr.strategos.domain.agent.ChangeSetApplier
@@ -65,7 +68,11 @@ class CounselDeps(
     /** SIMPLE PROFILE: true runs the one-shot flow (the app); false keeps the agent loop (tool calls), used by its tests. */
     val oneShot: Boolean = false,
     /** COMPANION REPLY: the one-shot flow adds a second request that writes the answer from the engine's result. */
-    val coach: Boolean = false
+    val coach: Boolean = false,
+    /** Argon: with a [trajectory] repository the one-shot flow uses the coach prompt, the 4-layer context and records trajectory points. */
+    val trajectory: TrajectoryRepository? = null,
+    val journal: JournalRepository? = null,
+    val journalScreener: JournalScreenerService? = null
 )
 
 /**
@@ -91,9 +98,18 @@ class CounselController(
         afterTurn = summarizer::maybeSummarize, backgroundScope = scope
     )
 
+    private val argonAssembler = deps.trajectory?.let { t ->
+        ContextAssembler(
+            { ArgonPrompts.INTERACTION_COACH_PROMPT }, deps.conversations, deps.changeSets, deps.memory, deps.settings,
+            scenarioFor = { id -> gateway.activeScenario()?.takeIf { it.id == id } },
+            journal = deps.journal, trajectory = t
+        )
+    }
+
     private val oneShotTurn = OneShotTurn(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
-        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach
+        onSupport = { showSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
+        argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!) }
     )
 
     init {

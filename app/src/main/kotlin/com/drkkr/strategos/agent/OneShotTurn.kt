@@ -5,6 +5,7 @@ import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.TrajectoryRepository
 import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.agent.ApplyResult
 import com.drkkr.strategos.domain.agent.CoachFacts
@@ -55,8 +56,12 @@ class OneShotTurn(
     private val onSupport: () -> Unit = {},
     private val afterTurn: suspend (conversationId: String) -> Unit = {},
     /** COMPANION REPLY: after the engine runs, one more model call writes a warm answer from the engine's result. */
-    private val coach: Boolean = false
+    private val coach: Boolean = false,
+    /** Argon: prefix-cached request, JSON mode, coach guide in the answer, and one trajectory point per turn. Null keeps the v2.0 flow. */
+    private val argon: ArgonTurn? = null
 ) {
+    class ArgonTurn(val assembler: ContextAssembler, val trajectory: TrajectoryRepository)
+
     suspend fun run(
         conversationId: String, scenarioId: String, trigger: TurnTrigger, onActivity: (String) -> Unit
     ): TurnResult {
@@ -80,10 +85,15 @@ class OneShotTurn(
         val text = userTexts.lastOrNull() ?: return TurnResult.Done
 
         onActivity("Reading your situation…")
-        val first = askModel(input(LiveDigest.build(scenario, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
+        val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true)
+                    else askModel(input(LiveDigest.build(scenario, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
+        }
+        // BLUEPRINT-QUESTION: §D.1 says a point after every turn; a reply with no deltas and no archetype says nothing new, so it adds none.
+        if (argon != null && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
+            argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype)
         }
         val converted = SketchConverter.toOps(parsed, scenario)
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
@@ -136,8 +146,9 @@ class OneShotTurn(
                 cid, turnId, MessageRole.TOOL_RESULT, text = "Ran $ran frameworks in ${System.currentTimeMillis() - started} ms on device",
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
-            val reply = PlainResult.build(after, pr, understood)
-            val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
+            val reply = PlainResult.build(after, pr, understood, parsed.coachGuide)
+            val hasGuide = parsed.coachGuide?.clearWinMove?.isNotBlank() == true
+            val talk = if (coach && !hasGuide) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
             val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
             val body = if (talk != null) "$talk\n\n$reply" else "$note$reply"
             conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body)
@@ -176,11 +187,11 @@ class OneShotTurn(
     }
 
     /** One request; a second try when the reply isn't usable JSON. */
-    private suspend fun askModel(input: JsonArray, cid: String, turnId: String, mayChangeModel: Boolean = true): Reply {
+    private suspend fun askModel(input: JsonArray, cid: String, turnId: String, mayChangeModel: Boolean = true, jsonMode: Boolean = false): Reply {
         val model = settings.model()
         val request = LlmRequest(
             model, input, tools = null, maxOutputTokens = AgentConfig.ONE_SHOT_MAX_OUTPUT_TOKENS,
-            purpose = "TURN", conversationId = cid, turnId = turnId
+            purpose = "TURN", conversationId = cid, turnId = turnId, jsonObjectMode = jsonMode
         )
         repeat(2) {
             when (val r = llm.create(request)) {
@@ -200,7 +211,7 @@ class OneShotTurn(
                     if (fallback != null) {
                         settings.setModel(fallback)
                         conversations.append(cid, turnId, MessageRole.EVENT, "The model you chose isn't available anymore. Switched to $fallback. Change it in Settings.")
-                        return askModel(input, cid, turnId, mayChangeModel = false)
+                        return askModel(input, cid, turnId, mayChangeModel = false, jsonMode = jsonMode)
                     }
                     return Reply.Failed(LlmErrors.userMessage(r), retryable = true)
                 }
