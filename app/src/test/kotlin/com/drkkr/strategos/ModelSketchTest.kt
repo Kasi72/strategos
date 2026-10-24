@@ -145,4 +145,18 @@ class ModelSketchTest {
         assertEquals(8, PayoffCoverage.of(s).filled)
         assertEquals(8, PayoffCoverage.of(s).expected)
     }
+
+    @Test
+    fun wantsAndFearsMayComeBackAsLists() {
+        // Seen on a phone: the model copied the saved-model digest's list form, and the whole reply was rejected.
+        val json = """{"people":[{"name":"You","role":"PLAYER","fears":["Losing your mental health","Being alone"]},
+            {"name":"Husband","role":"PLAYER","goals":["Reconnection and emotional support"]},
+            {"name":"Aunt","role":"INFLUENCER","veto":true,"fears":[]}]}"""
+        val sketch = SketchParser.parse(json)
+        assertNotNull(sketch)
+        val (s, problems) = apply(json, Scenario(title = "t"))
+        assertEquals(emptyList<Any>(), problems)
+        assertEquals(listOf("Losing your mental health; Being alone"), s.stakeholders.single { it.name == "You" }.fears)
+        assertEquals(listOf("Reconnection and emotional support"), s.stakeholders.single { it.name == "Husband" }.goals)
+    }
 }

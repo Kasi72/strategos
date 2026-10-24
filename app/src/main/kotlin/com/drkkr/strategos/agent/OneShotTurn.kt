@@ -18,6 +18,7 @@ import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
 import com.drkkr.strategos.llm.LlmClient
+import com.drkkr.strategos.llm.DebugLog
 import com.drkkr.strategos.llm.LlmErrors
 import com.drkkr.strategos.llm.LlmRequest
 import com.drkkr.strategos.llm.LlmResult
@@ -82,6 +83,7 @@ class OneShotTurn(
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
         }
         val converted = SketchConverter.toOps(parsed, scenario)
+        DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
         if (converted.support) onSupport()
         // A follow-up that only restates what is already saved has nothing to add. With a model in place that is not a
         // failure: run the analysis again and say so (seen on a phone: the same error repeated on every follow-up).
@@ -153,7 +155,11 @@ class OneShotTurn(
         )
         repeat(2) {
             when (val r = llm.create(request)) {
-                is LlmResult.Ok -> SketchParser.parse(r.output.assistantText())?.let { return Reply.Sketch(it) }
+                is LlmResult.Ok -> {
+                    val reply = r.output.assistantText()
+                    SketchParser.parse(reply)?.let { return Reply.Sketch(it) }
+                    DebugLog.d { "UNPARSEABLE reply (attempt ${it + 1}), ${reply.length} chars, output items=${r.output.size}" }
+                }
                 is LlmResult.Unauthorized -> {
                     settings.setKeyInvalid(true)                  // the Talk tab then offers "Update key" (§11.5.1)
                     return Reply.Failed(LlmErrors.userMessage(r), retryable = false)

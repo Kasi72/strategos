@@ -44,7 +44,9 @@ class XaiResponsesClient(
 
     private suspend fun execute(req: LlmRequest, keyOverride: String?): LlmResult {
         val key = (keyOverride ?: keyProvider())?.takeIf { it.isNotBlank() } ?: return LlmResult.Unauthorized(401)
-        val body = buildBody(req).toString().toRequestBody(JSON)
+        val bodyJson = buildBody(req).toString()
+        DebugLog.d { "REQUEST ${req.purpose} ${req.model}: $bodyJson" }
+        val body = bodyJson.toRequestBody(JSON)
 
         var serverErrors = 0
         var rateLimits = 0
@@ -57,6 +59,7 @@ class XaiResponsesClient(
                         .post(body).build()
                 ).await().use { r -> readResponse(r, System.currentTimeMillis() - started) }
             } catch (e: IOException) {
+                DebugLog.d { "NETWORK ERROR ${e.javaClass.simpleName}" }
                 Attempt(LlmResult.Network(networkKind(e)), 0, networkKind(e), LlmUsage.ZERO, null)
             }
             log(req, outcome, System.currentTimeMillis() - started)
@@ -132,6 +135,8 @@ class XaiResponsesClient(
 
     private fun readResponse(r: Response, latencyMs: Long): Attempt {
         val status = r.code
+        val text = r.body?.string()
+        DebugLog.d { "RESPONSE $status (${latencyMs} ms): $text" }
         when {
             status == 401 || status == 403 -> return Attempt(LlmResult.Unauthorized(status), status, "unauthorized", LlmUsage.ZERO, null)
             status == 429 -> {
@@ -139,11 +144,11 @@ class XaiResponsesClient(
                 return Attempt(LlmResult.RateLimited(after), status, "rate_limited", LlmUsage.ZERO, null)
             }
             !r.isSuccessful -> {
-                val code = errorCode(r.body?.string())          // only the code survives; the rest of the body is dropped
+                val code = errorCode(text)          // only the code survives; the rest of the body is dropped
                 return Attempt(LlmResult.HttpError(status, code), status, code, LlmUsage.ZERO, null)
             }
         }
-        val root = try { Json.parseToJsonElement(r.body?.string() ?: "").jsonObject } catch (e: Exception) { null }
+        val root = try { Json.parseToJsonElement(text ?: "").jsonObject } catch (e: Exception) { null }
         val output = root?.get("output") as? JsonArray
             ?: return Attempt(LlmResult.HttpError(status, "bad_response"), status, "bad_response", LlmUsage.ZERO, null)
         val usage = (root["usage"] as? JsonObject).toUsage()

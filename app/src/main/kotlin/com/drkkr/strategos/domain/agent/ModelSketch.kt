@@ -5,7 +5,13 @@ import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * SIMPLE PROFILE: what the model returns for one message. Small and flat on purpose; [toOps] turns it into change ops,
@@ -23,10 +29,23 @@ data class ModelSketch(
     val support: Boolean? = null
 )
 
+/**
+ * Text that may arrive as a list. The saved model is shown to the model with wants and fears as lists, and it copies that
+ * form back (seen live: the whole follow-up reply was rejected over `"fears":["…"]`). A list becomes one string.
+ */
+object TextOrListSerializer : JsonTransformingSerializer<String>(String.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement =
+        if (element is JsonArray) JsonPrimitive(element.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { t -> t.isNotEmpty() } }.joinToString("; "))
+        else element
+}
+
 @Serializable
 data class SketchPerson(
     val name: String = "", val role: String? = null, val veto: Boolean? = null,
-    val wants: String? = null, val fears: String? = null
+    @Serializable(with = TextOrListSerializer::class) val wants: String? = null,
+    @Serializable(with = TextOrListSerializer::class) val fears: String? = null,
+    // The saved-model digest calls wants "goals"; accept that spelling too.
+    @Serializable(with = TextOrListSerializer::class) val goals: String? = null
 )
 
 @Serializable
@@ -114,10 +133,10 @@ object SketchConverter {
             val k = key(name)
             if (k in existingNames) {
                 val id = idByName.getValue(k)
-                if (p.veto == true || clean(p.wants) != null || clean(p.fears) != null) {
+                if (p.veto == true || (clean(p.wants) ?: clean(p.goals)) != null || clean(p.fears) != null) {
                     ops += ChangeOp(
                         OpType.UPDATE_STAKEHOLDER, targetId = id, rationale = RATIONALE,
-                        canVeto = p.veto?.takeIf { it }, goals = clean(p.wants)?.let { listOf(it.take(120)) },
+                        canVeto = p.veto?.takeIf { it }, goals = (clean(p.wants) ?: clean(p.goals))?.let { listOf(it.take(120)) },
                         fears = clean(p.fears)?.let { listOf(it.take(120)) }
                     )
                 }
@@ -131,7 +150,7 @@ object SketchConverter {
             if (role == GameRole.PLAYER) players += r
             ops += ChangeOp(
                 OpType.ADD_STAKEHOLDER, ref = r, name = name, gameRole = role, canVeto = p.veto?.takeIf { it }, rationale = RATIONALE,
-                goals = clean(p.wants)?.let { listOf(it.take(120)) },
+                goals = (clean(p.wants) ?: clean(p.goals))?.let { listOf(it.take(120)) },
                 fears = clean(p.fears)?.let { listOf(it.take(120)) }
             )
         }
