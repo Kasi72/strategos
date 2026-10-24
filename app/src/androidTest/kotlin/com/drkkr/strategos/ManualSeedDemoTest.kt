@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
 /**
  * Manual helper, skipped unless run with `-e seedDemo 1`. Puts a realistic loan conversation, built by the same code the app
  * runs (sketch → ops → apply → engine → plain result), into the app's real database, and sets a placeholder key so the chat
- * composer shows. Lets you look at the Talk, Summary and Review screens on an emulator without a live key.
+ * composer shows. Lets you look at the Talk, Overview, Journal, Summary and Review screens on an emulator without a live key.
  */
 @RunWith(AndroidJUnit4::class)
 class ManualSeedDemoTest {
@@ -69,9 +69,26 @@ class ManualSeedDemoTest {
         deps.conversations.append(conv.id, "t2", MessageRole.USER, "I decided to wait and told him. He said he will ask our parents.")
         deps.conversations.append(conv.id, "t2", MessageRole.ERROR, "The API key was not accepted. Check it in Settings.")
 
+        // Argon: a second named thread, a short trajectory, a journal entry and the note it produced.
+        deps.conversations.createNamedThread(saved.id, "Wife's concerns", "FAMILY")
+        val trajectory = container.trajectoryRepository!!
+        trajectory.recordTurn(saved.id, conv.id, 4.0, 6.0, "CHICKEN_GAME")
+        trajectory.recordTurn(saved.id, conv.id, 6.0, -8.0, "STAG_HUNT")
+        trajectory.submitQuickCheck(saved.id, conv.id, "Wait", "DID_AS_SUGGESTED", "DE_ESCALATED", "GROUNDED", "Went well")
+        val journal = container.journalRepository!!
+        val entry = journal.recordEntry("When he goes quiet I want to send five messages in a row.", "ANXIOUS", saved.id)
+        journal.addPostNote(
+            com.drkkr.strategos.data.db.entities.JournalInsightPostNoteEntity(
+                id = "demo-note", journalEntryId = entry.entryId, scenarioId = saved.id, significance = "HIGH",
+                habitOrTrigger = "Urgency when facing silence", insightHeadline = "Based on your journal entry: Silence triggers urgency",
+                practicalApproach = "Give the quiet a day before you reach out.", doThis = "Wait until tomorrow evening.",
+                dontDoThis = "Don't send a \"just checking in\" message.", createdAt = System.currentTimeMillis()
+            )
+        )
+
         deps.settings.setAiEnabled(true)
         deps.settings.setConsentVersion(AgentConfig.CONSENT_VERSION)
-        container.secretStore!!.putXaiKey("gsk_SEEDED_DEMO_KEY_0000")
+        container.secretStore!!.putXaiKey("sk-SEEDED_DEMO_KEY_0000")
         println("SEED|scenario=${saved.id}|people=${saved.stakeholders.size}|payoffs=${saved.payoffs.size}|status=${pr.report?.executiveStatus}")
         assertTrue(saved.payoffs.isNotEmpty())
     }

@@ -12,7 +12,7 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
   - Run Gradle via `sh ./gradlew :app:testDebugUnitTest` and `sh ./gradlew :app:assembleDebug`.
 
 ## Next Step to Execute
-👉 **Start at Step `E.4`** (final verification, ManualSeedDemoTest, release notes). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
+👉 **All steps done. At CP-FINAL**: waiting on the user for the manual DeepSeek checklist and the live spike (`DEEPSEEK_API_KEY`). Phases A, B, C, D accepted. Live DeepSeek spike is pending the user's `DEEPSEEK_API_KEY` in `.env`.
 
 ---
 
@@ -34,4 +34,4 @@ Execution Prompt: `docs/strategos-2.0/SONNET_PROMPT_v2.0.md`
 | **E.1** | Phase E | Space 3 UI: `ProjectOverviewTab` (`SigmoidTrajectoryCard`, `JournalPostNoteCard`, `QuickCheckCard`, `ProjectThreadsSection`) | done | 0 (UI; compile-checked, no automated UI test) | `ui/overview/ProjectOverviewTab.kt`; `ui/counsel/ThreadSwitcher.kt` holds the shared `ThreadSwitcherBar`/`NewThreadDialog`. Clear-Win playbook card reads the latest assistant reply that contains a guide. |
 | **E.2** | Phase E | Space 2 UI: `JournalTab` (non-judgmental composer, voice input, instant ack banner, encrypted timeline) | done | 0 (UI) | `ui/journal/JournalTab.kt`. Shows only the ack; screener results appear on Overview. |
 | **E.3** | Phase E | Space 1 UI: `CounselTab` Thread Switcher bar + `+ Thread` dialog + Post-Note banner + `MainActivity` Guided dock & DeepSeek settings | done | 0 (UI) | Guided dock is now `Projects · Overview · Talk · Journal · Settings`; Summary is reached from Overview ("Full summary"). Expert dock unchanged; Overview and Journal are sub-tabs of More. Provider text is DeepSeek via `AgentConfig.PROVIDER_NAME`. BLUEPRINT-QUESTION: `CONSENT_VERSION` stays 1, so earlier consent covers DeepSeek and the journal. |
-| **E.4** | Phase E | Update `ManualSeedDemoTest`, run full clean test/lint/build verification & write `RELEASE_NOTES_v2.0.md` (`CP-FINAL`) | pending | 0 | Stop at `CP-FINAL` and present summary to user. |
+| **E.4** | Phase E | Update `ManualSeedDemoTest`, run full clean test/lint/build verification & write `RELEASE_NOTES_v2.0.md` (`CP-FINAL`) | done | 0 | `ManualSeedDemoTest` seeds a second thread, trajectory, journal entry and post-note. Clean tests (382, 0 failed, 7 skipped), assembleDebug and lintDebug pass. `RELEASE_NOTES_v2.0.md` written. |
