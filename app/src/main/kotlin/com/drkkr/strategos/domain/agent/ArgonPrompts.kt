@@ -6,6 +6,9 @@ package com.drkkr.strategos.domain.agent
  * [ENGINE_COACH_PROMPT]: a stated fear/want was found being re-asked as a "discovery" question on a later turn.
  * Phase F.6 added rule 14 to [EXTRACTION_PROMPT] (classifies the user's move and the counterpart's reaction, read
  * only by [BayesianUpdater]) and rule 9 to [ENGINE_COACH_PROMPT] (lets the learned pattern shape the wording).
+ * Phase F.8 added rule 15 to [EXTRACTION_PROMPT]: a specific third-party ask ("ask your sister to hold you
+ * accountable to...") was seen invented for a person the user had connected to a different, earlier topic only.
+ * Prompt-level, not deterministic like the Kotlin fixes elsewhere in Phase F -- it reduces this, it can't guarantee it.
  */
 object ArgonPrompts {
 
@@ -31,6 +34,7 @@ RULES:
 12. SCORING. Rate each of the other person's options by what THEY would gain, given how the user describes their behavior so far. If they have been withdrawing or guarded, that option should score well for them unless the user gives a reason it will change. Tempting reactive moves often feel good now but score low on RELATIONSHIPS and LONG_TERM_VALUE. Do not give one option the top score in every row.
 13. STAGE PROGRESSION. APP CONTEXT already lists each saved person's known `fears`/`goals` and the limits on record, plus `last_analysis.recommended` (what was advised last turn). Before writing a "repair" option for "You", check them and the current message. If the other person's underlying fear or want is already known (stated now or saved), do NOT propose a discovery option that only asks about or re-surfaces that fear or want (for example "ask how they are feeling", "find out what's really wrong"). Propose the next concrete step that acts on what is already known instead — name it back to them and offer something specific (a plan, a schedule, a trial, a boundary), not another question about it.
 14. OBSERVED REACTION. On any message after the first (there is already a saved person or option), classify what the message reports and return it in `user_last_move_posture` and `counterpart_observed_reaction`. `user_last_move_posture`: "repair" if the user describes a cooperative/repair move they actually made, "boundary" if a firm boundary, "reactive" if a tempting/reactive move (chasing, pleading, an ultimatum, caving), otherwise "none". `counterpart_observed_reaction`: "softened" if the other person opened up, warmed or came closer, "withdrew_or_escalated" if they shut down, pulled back or escalated, "stayed_neutral" if neither, otherwise "none" (nothing was reported, or this is the first message). These two fields are read only to update the engine's own numbers; never invent one to fit a story.
+15. THIRD-PARTY REQUESTS. When an option for "You" involves asking or telling someone else to do something specific for you (hold you accountable, check in, keep your phone, remind you, etc.), only write that specific ask if the user's own message connects that person to THIS topic. A person the user brought in for a different topic earlier (e.g. holding your phone during work) is not automatically part of a new, unrelated decision (e.g. a lease) unless the user says so now. If no one fits, keep the option about what YOU alone do (e.g. "Do the trial stay before signing any lease", not "ask [name] to hold you to the trial stay").
 
 JSON SCHEMA:
 {

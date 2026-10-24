@@ -195,6 +195,12 @@ class PostureEngineTest {
         assertTrue(ArgonPrompts.ENGINE_COACH_PROMPT.contains("known_stakeholder_facts"))
     }
 
+    // Phase F.8: don't invent a specific ask of a person the user connected to a different, earlier topic only.
+    @Test fun extractionPromptCoversThirdPartyRequests() {
+        assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("THIRD-PARTY REQUESTS"))
+        assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("not automatically part of a new, unrelated decision"))
+    }
+
     // Phase F.7: a blocked move unrelated to the counterpart never gets a fabricated "<counterpart> would respond"
     // line. Seen live: "Keep scrolling rental listings" (a solo habit, nothing to do with the ex) was warned against
     // with "Amudha would most likely respond: ..." -- the engine only ever tracks one counterpart for the whole
