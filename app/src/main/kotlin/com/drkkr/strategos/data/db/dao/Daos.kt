@@ -33,6 +33,12 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM conversation WHERE scenario_id = :scenarioId AND status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 1") suspend fun activeFor(scenarioId: String): ConversationEntity?
     @Query("SELECT * FROM conversation WHERE id = :id") suspend fun get(id: String): ConversationEntity?
     @Upsert suspend fun upsert(e: ConversationEntity)
+    @Query("SELECT * FROM conversation WHERE scenario_id = :scenarioId AND status = 'ACTIVE' ORDER BY is_pinned DESC, updated_at DESC")
+    fun observeThreadsForScenario(scenarioId: String): Flow<List<ConversationEntity>>
+    @Query("SELECT * FROM conversation WHERE scenario_id = :scenarioId AND status = 'ACTIVE' ORDER BY is_pinned DESC, updated_at DESC")
+    suspend fun listThreadsForScenario(scenarioId: String): List<ConversationEntity>
+    @Query("UPDATE conversation SET title = :title, topic_tag = :topicTag, updated_at = :updatedAt WHERE id = :id")
+    suspend fun renameThread(id: String, title: String, topicTag: String, updatedAt: Long)
 }
 
 @Dao interface MessageDao {
@@ -77,4 +83,34 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT value FROM app_setting WHERE `key` = :key") fun observe(key: String): Flow<String?>
     @Upsert suspend fun put(e: SettingEntity)
     @Query("DELETE FROM app_setting WHERE `key` = :key") suspend fun remove(key: String)
+}
+
+@Dao interface JournalDao {
+    @Insert suspend fun insertEntry(e: JournalEntryEntity)
+    @Query("UPDATE journal_entry SET sync_status = :status, mood_tag = :moodTag WHERE id = :id") suspend fun updateEntryStatus(id: String, status: String, moodTag: String)
+    @Query("SELECT * FROM journal_entry WHERE (:scenarioId IS NULL OR linked_scenario_id = :scenarioId) ORDER BY created_at DESC")
+    fun observeEntries(scenarioId: String?): Flow<List<JournalEntryEntity>>
+    @Query("SELECT * FROM journal_entry ORDER BY created_at DESC") suspend fun allEntries(): List<JournalEntryEntity>
+    @Query("SELECT * FROM journal_entry WHERE id = :id") suspend fun getEntry(id: String): JournalEntryEntity?
+    @Query("SELECT * FROM journal_entry WHERE sync_status = 'PENDING_SCREEN' ORDER BY created_at ASC") suspend fun pendingScreenEntries(): List<JournalEntryEntity>
+    @Insert suspend fun insertPostNote(e: JournalInsightPostNoteEntity)
+    @Query("SELECT * FROM journal_post_note WHERE scenario_id = :scenarioId AND dismissed = 0 ORDER BY created_at DESC")
+    fun observeActivePostNotes(scenarioId: String): Flow<List<JournalInsightPostNoteEntity>>
+    @Query("SELECT * FROM journal_post_note WHERE scenario_id = :scenarioId AND dismissed = 0 ORDER BY created_at DESC")
+    suspend fun activePostNotes(scenarioId: String): List<JournalInsightPostNoteEntity>
+    @Query("SELECT * FROM journal_post_note WHERE id = :id") suspend fun getPostNote(id: String): JournalInsightPostNoteEntity?
+    @Query("UPDATE journal_post_note SET applied = 1 WHERE id = :id") suspend fun markPostNoteApplied(id: String)
+    @Query("UPDATE journal_post_note SET dismissed = 1 WHERE id = :id") suspend fun dismissPostNote(id: String)
+}
+
+@Dao interface TrajectoryDao {
+    @Insert suspend fun insert(point: TrajectoryPointEntity)
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC") fun observeForScenario(scenarioId: String): Flow<List<TrajectoryPointEntity>>
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp ASC") suspend fun forScenario(scenarioId: String): List<TrajectoryPointEntity>
+    @Query("SELECT * FROM trajectory_point WHERE scenario_id = :scenarioId ORDER BY timestamp DESC LIMIT 1") suspend fun latestForScenario(scenarioId: String): TrajectoryPointEntity?
+}
+
+@Dao interface QuickCheckDao {
+    @Insert suspend fun insert(item: QuickCheckFeedbackEntity)
+    @Query("SELECT * FROM quick_check_feedback WHERE scenario_id = :scenarioId ORDER BY created_at ASC") suspend fun forScenario(scenarioId: String): List<QuickCheckFeedbackEntity>
 }

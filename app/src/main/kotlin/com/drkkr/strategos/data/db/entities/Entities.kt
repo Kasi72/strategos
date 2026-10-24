@@ -50,7 +50,11 @@ data class ConversationEntity(
     @ColumnInfo(name = "last_report_digest_json") val lastReportDigestJson: String? = null,
     @ColumnInfo(name = "last_report_scenario_version") val lastReportScenarioVersion: Int? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
-    @ColumnInfo(name = "updated_at") val updatedAt: Long
+    @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    // Argon: several ACTIVE rows per scenario are named threads of one project.
+    @ColumnInfo(name = "title", defaultValue = "'Main Thread'") val title: String = "Main Thread",
+    @ColumnInfo(name = "topic_tag", defaultValue = "'GENERAL'") val topicTag: String = "GENERAL",
+    @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false
 )
 
 @Entity(tableName = "message",
@@ -140,3 +144,85 @@ data class LlmCallEntity(                  // NO content columns (I8)
 
 @Entity(tableName = "app_setting")
 data class SettingEntity(@PrimaryKey val key: String, val value: String)
+
+/** Space 2: private reflection journal entry. `encryptedText` is written through JournalCrypto, never as plain text. */
+@Entity(
+    tableName = "journal_entry",
+    indices = [Index("created_at"), Index("linked_scenario_id"), Index("sync_status")]
+)
+data class JournalEntryEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "linked_scenario_id") val linkedScenarioId: String? = null,   // null = global entry
+    @ColumnInfo(name = "encrypted_text") val encryptedText: String,
+    @ColumnInfo(name = "mood_tag") val moodTag: String = "NEUTRAL",                  // CALM | ANXIOUS | FRUSTRATED | HOPEFUL | DRAINED | NEUTRAL
+    @ColumnInfo(name = "recorded_ack") val recordedAck: String = "Recorded privately 🍃",
+    @ColumnInfo(name = "sync_status") val syncStatus: String = "RECORDED",           // RECORDED | SCREENED | PENDING_SCREEN
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)
+
+/** A journal insight attached to one project. */
+@Entity(
+    tableName = "journal_post_note",
+    foreignKeys = [
+        ForeignKey(entity = JournalEntryEntity::class, parentColumns = ["id"], childColumns = ["journal_entry_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("journal_entry_id"), Index("scenario_id"), Index("dismissed")]
+)
+data class JournalInsightPostNoteEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "journal_entry_id") val journalEntryId: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    val significance: String,                                                        // HIGH | MODERATE
+    @ColumnInfo(name = "habit_or_trigger") val habitOrTrigger: String,
+    @ColumnInfo(name = "insight_headline") val insightHeadline: String,
+    @ColumnInfo(name = "practical_approach") val practicalApproach: String,
+    @ColumnInfo(name = "do_this") val doThis: String,
+    @ColumnInfo(name = "dont_do_this") val dontDoThis: String,
+    @ColumnInfo(name = "target_dimension") val targetDimension: String? = null,
+    @ColumnInfo(name = "weight_delta") val weightDelta: Double = 0.0,
+    val applied: Boolean = false,
+    val dismissed: Boolean = false,
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)
+
+/** Space 3: one point of the project's trajectory series. */
+@Entity(
+    tableName = "trajectory_point",
+    foreignKeys = [ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("scenario_id"), Index("timestamp")]
+)
+data class TrajectoryPointEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "thread_id") val threadId: String? = null,
+    val source: String,                                                              // INITIAL | THREAD_TURN | QUICK_CHECK | JOURNAL_SHIFT
+    @ColumnInfo(name = "trust_score") val trustScore: Double,
+    @ColumnInfo(name = "tension_score") val tensionScore: Double,
+    @ColumnInfo(name = "sigmoid_progress") val sigmoidProgress: Double,
+    @ColumnInfo(name = "momentum_delta") val momentumDelta: Double,
+    @ColumnInfo(name = "consistency_streak") val consistencyStreak: Int,
+    @ColumnInfo(name = "active_archetype") val activeArchetype: String,
+    val note: String = "",
+    val timestamp: Long
+)
+
+/** Space 3: the 10-second quick-check log. */
+@Entity(
+    tableName = "quick_check_feedback",
+    foreignKeys = [ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("scenario_id"), Index("created_at")]
+)
+data class QuickCheckFeedbackEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "thread_id") val threadId: String? = null,
+    @ColumnInfo(name = "recommended_action_label") val recommendedActionLabel: String,
+    @ColumnInfo(name = "execution_choice") val executionChoice: String,
+    @ColumnInfo(name = "counterpart_reaction") val counterpartReaction: String,
+    @ColumnInfo(name = "self_feeling") val selfFeeling: String,
+    @ColumnInfo(name = "reflection_note") val reflectionNote: String = "",
+    @ColumnInfo(name = "trust_delta") val trustDelta: Double,
+    @ColumnInfo(name = "tension_delta") val tensionDelta: Double,
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)

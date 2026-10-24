@@ -9,9 +9,10 @@ import com.drkkr.strategos.data.db.entities.*
     entities = [
         ScenarioEntity::class, SnapshotEntity::class, RecoverableRecordEntity::class,
         ConversationEntity::class, MessageEntity::class, ChangeSetEntity::class,
-        MemoryItemEntity::class, WhatIfEntity::class, LlmCallEntity::class, SettingEntity::class
+        MemoryItemEntity::class, WhatIfEntity::class, LlmCallEntity::class, SettingEntity::class,
+        JournalEntryEntity::class, JournalInsightPostNoteEntity::class, TrajectoryPointEntity::class, QuickCheckFeedbackEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class StrategosDatabase : RoomDatabase() {
@@ -25,4 +26,7 @@ abstract class StrategosDatabase : RoomDatabase() {
     abstract fun whatIfDao(): WhatIfDao
     abstract fun llmCallDao(): LlmCallDao
     abstract fun settingDao(): SettingDao
+    abstract fun journalDao(): JournalDao
+    abstract fun trajectoryDao(): TrajectoryDao
+    abstract fun quickCheckDao(): QuickCheckDao
 }
