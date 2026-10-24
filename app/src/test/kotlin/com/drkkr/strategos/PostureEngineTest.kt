@@ -194,4 +194,33 @@ class PostureEngineTest {
         assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("STAGE PROGRESSION"))
         assertTrue(ArgonPrompts.ENGINE_COACH_PROMPT.contains("known_stakeholder_facts"))
     }
+
+    // Phase F.7: a blocked move unrelated to the counterpart never gets a fabricated "<counterpart> would respond"
+    // line. Seen live: "Keep scrolling rental listings" (a solo habit, nothing to do with the ex) was warned against
+    // with "Amudha would most likely respond: ..." -- the engine only ever tracks one counterpart for the whole
+    // conversation, so once the topic moved past that relationship the attributed reaction became incoherent.
+    private val chaseNamed = "Call Husband and beg him to pick up"
+    private val chaseUnrelated = "Keep scrolling job listings instead of sleeping"
+
+    private fun sketchJsonWithAnUnrelatedReactiveMove(): String {
+        fun opt(who: String, label: String, posture: String) = """{"who":"$who","do":"$label","posture":"$posture"}"""
+        fun row(a: String, b: String, you: String, them: String) = """{"when":["$a","$b"],"for_you":$you,"for_them":$them}"""
+        return """{"people":[{"name":"You","role":"player"},{"name":"Husband","role":"player"}],
+            "options":[${opt("You", calm, "repair")},${opt("You", firm, "boundary")},${opt("You", chaseNamed, "reactive")},${opt("You", chaseUnrelated, "reactive")},${opt("Husband", open, "receptive")},${opt("Husband", shut, "defensive")}],
+            "dims":["WELLBEING","RELATIONSHIPS","LONG_TERM_VALUE"],
+            "outcomes":[${row(calm, open, "[7,7,7]", "[7,7,7]")},${row(calm, shut, "[5,5,5]", "[5,5,5]")},
+              ${row(firm, open, "[6,6,6]", "[6,6,6]")},${row(firm, shut, "[5,5,5]", "[5,5,5]")},
+              ${row(chaseNamed, open, "[9,9,9]", "[8,8,8]")},${row(chaseNamed, shut, "[8,9,9]", "[3,3,3]")},
+              ${row(chaseUnrelated, open, "[4,4,4]", "[6,6,6]")},${row(chaseUnrelated, shut, "[3,3,3]", "[4,4,4]")}]}"""
+    }
+
+    @Test fun aBlockedMoveThatNeverMentionsTheCounterpartGetsNoFabricatedReaction() {
+        val d = dir(build(sketchJsonWithAnUnrelatedReactiveMove()))
+        val named = d.blockedOrDominatedMoves.firstOrNull { it.move == chaseNamed }
+        val unrelated = d.blockedOrDominatedMoves.firstOrNull { it.move == chaseUnrelated }
+        assertNotNull("expected both reactive moves to be warned against", named); assertNotNull(unrelated)
+        assertNotNull("a move naming Husband should still get a predicted reaction", named!!.triggers)
+        assertTrue(named.triggers!!.startsWith("Husband would"))
+        assertNull("a move with nothing to do with Husband must not get one", unrelated!!.triggers)
+    }
 }

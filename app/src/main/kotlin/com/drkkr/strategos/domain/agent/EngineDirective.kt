@@ -169,6 +169,12 @@ object EngineDirectiveBuilder {
         // Moves to warn about: every reactive move first, then the weakest of the rest.
         val keep = setOfNotNull(recommended.id, fallback?.id, complementary?.id)
         val warnCandidates = ownerActions.filter { it.id !in keep }
+        // Phase F.7: `twoByTwo()` (used below for the behavioral pattern) pairs only the FIRST reactive-tagged
+        // action against the counterpart's replies. A second, unrelated reactive action this turn (e.g. "keep
+        // scrolling rental listings" once the topic has moved past the relationship) is never actually part of that
+        // modeled exchange, so it must not get "<counterpart> would most likely respond: ..." attributed to it --
+        // seen live as an incoherent "it'll make [name] work around you through friends" on an unrelated habit.
+        val canonicalReactiveId = ownerActions.firstOrNull { reactive(it) }?.id
         val blocked = warnCandidates.sortedWith(compareByDescending<Action> { reactive(it) }.thenByDescending { it.id in excludedIds }.thenBy { value(it) })
             .take(MAX_BLOCKED).map { a ->
                 val pathway = pathways.firstOrNull { it.actionId == a.id }
@@ -177,7 +183,8 @@ object EngineDirectiveBuilder {
                     a.id in excludedIds -> pathway?.constraintViolations?.firstOrNull()?.let { "it breaks \"$it\"" } ?: "ruled out by a limit"
                     else -> pathway?.rationale?.take(MAX_TEXT) ?: "ranks below the recommended move"
                 }
-                BlockedMove(a.label, reason, replies[a.id]?.text)
+                val triggers = replies[a.id]?.text?.takeIf { !reactive(a) || a.id == canonicalReactiveId }
+                BlockedMove(a.label, reason, triggers)
             }
 
         val (dynamicTexts, dynamicLabel) = dynamics(s, report.moduleResults.map { it.moduleId to it })
