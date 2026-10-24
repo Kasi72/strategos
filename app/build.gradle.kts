@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     // NOTE: kotlin.plugin.compose is Kotlin 2.0+; Kotlin 1.9 uses composeOptions block below
+}
+
+// Release signing credentials are read from keystore.properties (gitignored).
+// Falls back to null so debug builds and CI without the file still work.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
 android {
@@ -18,12 +27,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val hasReleaseKeystore = keystoreProps.getProperty("storeFile") != null &&
+        file(keystoreProps.getProperty("storeFile")).exists()
+
     signingConfigs {
-        create("release") {
-            storeFile = file("strategos-release.jks")
-            storePassword = "strategos123"
-            keyAlias = "strategos"
-            keyPassword = "strategos123"
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
         }
     }
 
@@ -31,7 +45,9 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // Use release signing when creds are present; otherwise leave unsigned
+            // (assembleRelease still builds; debug builds are unaffected).
+            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else null
         }
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -45,6 +61,16 @@ android {
     sourceSets["test"].kotlin.srcDirs("src/test/kotlin")
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs
+            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+            .forEach { output ->
+                output.outputFileName =
+                    "STRATEGOS-v${variant.versionName}-${variant.buildType.name}.apk"
+            }
     }
 }
 
