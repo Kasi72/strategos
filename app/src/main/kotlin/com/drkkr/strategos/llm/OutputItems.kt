@@ -24,7 +24,9 @@ fun JsonArray.functionCalls(): List<FunctionCall> = mapNotNull { item ->
     )
 }
 
-/** Text of every "message" item: its content parts of type "output_text", joined with a newline. */
+private val THINK_BLOCK = Regex("^\\s*<think>[\\s\\S]*?</think>\\s*")
+
+/** Text of every "message" item: its content parts of type "output_text", joined with a newline. A leading `<think>` block is dropped. */
 fun JsonArray.assistantText(): String = mapNotNull { item ->
     val o = item as? JsonObject ?: return@mapNotNull null
     if (o.str("type") != "message") return@mapNotNull null
@@ -32,7 +34,7 @@ fun JsonArray.assistantText(): String = mapNotNull { item ->
         val p = part as? JsonObject ?: return@mapNotNull null
         if (p.str("type") == "output_text") p.str("text") else null
     }
-}.flatten().joinToString("\n")
+}.flatten().joinToString("\n").replaceFirst(THINK_BLOCK, "")
 
 fun functionCallOutput(callId: String, output: JsonObject): JsonObject = JsonObject(
     mapOf(

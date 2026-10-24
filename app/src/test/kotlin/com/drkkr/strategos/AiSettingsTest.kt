@@ -138,13 +138,13 @@ class AiSettingsTest {
     @Test
     fun TC_MODEL_01_liveListFilteredAndSorted() = runBlocking {
         vault.put("gsk-1")
-        live("whisper-large-v3", "openai/gpt-oss-120b", "meta-llama/llama-prompt-guard-2-86m", "canopylabs/orpheus-v1", "openai/gpt-oss-safeguard-20b", "openai/gpt-oss-20b")
+        live("whisper-large-v3", "openai/gpt-oss-120b", "meta-llama/llama-prompt-guard-2-86m", "canopylabs/orpheus-v1", "openai/gpt-oss-safeguard-20b", "openai/gpt-oss-20b", "deepseek-reasoner", "deepseek-chat")
         controller.load().join()
         val rows = controller.state.value.models
-        assertEquals(listOf("openai/gpt-oss-20b", "openai/gpt-oss-120b"), rows.map { it.id })
+        assertEquals(listOf("deepseek-chat", "deepseek-reasoner", "openai/gpt-oss-20b", "openai/gpt-oss-120b"), rows.map { it.id })
         assertTrue(rows[0].recommended)
         assertTrue(rows[0].current)
-        assertEquals("$0.075 / $0.3 per 1M", rows[0].priceLabel)
+        assertEquals("$0.27 / $1.10 per 1M", rows[0].priceLabel)
     }
 
     @Test

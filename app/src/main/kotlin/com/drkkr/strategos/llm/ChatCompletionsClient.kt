@@ -114,7 +114,11 @@ class ChatCompletionsClient(
         put("max_tokens", req.maxOutputTokens)
         // Thinking is on by default and would make every reply slow and costly; the sketch needs none of it.
         put("thinking", buildJsonObject { put("type", "disabled") })
-        put("temperature", req.temperature)
+        // The reasoner takes neither temperature nor response_format; its JSON is extracted from the text instead.
+        if (req.model != REASONER) {
+            put("temperature", req.temperature)
+            if (req.jsonObjectMode) put("response_format", buildJsonObject { put("type", "json_object") })
+        }
     }
 
     private fun text(o: JsonObject, k: String): String? = (o[k] as? JsonPrimitive)?.contentOrNull
@@ -215,7 +219,9 @@ class ChatCompletionsClient(
         if (u == null) return LlmUsage.ZERO
         fun int(o: JsonObject?, k: String) = (o?.get(k) as? JsonPrimitive)?.intOrNull ?: 0
         return LlmUsage(
-            input = int(u, "prompt_tokens"), cached = int(u, "prompt_cache_hit_tokens"), output = int(u, "completion_tokens"),
+            input = int(u, "prompt_tokens"),
+            cached = int(u, "prompt_cache_hit_tokens").takeIf { it > 0 } ?: int(u["prompt_tokens_details"] as? JsonObject, "cached_tokens"),
+            output = int(u, "completion_tokens"),
             reasoning = int(u["completion_tokens_details"] as? JsonObject, "reasoning_tokens")
         )
     }
@@ -258,6 +264,7 @@ class ChatCompletionsClient(
 
     companion object {
         private val JSON = "application/json".toMediaType()
+        private const val REASONER = "deepseek-reasoner"
         private const val MAX_RETRIES = 2
         private const val TEST_MAX_OUTPUT_TOKENS = 32
         private const val MAX_RETRY_AFTER_SEC = 10

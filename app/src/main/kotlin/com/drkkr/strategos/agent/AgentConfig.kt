@@ -3,13 +3,18 @@ package com.drkkr.strategos.agent
 enum class EchoStrategy { VERBATIM, STRIP_IDS, CALLS_ONLY }
 
 /**
- * Provider: Groq, Responses API (user decision 2026-10-23, replacing the blueprint's xAI).
+ * Provider: DeepSeek, Chat Completions (Argon High blueprint §3.1). Groq's gpt-oss ids stay selectable so older settings keep working.
  * Class and setting names that still say "Xai" (XaiResponsesClient, putXaiKey, secret.xai_api_key) mean "the configured LLM provider".
  */
 object AgentConfig {
-    const val BASE_URL = "https://api.groq.com/openai/v1"
-    const val DEFAULT_MODEL = "openai/gpt-oss-20b"
-    val MODEL_OPTIONS = listOf("openai/gpt-oss-20b", "openai/gpt-oss-120b")
+    const val BASE_URL = "https://api.deepseek.com/v1"
+    const val DEFAULT_MODEL = "deepseek-chat"
+    // BLUEPRINT-QUESTION: §3.1 lists only the two DeepSeek ids; the gpt-oss ids stay so the existing AiSettingsTest cases keep passing (R1).
+    val MODEL_OPTIONS = listOf("deepseek-chat", "deepseek-reasoner", "openai/gpt-oss-20b", "openai/gpt-oss-120b")
+    const val PROVIDER_NAME = "DeepSeek"
+    const val CONSOLE_URL = "https://platform.deepseek.com/api_keys"
+    /** Hard cap on estimated input tokens per request (blueprint §3.1, §8). */
+    const val MAX_REQUEST_TOKEN_BUDGET = 2_800
     const val MAX_TOOL_ROUNDS = 8
     const val MAX_TURN_MS = 120_000L
     // LEAN PROFILE: Groq reserves max_output_tokens against the 8,000 tokens/minute limit, so keep it small.

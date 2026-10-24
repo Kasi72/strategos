@@ -13,7 +13,9 @@ data class LlmRequest(
     // BLUEPRINT-QUESTION: not in §9.1. Carried only so the client can write the llm_call row (ids and a purpose tag, never content).
     val purpose: String = "TURN",
     val conversationId: String? = null,
-    val turnId: String? = null
+    val turnId: String? = null,
+    /** Chat Completions only: ask for `response_format: json_object`. Ignored for deepseek-reasoner. */
+    val jsonObjectMode: Boolean = false
 )
 
 data class LlmUsage(val input: Int, val cached: Int, val output: Int, val reasoning: Int) {
