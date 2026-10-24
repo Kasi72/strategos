@@ -31,9 +31,11 @@ data class LoadResult(
 
 class ScenarioStorage(context: Context) {
 
-    private val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-
     private val prefs: SharedPreferences = try {
+        // Master-key creation must be inside the guard: on a device whose
+        // keystore is unavailable it throws KeyStoreException, which callers
+        // expect to arrive wrapped as StorageUnavailableException (not raw).
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         EncryptedSharedPreferences.create(
             PREF_FILE, masterKeyAlias, context,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
