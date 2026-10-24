@@ -6,6 +6,8 @@ import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.domain.model.Stakeholder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
@@ -36,7 +38,14 @@ data class EngineDirective(
     val stressVerdict: String,                 // ROBUST | FRAGILE
     val stressFlip: String?,
     /** The recommended move, or the fallback when the pick is fragile. */
-    val moveToImplement: String?
+    val moveToImplement: String?,
+    /**
+     * Phase F.5: fears, wants and limits already on record, plus the previous turn's move when it differs from this
+     * one's. Computed by Kotlin from the saved model, never from model text. Call 2 must check this before writing
+     * advice, so it stops re-asking a question whose answer is already here (seen live: Mark's stated fear of eating
+     * dinner alone being ignored in favor of "ask how he's feeling").
+     */
+    val knownFacts: List<String> = emptyList()
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -52,6 +61,7 @@ data class EngineDirective(
         putJsonArray("influencers_in_play") { influencersInPlay.forEach { add(JsonPrimitive(it)) } }
         put("stress_verdict", stressVerdict)
         put("stress_flip", stressFlip)
+        putJsonArray("known_stakeholder_facts") { knownFacts.forEach { add(JsonPrimitive(it)) } }
     }
 
     /**
@@ -83,6 +93,7 @@ object EngineDirectiveBuilder {
     private const val MAX_INFLUENCERS = 4
     private const val COMPLEMENT_WITHIN = 1.0
     private const val MIN_DYNAMIC_SCORE = 0.5
+    private const val MAX_KNOWN_FACTS = 8
 
     /**
      * The model the engine analyses: the saved one, read as a relationship that continues, with trust drawn from the trajectory.
@@ -103,7 +114,7 @@ object EngineDirectiveBuilder {
         })
     }
 
-    fun build(s: Scenario, pr: PipelineResult, stress: StressResult?): EngineDirective {
+    fun build(s: Scenario, pr: PipelineResult, stress: StressResult?, previousMove: String? = null): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
         val ownerActions = owner?.let { s.actionsFor(it.id) }.orEmpty()
@@ -140,9 +151,14 @@ object EngineDirectiveBuilder {
         }
 
         // A second calm move: close in score, or the one the stress test flips to. It is blended in, not swapped for the first.
-        val others = calmActions.filter { it.id != recommended.id }
+        // Phase F.5: never pick a "discovery" move (asking what the other person feels or is worried about) as the
+        // complement once that person's fear or want is already on record — it would just re-ask an answered question.
+        val other = s.players().firstOrNull { it.id != owner.id }
+        val otherAlreadyKnown = other != null && (other.fears.isNotEmpty() || other.goals.isNotEmpty())
+        fun redundantDiscovery(a: Action) = otherAlreadyKnown && Postures.isDiscoveryQuestion(a.label)
+        val others = calmActions.filter { it.id != recommended.id && !redundantDiscovery(it) }
         val closest = others.maxByOrNull { value(it) }
-        val complementary = (flipTargets.firstOrNull { !reactive(it) && it.id != recommended.id && it.id !in excludedIds }
+        val complementary = (flipTargets.firstOrNull { !reactive(it) && it.id != recommended.id && it.id !in excludedIds && !redundantDiscovery(it) }
             ?: closest?.takeIf { value(recommended) - value(it) <= COMPLEMENT_WITHIN && value(it) > Double.NEGATIVE_INFINITY })
         val rankedFallback = pathways.firstOrNull { it.label == FALLBACK && !it.excluded }?.actionId?.let { byId[it] }?.takeIf { !reactive(it) && it.id != recommended.id }
         val fallback = rankedFallback ?: complementary ?: closest
@@ -168,8 +184,27 @@ object EngineDirectiveBuilder {
             blockedOrDominatedMoves = blocked, dominantDynamic = dynamicTexts, dynamicLabel = dynamicLabel,
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
             stressVerdict = if (fragile) "FRAGILE" else "ROBUST", stressFlip = flipText,
-            moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label
+            moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
+            knownFacts = knownFacts(s, previousMove, recommended.label)
         )
+    }
+
+    /** Fears, wants and limits already saved, plus the previous turn's move when it is not the same as this one's. */
+    private fun knownFacts(s: Scenario, previousMove: String?, recommendedLabel: String): List<String> = buildList {
+        s.stakeholders.forEach { p ->
+            p.fears.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} fears: $it") }
+            p.goals.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} wants: $it") }
+        }
+        s.constraints.forEach { c -> add("Limit: ${c.label}") }
+        if (previousMove != null && previousMove != recommendedLabel) add("Last turn's recommended move: $previousMove")
+    }.take(MAX_KNOWN_FACTS)
+
+    /** The previous turn's recommended move, read from the report digest stored before this turn overwrites it. */
+    fun previousRecommendedMove(reportJson: String?): String? {
+        val o = reportJson?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() } ?: return null
+        val pathways = (o["pathways"] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: return null
+        return pathways.firstOrNull { (it["label"] as? JsonPrimitive)?.content == RECOMMENDED }
+            ?.get("action")?.let { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
     }
 
     private fun notReady(s: Scenario) = EngineDirective(

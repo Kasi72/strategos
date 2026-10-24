@@ -89,6 +89,8 @@ class OneShotTurn(
         val scenario = gateway.activeScenario() ?: return fail(cid, turnId, "Save the scenario first.", retryable = false)
         val userTexts = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }
         val text = userTexts.lastOrNull() ?: return TurnResult.Done
+        // Phase F.5: read before this turn's saveLastReport overwrites it, so the directive can name what it told you last time.
+        val previousReportJson = conversations.get(cid)?.lastReportDigestJson
 
         onActivity("Reading your situation…")
         // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
@@ -154,7 +156,7 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity)
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -174,7 +176,7 @@ class OneShotTurn(
      */
     private suspend fun engineGroundedReply(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
-        understood: List<String>, text: String, onActivity: (String) -> Unit
+        understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -184,7 +186,8 @@ class OneShotTurn(
             val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
             pipeline.run(view) to runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull()
         }
-        val directive = EngineDirectiveBuilder.build(view, viewResult, stress)
+        val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
+        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove)
         DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
         if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n\n" + directive.badge()
         onActivity("Writing my reply…")

@@ -138,4 +138,60 @@ class PostureEngineTest {
         assertEquals(listOf("Auntie"), d.toJson().getValue("influencers_in_play").let { (it as kotlinx.serialization.json.JsonArray).map { e -> (e as kotlinx.serialization.json.JsonPrimitive).content } })
         assertTrue(ArgonPrompts.ENGINE_COACH_PROMPT.contains("influencers_in_play"))
     }
+
+    // 7. Phase F.5: a stated fear is never re-asked as a "discovery" move, by either the math or the wording step
+    private val discover = "Ask him one gentle question about how he's feeling about things lately, then let it rest"
+
+    private fun sketchJsonWithKnownFear(): String {
+        fun opt(who: String, label: String, posture: String) = """{"who":"$who","do":"$label","posture":"$posture"}"""
+        fun row(a: String, b: String, you: String, them: String) = """{"when":["$a","$b"],"for_you":$you,"for_them":$them}"""
+        return """{"people":[{"name":"You","role":"player"},{"name":"Husband","role":"player","fears":"Eating dinner alone every night"}],
+            "options":[${opt("You", calm, "repair")},${opt("You", discover, "repair")},${opt("You", chase, "reactive")},${opt("Husband", open, "receptive")},${opt("Husband", shut, "defensive")}],
+            "dims":["WELLBEING","RELATIONSHIPS","LONG_TERM_VALUE"],
+            "outcomes":[${row(calm, open, "[7,7,7]", "[7,7,7]")},${row(calm, shut, "[5,5,5]", "[5,5,5]")},
+              ${row(discover, open, "[7,7,7]", "[7,7,7]")},${row(discover, shut, "[5,5,5]", "[5,5,5]")},
+              ${row(chase, open, "[9,9,9]", "[8,8,8]")},${row(chase, shut, "[8,9,9]", "[3,3,3]")}]}"""
+    }
+
+    @Test fun aDiscoveryMoveIsNeverPickedOnceTheFearIsAlreadyKnown() {
+        val s = build(sketchJsonWithKnownFear())
+        val d = dir(s)
+        // Without the fix "discover" ties with "calm" (both score [7,7,7]) and would be blended in as the complement.
+        assertNotEquals(discover, d.complementaryMove)
+        assertNotEquals(discover, d.moveToImplement)
+        assertNotEquals(discover, d.safeFallbackMove)
+    }
+
+    @Test fun postureDetectsDiscoveryQuestionsButNotConcreteOnes() {
+        assertTrue(Postures.isDiscoveryQuestion("Ask him one gentle question about how he's feeling about the two of you lately, then let it rest"))
+        assertTrue(Postures.isDiscoveryQuestion("Find out what's really wrong before deciding anything"))
+        assertFalse(Postures.isDiscoveryQuestion(calm))              // "ask what would help" has no feeling/worry word
+        assertFalse(Postures.isDiscoveryQuestion("Co-design a weekly dinner schedule together"))
+    }
+
+    @Test fun knownFactsCarryFearsGoalsLimitsAndThePreviousMove() {
+        val s = build(sketchJsonWithKnownFear())
+        val d = dir(s)
+        assertTrue(d.knownFacts.toString(), d.knownFacts.any { it.contains("Husband") && it.contains("Eating dinner alone") })
+        assertTrue(d.toJson().containsKey("known_stakeholder_facts"))
+
+        val view = EngineDirectiveBuilder.analysisView(s, 50.0, 55.0)
+        val withPrevious = EngineDirectiveBuilder.build(view, AnalysisPipeline().run(view), null, previousMove = "An earlier move")
+        assertTrue(withPrevious.knownFacts.any { it == "Last turn's recommended move: An earlier move" })
+
+        val samePrevious = EngineDirectiveBuilder.build(view, AnalysisPipeline().run(view), null, previousMove = withPrevious.recommendedMove)
+        assertFalse(samePrevious.knownFacts.any { it.startsWith("Last turn's recommended move:") })
+    }
+
+    @Test fun previousRecommendedMoveReadsTheStoredDigest() {
+        val json = """{"pathways":[{"label":"Recommended","action":"Keep today light and warm"},{"label":"Safe Fallback","action":"Other move"}]}"""
+        assertEquals("Keep today light and warm", EngineDirectiveBuilder.previousRecommendedMove(json))
+        assertNull(EngineDirectiveBuilder.previousRecommendedMove(null))
+        assertNull(EngineDirectiveBuilder.previousRecommendedMove("not json"))
+    }
+
+    @Test fun promptsCoverStageProgressionAndKnownFacts() {
+        assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("STAGE PROGRESSION"))
+        assertTrue(ArgonPrompts.ENGINE_COACH_PROMPT.contains("known_stakeholder_facts"))
+    }
 }

@@ -19,6 +19,13 @@ object Postures {
     fun clean(raw: String?): String? = raw?.trim()?.lowercase()?.takeIf { it in valid }
     fun tag(posture: String?): String = clean(posture)?.let { "[posture:$it]" }.orEmpty()
     fun of(a: Action): String? = tag.find(a.description)?.groupValues?.get(1)?.let { clean(it) }
+
+    // Phase F.5: a "repair" option that only asks what the other person feels or is worried about underneath, e.g.
+    // "Ask him one gentle question about how he's feeling... " — found redundant live when the fear/want was already
+    // saved on their record. The engine must not keep recommending the same discovery question once the answer is known.
+    private val asksSomething = Regex("""(?i)\bask\b|\bfind out\b|\bcheck in\b""")
+    private val aboutFeelingsOrWorries = Regex("""(?i)feel|worry|worrying|worried|underneath|going on|what's (really )?wrong|what's really""")
+    fun isDiscoveryQuestion(label: String): Boolean = asksSomething.containsMatchIn(label) && aboutFeelingsOrWorries.containsMatchIn(label)
 }
 
 /**
