@@ -504,7 +504,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                 impact = "Incomplete stakeholder models reduce policy legitimacy.",
                 currentState = "$noGoals of ${scenario.stakeholders.size} stakeholders have no goals.",
                 fixLabel = "Describe stakeholder goals",
-                target = NavigationTarget.FRAME
+                target = NavigationTarget.MODEL_STAKEHOLDERS
             )
         }
 

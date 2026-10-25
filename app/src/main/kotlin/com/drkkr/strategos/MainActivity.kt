@@ -85,6 +85,16 @@ private fun NavigationTarget.toTab(): Tab = when (this.tabId) {
     else -> Tab.SCENARIOS
 }
 
+// Within the Model tab, route to the correct sub-tab: the Frame page for the
+// framing target, and the Model editor (stakeholders, actions, constraints,
+// evidence) for everything else. Without this, a "model" navigation lands on
+// whatever sub-tab was last shown — usually Frame — so blockers like
+// "Add evidence source" appeared to do nothing.
+private fun NavigationTarget.toModelSubTab(): ModelSubTab? = when (this.tabId) {
+    "model" -> if (this.section == "frame") ModelSubTab.FRAME else ModelSubTab.MODEL
+    else -> null
+}
+
 private fun NavigationTarget.toMoreSubTab(): MoreSubTab? = when (this) {
     NavigationTarget.IMPLEMENTATION_PLAN,
     NavigationTarget.IMPLEMENTATION_MONITORING,
@@ -103,6 +113,7 @@ fun StrategosApp(vm: StrategosViewModel) {
     LaunchedEffect(state.pendingNavigationTarget) {
         state.pendingNavigationTarget?.let { target ->
             selectedTab = target.toTab()
+            target.toModelSubTab()?.let { sub -> selectedModelSubTab = sub }
             target.toMoreSubTab()?.let { sub -> selectedMoreTab = sub }
             vm.clearNavigation()
         }
