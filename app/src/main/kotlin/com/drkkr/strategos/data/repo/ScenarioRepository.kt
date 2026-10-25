@@ -83,4 +83,10 @@ class ScenarioRepository(context: Context) {
     }
 
     fun find(id: String) = _scenarios.value.firstOrNull { it.id == id }
+
+    // ── Anthropic API key (encrypted storage) ─────────────────────────────────
+    fun apiKey(): String? = storage?.loadApiKey()
+    fun hasApiKey(): Boolean = !apiKey().isNullOrBlank()
+    fun setApiKey(key: String) { storage?.saveApiKey(key) }
+    fun clearApiKey() { storage?.clearApiKey() }
 }

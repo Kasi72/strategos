@@ -69,6 +69,7 @@ import com.drkkr.strategos.framework.nash.PureNashModule
 import com.drkkr.strategos.framework.pareto.ParetoModule
 import com.drkkr.strategos.framework.sensitivity.SensitivityModule
 import com.drkkr.strategos.framework.tree.BackwardInductionModule
+import com.drkkr.strategos.nlp.LlmScenarioExtractor
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
 import kotlinx.coroutines.flow.*
@@ -96,7 +97,11 @@ data class UiState(
     // Phase 4: governance
     val snapshotHistory: List<AnalysisSnapshot> = emptyList(),
     val lifecycleTransitionError: String? = null,
-    val pendingNavigationTarget: NavigationTarget? = null
+    val pendingNavigationTarget: NavigationTarget? = null,
+    // Phase 5: LLM-backed parsing
+    val hasApiKey: Boolean = false,
+    val isParsing: Boolean = false,
+    val parseSource: String? = null   // "llm" | "heuristic" | null
 )
 
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
@@ -111,7 +116,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
     private val snapshotJson = Json { ignoreUnknownKeys = true }
 
     init {
-        _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError) }
+        _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError, hasApiKey = repo.hasApiKey()) }
         viewModelScope.launch { repo.load() }
         viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
@@ -151,9 +156,62 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         .register(StakeholderTrustDynamicsModule())
         .register(com.drkkr.strategos.framework.behavioral.RelationalRepairModule())
 
+    /**
+     * Build a scenario draft from free text. Uses the Anthropic LLM extractor
+     * when an API key is configured, and always falls back to the deterministic
+     * heuristic parser on no-key / network / parse failure.
+     */
     fun parseAndCreateScenario(rawText: String) {
+        val key = repo.apiKey()
+        if (key.isNullOrBlank()) {
+            applyHeuristicParse(rawText, reason = null)
+            return
+        }
+        _state.update { it.copy(isParsing = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result = LlmScenarioExtractor.extract(rawText, key)
+            val scenario = result.scenario
+            if (scenario != null) {
+                _state.update {
+                    it.copy(
+                        activeScenario = scenario,
+                        clarificationQuestions = listOf(
+                            "Review the ${scenario.stakeholders.size} extracted stakeholder(s) and ${scenario.actions.size} action(s).",
+                            "Add payoffs for each outcome and record evidence sources before analysis."
+                        ),
+                        isParsing = false,
+                        parseSource = "llm",
+                        errorMessage = null
+                    )
+                }
+            } else {
+                // Graceful fallback to the heuristic parser.
+                applyHeuristicParse(rawText, reason = result.error)
+            }
+        }
+    }
+
+    private fun applyHeuristicParse(rawText: String, reason: String?) {
         val parsed = ScenarioParser.parse(rawText)
-        _state.update { it.copy(activeScenario = parsed.draft, clarificationQuestions = parsed.clarificationQuestions) }
+        _state.update {
+            it.copy(
+                activeScenario = parsed.draft,
+                clarificationQuestions = parsed.clarificationQuestions,
+                isParsing = false,
+                parseSource = "heuristic",
+                errorMessage = reason?.let { r -> "AI extraction unavailable ($r) — used on-device parsing." }
+            )
+        }
+    }
+
+    fun setApiKey(key: String) {
+        repo.setApiKey(key.trim())
+        _state.update { it.copy(hasApiKey = repo.hasApiKey()) }
+    }
+
+    fun clearApiKey() {
+        repo.clearApiKey()
+        _state.update { it.copy(hasApiKey = false) }
     }
 
     fun loadTemplate() {
