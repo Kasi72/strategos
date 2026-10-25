@@ -20,7 +20,7 @@ class ExpectedUtilityModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val focal = 0
         val focalStrats = sf.strategies[sf.players[focal]]!!
         val results = mutableMapOf<String, Double>()

@@ -23,7 +23,7 @@ class MixedNash2x2Module : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val u = sf.utility
         // Rows: P1 strategy 0/1; Cols: P2 strategy 0/1. Flat index = row*2 + col.
         val a = u[0][0]; val b = u[0][1]; val c = u[0][2]; val d = u[0][3]

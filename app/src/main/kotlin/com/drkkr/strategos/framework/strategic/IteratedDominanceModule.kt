@@ -25,7 +25,7 @@ class IteratedDominanceModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val findings = mutableListOf<Finding>()
         val recs = mutableListOf<RecommendedAction>()
 

@@ -16,7 +16,7 @@ class PureNashModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val count = sf.profileCount()
         val equilibria = mutableListOf<List<Int>>()
         for (idx in 0 until count) {

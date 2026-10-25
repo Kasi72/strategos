@@ -20,7 +20,7 @@ class StagHuntModule : FrameworkModule {
     }
 
     override fun analyze(model: Scenario): AnalysisResult {
-        val sf = MatrixSupport.build(model)!!
+        val sf = MatrixSupport.buildOrThrow(model)
         val p0 = sf.players[0]
         val p1 = sf.players[1]
 
