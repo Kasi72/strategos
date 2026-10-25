@@ -3,6 +3,7 @@ package com.drkkr.strategos
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
+import com.drkkr.strategos.nlp.LlmScenarioExtractor
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.ui.StrategosViewModel
 import kotlinx.coroutines.Dispatchers
@@ -63,9 +64,34 @@ class EndToEndWalkthroughTest {
         line("  clarifying Qs    : ${parsed.clarificationQuestions.size}")
         parsed.clarificationQuestions.take(3).forEach { line("     - $it") }
         line()
-        line("  (NLP produces a DRAFT — real use then enriches payoffs, beliefs,")
-        line("   evidence and constraints before analysis. For a complete run we")
-        line("   load a fully-specified scenario below.)")
+        line("  (Heuristic parse is the OFFLINE fallback — no API key needed.)")
+        line()
+
+        // ── STAGE 1b: LLM extraction path (mapping exercised, wire simulated) ──
+        line("STAGE 1b — LLM EXTRACTION (Anthropic Messages API path)")
+        line("  With an API key set, the same text is sent to claude-opus-5-5.")
+        line("  Simulating the Messages API response body the model returns:")
+        val simulatedApiResponse = """
+            {"id":"msg_x","type":"message","role":"assistant","stop_reason":"end_turn",
+             "content":[{"type":"text","text":"{\"title\":\"Involuntary-Hold Protocol Dispute\",\"description\":\"Dept head vs clinical director over a new protocol.\",\"stakeholders\":[{\"name\":\"Psychiatry Department Head\",\"role\":\"Department lead\",\"authority\":7,\"influence\":6,\"canVeto\":false,\"goals\":[\"Pilot the protocol\",\"Improve throughput\"]},{\"name\":\"Clinical Director\",\"role\":\"Clinical governance\",\"authority\":8,\"influence\":7,\"canVeto\":true,\"goals\":[\"Avoid legal exposure\",\"Protect patients\"]}],\"actions\":[{\"label\":\"Pilot the new protocol\",\"owner\":\"Psychiatry Department Head\",\"description\":\"Limited trial on one ward\"},{\"label\":\"Veto adoption\",\"owner\":\"Clinical Director\",\"description\":\"Block on legal/ethical grounds\"},{\"label\":\"Convene joint review\",\"owner\":\"\",\"description\":\"Shared evidence review\"}],\"constraints\":[{\"label\":\"Involuntary-hold legality\",\"kind\":\"LEGAL\"},{\"label\":\"Patient safety\",\"kind\":\"SAFETY\"}],\"beliefs\":[{\"label\":\"Regulator permits pilot\",\"probability\":0.45}]}"}]}
+        """.trimIndent()
+        val assistantText = LlmScenarioExtractor.extractAssistantText(simulatedApiResponse)
+        val llmScenario = assistantText?.let { LlmScenarioExtractor.mapExtractionJson(it, rawText) }
+        if (llmScenario != null) {
+            line("  Extracted draft (via the real mapExtractionJson):")
+            line("    title        : ${llmScenario.title}")
+            llmScenario.stakeholders.forEach { s ->
+                line("    stakeholder  : ${s.name}  [A:${s.authority} I:${s.influence}${if (s.canVeto) " VETO" else ""}]  goals=${s.goals.size}")
+            }
+            llmScenario.actions.forEach { a ->
+                val owner = llmScenario.stakeholders.firstOrNull { it.id == a.stakeholderId }?.name ?: "(unassigned)"
+                line("    action       : ${a.label}  ->  $owner")
+            }
+            line("    constraints  : ${llmScenario.constraints.joinToString { "${it.label} (${it.kind})" }}")
+            line("    beliefs      : ${llmScenario.beliefs.joinToString { "${it.label}=${it.probability}" }}")
+            line("  Richer than heuristic: owners linked, veto/authority inferred,")
+            line("  constraints + beliefs captured. Still no payoffs (human adds those).")
+        }
         line()
 
         // ── STAGE 2: a complete scenario (template) ───────────────────────────
