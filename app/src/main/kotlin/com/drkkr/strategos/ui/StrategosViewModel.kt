@@ -204,6 +204,65 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Extract stakeholders/actions/constraints/beliefs from the ACTIVE scenario's
+     * description and merge them into it (preserving id/title/owner and anything
+     * already entered). LLM-first when a key is set, heuristic otherwise.
+     */
+    fun extractIntoActiveScenario() {
+        val scenario = _state.value.activeScenario ?: return
+        val text = scenario.description
+        if (text.isBlank()) {
+            _state.update { it.copy(errorMessage = "Add a description first, then extract.") }
+            return
+        }
+        val key = repo.apiKey()
+        _state.update { it.copy(isParsing = true, errorMessage = null) }
+        viewModelScope.launch {
+            val extracted = if (!key.isNullOrBlank()) LlmScenarioExtractor.extract(text, key).scenario else null
+            val draft = extracted ?: ScenarioParser.parse(text).draft
+            val merged = mergeExtraction(scenario, draft)
+            _state.update {
+                it.copy(
+                    activeScenario = merged,
+                    isParsing = false,
+                    parseSource = if (extracted != null) "llm" else "heuristic"
+                )
+            }
+            repo.save(merged)
+        }
+    }
+
+    private fun mergeExtraction(base: Scenario, draft: Scenario): Scenario {
+        val existingShNames = base.stakeholders.map { it.name.lowercase() }.toSet()
+        val newStakeholders = draft.stakeholders.filter { it.name.lowercase() !in existingShNames }
+        val stakeholders = base.stakeholders + newStakeholders
+        val nameToId = stakeholders.associateBy({ it.name.lowercase() }, { it.id })
+        val draftIdToName = draft.stakeholders.associateBy({ it.id }, { it.name.lowercase() })
+
+        val existingActions = base.actions.map { it.label.lowercase() }.toSet()
+        val newActions = draft.actions
+            .filter { it.label.lowercase() !in existingActions }
+            .map { a ->
+                val ownerName = draftIdToName[a.stakeholderId]
+                a.copy(stakeholderId = ownerName?.let { nameToId[it] } ?: "")
+            }
+
+        val existingConstraints = base.constraints.map { it.label.lowercase() }.toSet()
+        val newConstraints = draft.constraints.filter { it.label.lowercase() !in existingConstraints }
+        val existingBeliefs = base.beliefs.map { it.label.lowercase() }.toSet()
+        val newBeliefs = draft.beliefs.filter { it.label.lowercase() !in existingBeliefs }
+
+        val keepTitle = base.title.isNotBlank() && base.title != "New scenario"
+        return base.copy(
+            title = if (keepTitle) base.title else draft.title.ifBlank { base.title },
+            stakeholders = stakeholders,
+            actions = base.actions + newActions,
+            constraints = base.constraints + newConstraints,
+            beliefs = base.beliefs + newBeliefs
+        )
+    }
+
     fun setApiKey(key: String) {
         repo.setApiKey(key.trim())
         _state.update { it.copy(hasApiKey = repo.hasApiKey()) }

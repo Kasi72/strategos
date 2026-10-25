@@ -2,6 +2,7 @@ package com.drkkr.strategos
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.ui.StrategosViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -43,5 +44,27 @@ class ParseFallbackTest {
         val scenario = st.activeScenario!!
         assertTrue("heuristic should extract stakeholders", scenario.stakeholders.isNotEmpty())
         assertTrue("heuristic should extract actions", scenario.actions.isNotEmpty())
+    }
+
+    @Test
+    fun extractIntoActiveScenario_mergesEntitiesPreservingIdentity() {
+        val vm = StrategosViewModel(ApplicationProvider.getApplicationContext<Application>())
+        val base = Scenario(
+            id = "keep-me",
+            title = "My conflict",
+            description = "The clinical director could veto while the department head wants to pilot the protocol.",
+            decisionOwner = "me"
+        )
+        vm.setActiveScenario(base)
+
+        vm.extractIntoActiveScenario()
+
+        val s = vm.state.value.activeScenario!!
+        assertEquals("id must be preserved", "keep-me", s.id)
+        assertEquals("title must be preserved", "My conflict", s.title)
+        assertEquals("owner must be preserved", "me", s.decisionOwner)
+        assertTrue("stakeholders should be merged in", s.stakeholders.isNotEmpty())
+        assertTrue("actions should be merged in", s.actions.isNotEmpty())
+        assertEquals("heuristic", vm.state.value.parseSource)
     }
 }
