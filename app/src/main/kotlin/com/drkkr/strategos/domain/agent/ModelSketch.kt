@@ -42,7 +42,22 @@ data class ModelSketch(
      * "repair" | "boundary" | "reactive" | "none"; "softened" | "stayed_neutral" | "withdrew_or_escalated" | "none".
      */
     @SerialName("user_last_move_posture") val userLastMovePosture: String? = null,
-    @SerialName("counterpart_observed_reaction") val counterpartObservedReaction: String? = null
+    @SerialName("counterpart_observed_reaction") val counterpartObservedReaction: String? = null,
+    /**
+     * Phase G.2: how this message relates to the running conversation, so the controller can route it.
+     * "situation" (new or changed facts to model — the default) or "followup_question" (the user is asking
+     * about the assistant's previous reply, e.g. "what is that?", "why?", "what do you mean?"). A follow-up
+     * question is answered directly from the last reply, never by re-running the whole analysis.
+     */
+    @SerialName("message_kind") val messageKind: String? = null,
+    /**
+     * Phase G.3 (ask-first): false when the user's message does not yet give enough real signal to rank options
+     * honestly (most outcome scores would be guessed). The controller then asks [clarifyingQuestions] instead of
+     * recommending. True/null means go ahead. Never a reason to invent scores — when false, leave them unscored.
+     */
+    @SerialName("enough_to_recommend") val enoughToRecommend: Boolean? = null,
+    /** Phase G.3: 1-2 short, targeted questions that would most strengthen the model, used only when [enoughToRecommend] is false. */
+    @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList()
 )
 
 /** The coach guide. It is no longer part of [ModelSketch] (call 1 extracts only); call 2's [CoachReply] carries it. */
@@ -52,7 +67,9 @@ data class CoachGuideSketch(
     @SerialName("clear_win_move") val clearWinMove: String = "",
     @SerialName("exact_words") val exactWords: String = "",
     @SerialName("do_this") val doThis: List<String> = emptyList(),
-    @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList()
+    @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList(),
+    /** Phase G.4: a short, situation-specific closing line (a concrete next step or a real question), replacing the static footer. */
+    @SerialName("follow_up") val followUp: String = ""
 )
 
 /**

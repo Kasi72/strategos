@@ -12,9 +12,11 @@ data class CoachReply(
     @SerialName("clear_win_move") val clearWinMove: String = "",
     @SerialName("exact_words") val exactWords: String = "",
     @SerialName("do_this") val doThis: List<String> = emptyList(),
-    @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList()
+    @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList(),
+    /** Phase G.4: a short, situation-specific closing line (a concrete next step or a real question), replacing the static footer. */
+    @SerialName("follow_up") val followUp: String = ""
 ) {
-    fun guide() = CoachGuideSketch(whatHappened, clearWinMove, exactWords, doThis, dontDoThis)
+    fun guide() = CoachGuideSketch(whatHappened, clearWinMove, exactWords, doThis, dontDoThis, followUp)
 
     private fun all() = listOf(whatHappened, clearWinMove, exactWords) + doThis + dontDoThis
     fun hasPlaceholder() = all().any(Placeholders::has)

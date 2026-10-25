@@ -91,7 +91,8 @@ object PlainResult {
             if (g.exactWords.isNotBlank()) appendLine("What to say: \"${sentences(g.exactWords, 2)}\"")
             if (dos > 0 && g.doThis.isNotEmpty()) { appendLine("Do this:"); g.doThis.take(dos).forEach { appendLine("• $it") } }
             if (donts > 0 && g.dontDoThis.isNotEmpty()) { appendLine("Don't do this:"); g.dontDoThis.take(donts).forEach { appendLine("• $it") } }
-            append(COACH_FOOTER)
+            // Phase G.4: the model writes a short, situation-specific closing; the static footer is only a fallback.
+            append(sentences(g.followUp, 2).ifBlank { COACH_FOOTER })
         }.trim()
         // Trim from the end if a long reply still doesn't fit: second don't, second do, then the lists' tails.
         return listOf(2 to 2, 2 to 1, 1 to 1, 1 to 0).map { (d, n) -> render(d, n) }.firstOrNull { it.length <= COACH_MAX_CHARS } ?: render(1, 0)

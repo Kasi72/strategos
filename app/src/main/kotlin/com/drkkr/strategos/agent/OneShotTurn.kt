@@ -101,6 +101,21 @@ class OneShotTurn(
             is Reply.Sketch -> first.sketch
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
         }
+        // Phase G.2: a message that only asks about the PREVIOUS reply ("what is that?", "why?") is answered directly
+        // from that reply, never by re-running the engine into a near-duplicate answer. Routed before the trajectory and
+        // Bayesian updates below, so asking a question never moves trust/tension or the learned priors.
+        if (argon != null && parsed.messageKind == "followup_question") {
+            val prior = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
+            if (!prior.isNullOrBlank()) {
+                onActivity("Answering your question…")
+                answerFollowUp(cid, turnId, text, prior, previousReportJson)?.let { answer ->
+                    conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
+                    afterTurn(cid)
+                    return TurnResult.Done
+                }
+                // The answer call failed or came back unusable: fall through to the normal pipeline below.
+            }
+        }
         // BLUEPRINT-QUESTION: §D.1 says a point after every turn; a reply with no deltas and no archetype says nothing new, so it adds none.
         if (argon != null && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
             argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype, parsed.backstoryOnly)
@@ -129,6 +144,20 @@ class OneShotTurn(
                 nothingNew = true
             } else {
                 understood += PlainResult.understood(applied.accepted, scenario)
+            }
+        }
+
+        // Phase G.3 (ask first, then recommend): when Call 1 judges the input still too thin to rank honestly, ask the
+        // user 1-2 targeted questions to strengthen the model instead of ranking guessed outcomes. The ops extracted
+        // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go
+        // ahead and recommend with what we have, so the user is never stuck in a loop of questions.
+        if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty()) {
+            val recentAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }.takeLast(CLARIFY_MAX)
+            val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { it.startsWith(CLARIFY_LEAD) }
+            if (!askedTooMuch) {
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(parsed.clarifyingQuestions))
+                afterTurn(cid)
+                return TurnResult.Done
             }
         }
 
@@ -193,11 +222,14 @@ class OneShotTurn(
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
         val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove)
         DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
-        if (!directive.ready) return PlainResult.build(s, pr, understood) + "\n\n" + directive.badge()
+        // Phase G.4: the static "Engine: <move> · <pattern> · Robust" badge is no longer appended to the chat reply --
+        // it read as boilerplate noise. The move still leads the coach text, and the coach conveys any fragility in
+        // plain words (ENGINE_COACH_PROMPT rule 4). badge() is kept for tests and any future UI chip.
+        if (!directive.ready) return PlainResult.build(s, pr, understood)
         onActivity("Writing my reply…")
         val reply = interpret(cid, turnId, directive, text)
-        return if (reply != null) PlainResult.coach(reply.guide()) + "\n\n" + directive.badge()
-        else PlainResult.build(s, pr, understood) + "\n\n" + directive.badge()
+        return if (reply != null) PlainResult.coach(reply.guide())
+        else PlainResult.build(s, pr, understood)
     }
 
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
@@ -249,6 +281,39 @@ class OneShotTurn(
         val words = r.output.assistantText().trim()
         // A JSON object, or nothing, means the model answered the wrong task; use the plain view instead.
         return words.takeIf { it.length >= MIN_COACH_CHARS && !it.startsWith("{") }
+    }
+
+    /**
+     * Phase G.2: answers a question about the assistant's own previous reply, in plain words, without re-running the
+     * engine. Returns null on any failure or an unusable (empty/JSON) reply, so the caller falls back to the normal pipeline.
+     */
+    private suspend fun answerFollowUp(cid: String, turnId: String, text: String, priorReply: String, reportJson: String?): String? {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ANSWER_FOLLOWUP_PROMPT) })
+            add(buildJsonObject {
+                put("role", "user")
+                put("content", buildString {
+                    append("THE PERSON ASKS:\n").append(text.take(MAX_USER_CHARS)).append("\n\n")
+                    append("YOUR PREVIOUS REPLY:\n").append(priorReply.take(MAX_PRIOR_CHARS))
+                    if (!reportJson.isNullOrBlank()) append("\n\nANALYSIS BEHIND IT (for your reference only, never quote scores):\n").append(reportJson.take(MAX_DIGEST_CHARS))
+                })
+            })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = INTERPRET_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
+            purpose = "COACH", conversationId = cid, turnId = turnId
+        )
+        val r = llm.create(request) as? LlmResult.Ok ?: return null
+        val words = r.output.assistantText().trim()
+        // Nothing, or a JSON blob, means the model answered the wrong task; fall back to the normal pipeline.
+        return words.takeIf { it.length >= MIN_FOLLOWUP_CHARS && !it.startsWith("{") }
+    }
+
+    /** Phase G.3: the ask-first reply — a short lead the controller can also detect, then the 1-2 questions. */
+    private fun buildClarify(questions: List<String>): String {
+        val qs = questions.map { it.trim() }.filter { it.isNotEmpty() }.take(2)
+        return if (qs.size == 1) "$CLARIFY_LEAD ${qs[0]}"
+        else CLARIFY_LEAD + qs.joinToString("") { "\n• $it" }
     }
 
     private sealed class Reply {
@@ -343,6 +408,12 @@ class OneShotTurn(
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
         private const val MAX_USER_CHARS = 1_500
         private const val MIN_COACH_CHARS = 40
+        // Phase G.2/G.3 (clarification router + ask-first).
+        private const val MAX_PRIOR_CHARS = 1_200
+        private const val MAX_DIGEST_CHARS = 1_500
+        private const val MIN_FOLLOWUP_CHARS = 20
+        private const val CLARIFY_MAX = 2
+        const val CLARIFY_LEAD = "Before I call it, let me get this right —"
 
         /** COMPANION REPLY prompt (~250 tokens). The words come from the model; every fact comes from the engine's result. */
         const val COACH_PROMPT = """You are Strategos, a calm, warm companion who helps a person think through a hard personal decision. You are not a therapist and you do not diagnose.

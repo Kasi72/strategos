@@ -129,10 +129,11 @@ class ArgonContextTest {
         val pick = directive.getValue("move_to_implement").jsonPrimitive.content
         assertTrue(pick.isNotBlank())
         assertTrue(directive.getValue("blocked_or_dominated_moves").jsonArray.isNotEmpty())
-        // The visible reply implements the engine's pick and carries the engine badge built from the same data.
+        // The visible reply implements the engine's pick. Phase G.4: the static "Engine: ..." badge is no longer
+        // appended to the chat text (it read as boilerplate); the move still leads the coach reply.
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
         assertTrue(reply, reply.contains("Clear-win move: Do this: $pick"))
-        assertTrue(reply, reply.lines().last().startsWith("Engine: "))
+        assertFalse("no engine badge in the chat text", reply.lines().any { it.startsWith("Engine: ") })
         assertFalse(reply.contains("Options to consider"))
         // Trajectory from call 1's deltas, damped.
         val points = trajectory.points("loan")
@@ -151,6 +152,6 @@ class ArgonContextTest {
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
         assertFalse(reply.contains("Send ten messages tonight"))
         assertTrue("falls back to the engine's own text", reply.contains("Options to consider"))
-        assertTrue(reply.lines().last().startsWith("Engine: "))
+        assertFalse("no engine badge in the chat text", reply.lines().any { it.startsWith("Engine: ") })
     }
 }

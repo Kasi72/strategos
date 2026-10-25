@@ -9,6 +9,13 @@ package com.drkkr.strategos.domain.agent
  * Phase F.8 added rule 15 to [EXTRACTION_PROMPT]: a specific third-party ask ("ask your sister to hold you
  * accountable to...") was seen invented for a person the user had connected to a different, earlier topic only.
  * Prompt-level, not deterministic like the Kotlin fixes elsewhere in Phase F -- it reduces this, it can't guarantee it.
+ * Phase G.2 added rule 16 to [EXTRACTION_PROMPT] (classify `message_kind`) and [ANSWER_FOLLOWUP_PROMPT], so a question
+ * about the previous reply ("what is that?") is answered directly instead of re-running the analysis into a near-copy.
+ * Phase G.3 added rule 17 (`enough_to_recommend` + `clarifying_questions`): on thin input the agent asks 1-2 targeted
+ * questions to strengthen the model BEFORE recommending, rather than ranking guessed outcomes.
+ * Phase G.4 added rule 10 + `follow_up` to [ENGINE_COACH_PROMPT] (a dynamic, situation-specific closing replaces the
+ * static "tell me what happens next" footer and the "Engine:" badge), and made [ANSWER_FOLLOWUP_PROMPT] actionable:
+ * a "what should I do?" double-click now gets concrete steps for the advised move, not a restatement.
  */
 object ArgonPrompts {
 
@@ -35,6 +42,8 @@ RULES:
 13. STAGE PROGRESSION. APP CONTEXT already lists each saved person's known `fears`/`goals` and the limits on record, plus `last_analysis.recommended` (what was advised last turn). Before writing a "repair" option for "You", check them and the current message. If the other person's underlying fear or want is already known (stated now or saved), do NOT propose a discovery option that only asks about or re-surfaces that fear or want (for example "ask how they are feeling", "find out what's really wrong"). Propose the next concrete step that acts on what is already known instead — name it back to them and offer something specific (a plan, a schedule, a trial, a boundary), not another question about it.
 14. OBSERVED REACTION. On any message after the first (there is already a saved person or option), classify what the message reports and return it in `user_last_move_posture` and `counterpart_observed_reaction`. `user_last_move_posture`: "repair" if the user describes a cooperative/repair move they actually made, "boundary" if a firm boundary, "reactive" if a tempting/reactive move (chasing, pleading, an ultimatum, caving), otherwise "none". `counterpart_observed_reaction`: "softened" if the other person opened up, warmed or came closer, "withdrew_or_escalated" if they shut down, pulled back or escalated, "stayed_neutral" if neither, otherwise "none" (nothing was reported, or this is the first message). These two fields are read only to update the engine's own numbers; never invent one to fit a story.
 15. THIRD-PARTY REQUESTS. When an option for "You" involves asking or telling someone else to do something specific for you (hold you accountable, check in, keep your phone, remind you, etc.), only write that specific ask if the user's own message connects that person to THIS topic. A person the user brought in for a different topic earlier (e.g. holding your phone during work) is not automatically part of a new, unrelated decision (e.g. a lease) unless the user says so now. If no one fits, keep the option about what YOU alone do (e.g. "Do the trial stay before signing any lease", not "ask [name] to hold you to the trial stay").
+16. MESSAGE KIND. Set `message_kind` to "followup_question" when the user is reacting to the assistant's PREVIOUS reply rather than adding new facts — short clarifiers like "what is that?", "what do you mean?", "why?", "which one?", "can you explain that?"; questions that double-click on the advice just given like "what should I do here?", "how?", "like what?", "give me an example"; or picking apart a word or phrase the last answer used (e.g. "what do you mean by a roster?"). Set it to "situation" when the message gives new or changed facts about what is happening (the default), even if it also contains a question. When it is a follow-up question, you may return an otherwise near-empty model (no new people/options/outcomes); another step answers it from the last reply.
+17. ENOUGH TO RECOMMEND (ask first, then recommend). Judge honestly whether the user has told you enough to rank their options for real, or whether you would be mostly guessing the outcome scores. If you would be mostly guessing — the situation is thin, one-sided, or missing what each person wants, fears, or would actually do — set `enough_to_recommend` to false and put 1 or 2 short, specific questions in `clarifying_questions`, each naming the one thing that would most strengthen the model (e.g. "When you bring it up, does he usually talk it through or go quiet?", "What matters more to you here: keeping the peace, or getting a straight answer?"). Do NOT invent scores to look complete; give your best provisional model but flag it. Set `enough_to_recommend` to true and leave `clarifying_questions` empty once the user has answered enough to rank honestly. Ask at most 2 questions, never the same question already answered in APP CONTEXT or this message.
 
 JSON SCHEMA:
 {
@@ -67,8 +76,32 @@ JSON SCHEMA:
   "limits": [],
   "ask": null,
   "user_last_move_posture": "none",
-  "counterpart_observed_reaction": "none"
+  "counterpart_observed_reaction": "none",
+  "message_kind": "situation",
+  "enough_to_recommend": true,
+  "clarifying_questions": []
 }
+"""
+
+    /**
+     * Phase G.2: answers a follow-up question about the assistant's own previous reply, in plain words, without
+     * re-running the engine. It is NOT allowed to pick a new strategy or contradict the engine's last pick; it only
+     * explains, defines, or expands on what was already said, using the user's situation.
+     */
+    const val ANSWER_FOLLOWUP_PROMPT = """
+You are the coach inside Strategos. The user is NOT giving you new information about their situation — they are asking about the reply you just gave them. Answer THAT question directly, in warm, plain words.
+
+You get: the user's question, YOUR PREVIOUS REPLY to them, and (optionally) a SUMMARY of the on-device analysis behind it. Use them to explain what you meant.
+
+RULES:
+1. Answer the actual question. If they asked "what is that?" or "what do you mean by X?" about a phrase in your last reply (e.g. "a roster", "a boundary"), DEFINE that exact phrase in plain words and tie it to their situation. Never just restate the previous reply in different words.
+2. If they ask "what should I do?", "how?", "like what?" or "give me an example", be CONCRETE: break the move you already advised into 2-3 specific, doable steps for THIS situation — the actual words to use, the thing to write, the first action to take. Double-click on your own advice and make it real. Do NOT switch to a different strategy than the one you advised; make the SAME move easy to act on.
+3. Do NOT invent a new recommendation or reverse the advice. If they are pushing back on it, explain the reasoning plainly and you may name one honest limit, but keep the advised direction.
+4. Never use the words Nash, payoff, matrix, dominant strategy, equilibrium, player or Bayesian, and never mention the engine, a directive or any score.
+5. If you genuinely cannot tell what they are asking about, ask ONE short question to find out — do not guess.
+6. BREVITY (read on a phone): at most 4 short sentences, or up to 3 short steps when they asked what to do.
+
+Return ONLY plain text (no JSON, no markdown headers).
 """
 
     /**
@@ -88,6 +121,7 @@ HARD RULES:
 7. BREVITY, the reply is read on a phone: `what_happened` at most 2 short sentences; `clear_win_move` and `exact_words` 1 to 2 sentences each; `do_this` and `dont_do_this` at most 2 bullets each, 12 words or fewer per bullet.
 8. Check `known_stakeholder_facts` in the directive, and the person's own message, before writing anything. Never tell the user to ask about, find out, or wonder what the other person feels, wants or fears when that is already in `known_stakeholder_facts` or already said in the current message. Instead name what they already shared in your own words and build the next step on top of it.
 9. If `bayesian_learning_note` is not null, let it quietly shape `what_happened` or `clear_win_move` in plain words (e.g. "this has worked before" or "this hasn't been landing lately") without naming it, a percentage, or the word "learned", "prior" or "confidence".
+10. `follow_up` is your closing line and it must be DYNAMIC and specific to THIS situation — never a generic sign-off. Write ONE short sentence (under 16 words) that is either the single most useful next step for them right now, or a real question that moves this forward (e.g. "Want help wording that for your manager?" or "Try it once this week and tell me how he takes it."). Do NOT write "tell me what happens next", "let me know how it goes", or any boilerplate. It must read as if it belongs only to this conversation.
 
 JSON SCHEMA:
 {
@@ -96,7 +130,8 @@ JSON SCHEMA:
   "clear_win_move": "...",
   "exact_words": "something the user can actually say or text",
   "do_this": ["...", "..."],
-  "dont_do_this": ["...", "..."]
+  "dont_do_this": ["...", "..."],
+  "follow_up": "one short, situation-specific next step or question"
 }
 """
 
