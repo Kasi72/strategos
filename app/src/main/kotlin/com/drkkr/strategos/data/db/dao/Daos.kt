@@ -92,6 +92,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao interface JournalDao {
     @Insert suspend fun insertEntry(e: JournalEntryEntity)
     @Query("UPDATE journal_entry SET sync_status = :status, mood_tag = :moodTag WHERE id = :id") suspend fun updateEntryStatus(id: String, status: String, moodTag: String)
+    @Query("UPDATE journal_entry SET linked_scenario_id = :scenarioId WHERE id = :id") suspend fun setLinkedScenario(id: String, scenarioId: String?)
     @Query("SELECT * FROM journal_entry WHERE (:scenarioId IS NULL OR linked_scenario_id = :scenarioId) ORDER BY created_at DESC")
     fun observeEntries(scenarioId: String?): Flow<List<JournalEntryEntity>>
     @Query("SELECT * FROM journal_entry ORDER BY created_at DESC") suspend fun allEntries(): List<JournalEntryEntity>

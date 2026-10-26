@@ -4,7 +4,9 @@ import com.drkkr.strategos.data.db.entities.MemoryItemEntity
 import com.drkkr.strategos.domain.agent.AiReview
 import com.drkkr.strategos.domain.agent.BrainFact
 import com.drkkr.strategos.domain.agent.BrainFactKind
+import com.drkkr.strategos.domain.agent.CrossProjectPeople
 import com.drkkr.strategos.domain.agent.InfluenceGraph
+import com.drkkr.strategos.domain.agent.PersonCarryOver
 import com.drkkr.strategos.domain.agent.ProjectBrain
 import com.drkkr.strategos.domain.agent.ReviewAction
 import com.drkkr.strategos.domain.agent.ReviewItem
@@ -43,6 +45,19 @@ class ProjectBrainRepository(
     /** The "Who pulls on whom" map: nodes and weighted, labelled, inferred-flagged edges. */
     fun influence(scenarioId: String): InfluenceGraph? =
         scenarios.find(scenarioId)?.let { InfluenceGraph.from(it) }
+
+    /** People this new project names that another project already knows — offer to bring them over. */
+    fun carryOverSuggestions(scenarioId: String): List<PersonCarryOver> {
+        val target = scenarios.find(scenarioId) ?: return emptyList()
+        return CrossProjectPeople.suggestions(target, scenarios.scenarios.value)
+    }
+
+    /** Bring one shared person's knowledge over, flagged for review (suggest, don't merge). */
+    suspend fun bringOverPerson(targetId: String, sourceId: String, name: String): Boolean {
+        val target = scenarios.find(targetId) ?: return false
+        val source = scenarios.find(sourceId) ?: return false
+        return scenarios.save(CrossProjectPeople.bringOver(target, source, name)) is SaveResult.Success
+    }
 
     /** "Add something the app should know": a free, user-stated fact. Returns its memory id. */
     suspend fun addFact(scenarioId: String, text: String): String =

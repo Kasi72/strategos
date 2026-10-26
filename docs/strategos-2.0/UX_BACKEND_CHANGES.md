@@ -142,11 +142,25 @@ Feeds: pill visibility + one-line peek. Board: Cutlist Q#1, Settings.
 ## Phase UX-10 — Journal link suggestions + cross-project carry-over
 Feeds: LinkSuggestionChip, "Bring over what I know about X?". Board: Hub, Cutlist Q#3.
 
-- [ ] **Link-suggestion for existing entries (new)** — screener proposes linking an already-written
-  unlinked entry to a project (separate from a takeaway).
-- [ ] **Cross-project person carry-over (new)** — detect a familiar person name in a new project and
-  offer a one-time suggest-don't-merge copy (open question #3).
-- **Accept:** suggestion emitted + Apply/Dismiss reuse post-note handlers; no silent filing.
+- [x] **Link-suggestion for existing entries (new)** — `JournalRepository.linkSuggestions(id)` surfaces
+  unlinked entries the screener tied to a project; `link(entry, scenario)` attaches (user-confirmed,
+  `JournalDao.setLinkedScenario`), `dismissLink` drops the suggestion leaving the entry global. _Done UX.10._
+- [x] **Cross-project person carry-over (`CrossProjectPeople`, new)** — detects a familiar but blank
+  person in a new project and offers a one-time copy; `bringOver` copies wants/fears/role as
+  `AI_INFERRED` (flagged for review, brains stay separate — open question #3). Exposed via
+  `ProjectBrainRepository.carryOverSuggestions`/`bringOverPerson`. _Done UX.10._
+- [x] **Accept:** `JournalLinkSuggestionTest` (suggest/link/dismiss, entry stays global on dismiss) +
+  `CrossProjectPeopleTest` (suggest familiar-blank, skip known, flagged copy, separate ids).
+
+---
+
+## Status
+All ten phases complete; `./gradlew :app:testDebugUnitTest` green and `:app:compileDebugKotlin`
+clean. Backend read models + repositories are in place for the redesigned Overview (dashboard),
+Projects list, X-ray and journal/settings surfaces. **Next:** the UI slices (per `DESIGN.md` §4) wire
+per-screen ViewModels (`ProjectsViewModel`, `ProjectOverviewViewModel`, `XRayViewModel`) onto these
+repositories — including the one deferred backend item, the Projects combined read (UX-1), which is a
+`combine()` in `ProjectsViewModel`.
 
 ---
 

@@ -18,6 +18,9 @@ data class JournalEntryView(
     val id: String, val linkedScenarioId: String?, val text: String, val moodTag: String, val syncStatus: String, val createdAt: Long
 )
 
+/** A suggestion to link an existing journal entry to a project (the Journal tab's chip). */
+data class LinkSuggestion(val entryId: String, val text: String, val moodTag: String, val createdAt: Long, val scenarioId: String)
+
 /** Space 2. Saving is one local write and never waits for the model (invariant I11). */
 class JournalRepository(
     private val db: StrategosDatabase,
@@ -59,6 +62,24 @@ class JournalRepository(
     suspend fun activePostNotes(scenarioId: String): List<JournalInsightPostNoteEntity> = dao.activePostNotes(scenarioId)
 
     suspend fun dismissPostNote(id: String) = dao.dismissPostNote(id)
+
+    /**
+     * Entries the screener found relevant to a project but that the user has not linked there yet —
+     * the Journal tab's "Link this entry to <project>?" chips. One per entry; already-linked ones drop out.
+     */
+    suspend fun linkSuggestions(scenarioId: String): List<LinkSuggestion> =
+        dao.activePostNotes(scenarioId).map { it.journalEntryId }.distinct().mapNotNull { eid ->
+            val e = entry(eid) ?: return@mapNotNull null
+            if (e.linkedScenarioId == scenarioId) null
+            else LinkSuggestion(eid, e.text, e.moodTag, e.createdAt, scenarioId)
+        }
+
+    /** "Link": attach an existing entry to a project (user-confirmed; the app never links silently). */
+    suspend fun link(entryId: String, scenarioId: String) = dao.setLinkedScenario(entryId, scenarioId)
+
+    /** "Not this": drop the suggestion to link this entry to the project, leaving the entry where it is. */
+    suspend fun dismissLink(entryId: String, scenarioId: String) =
+        dao.activePostNotes(scenarioId).filter { it.journalEntryId == entryId }.forEach { dao.dismissPostNote(it.id) }
 
     /**
      * "Apply to Playbook": marks the note applied, remembers the advice as a preference, and leaves an EVENT note in the
