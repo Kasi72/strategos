@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,13 +68,37 @@ private fun ProjectsRoute(nav: CalmNav) {
     val vm: ProjectsViewModel = viewModel()
     val ui by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+    var renaming by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var deleting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val nameOf = { id: String? -> ui.projects.firstOrNull { it.id == id }?.name.orEmpty() }
+
+    renaming?.let { id ->
+        var text by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf(nameOf(id)) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text("Rename project") },
+            text = { androidx.compose.material3.OutlinedTextField(text, { text = it }, singleLine = true) },
+            confirmButton = { Text("Save", color = Calm.colors.action, modifier = Modifier.clickable { vm.rename(id, text); renaming = null }.then(Modifier.padding(12.dp))) },
+            dismissButton = { Text("Cancel", color = Calm.colors.ink2, modifier = Modifier.clickable { renaming = null }.then(Modifier.padding(12.dp))) }
+        )
+    }
+    deleting?.let { id ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete ${nameOf(id)}?") },
+            text = { Text("Its memory and topics go with it. Your journal entries stay.") },
+            confirmButton = { Text("Delete project", color = Calm.colors.tension, modifier = Modifier.clickable { vm.delete(id); deleting = null }.then(Modifier.padding(12.dp))) },
+            dismissButton = { Text("Cancel", color = Calm.colors.ink2, modifier = Modifier.clickable { deleting = null }.then(Modifier.padding(12.dp))) }
+        )
+    }
     ProjectsScreen(ui, ProjectsActions(
         onDraft = vm::setDraft,
         onSend = { scope.launch { vm.createProject()?.let { nav.go(CalmRoute.Talk(it)) } } },
         onPickExample = vm::setDraft,
         onOpenProject = { nav.go(CalmRoute.Overview(it)) },
+        onRename = { renaming = it },
         onArchive = vm::archive,
-        onDelete = vm::delete,
+        onDelete = { deleting = it },
         onOpenArchived = {},
         onAddKey = { nav.selectTab(DockTab.SETTINGS) },
         onOpenJournal = { nav.selectTab(DockTab.JOURNAL) },

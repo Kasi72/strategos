@@ -159,31 +159,38 @@ All ten backend phases complete; `./gradlew :app:testDebugUnitTest` green and `:
 clean. Backend read models + repositories are in place for the redesigned Overview (dashboard),
 Projects list, X-ray and journal/settings surfaces.
 
-## UI slices (DESIGN.md §4) — in progress
-Built in a new package `ui/calm/` so it compiles **alongside** the old app; nothing is wired into
-`MainActivity` navigation yet, so the running app is unchanged until the visual direction is reviewed.
+## UI slices (DESIGN.md §4)
+`MainActivity` now launches `ui/calm/CalmApp` (Projects -> Overview -> Talk; dock = Projects / Journal /
+Settings). The old tab UI is still compiled but unreachable.
 
-- [x] **UI-1 Theme & tokens** — `ui/calm/theme/StrategosTheme.kt`: calm color tokens (light+dark per
-  §2), `CalmColors`/`CalmType`/`CalmDimens`, the sky `groundBrush`, and the M3 wrapper. Fonts stand in
-  with platform SansSerif/Serif/Monospace (no font dep added) — swapping the real faces is a later,
-  isolated change.
-- [x] **UI-2 Projects (board 04)** — `ProjectsViewModel` does the deferred UX-1 combined read
-  (`combine(scenarios, draft)` → per-project momentum/spark/subtitle), with create/archive/rename/
-  delete. `ProjectsScreen` (stateless) + `StartComposer`, `ProjectCard` (long-press rename/archive/
-  delete), `MomentumSpark`, `StatusWord`, `ExampleStarters`, `KeyNudgeCard`, `StrategosDock`, with
-  light/dark/first-run `@Preview`s. Pure label logic tested in `ProjectsUiTest`.
+Done and verified on the emulator against a real project:
+- [x] **Theme & tokens** — `ui/calm/theme` (light/dark, ground brush, serif wordmark, lifted `calmCard`).
+- [x] **Projects (board 04)** — composer, cards with momentum spark + soft word, first-run examples,
+  long-press Rename (dialog) / Archive / Delete (confirm dialog).
+- [x] **Project Overview (board Hub)** — momentum chart + projections + event pins, quick-check, standing
+  Do's/Don'ts, pattern card (+Wikipedia link), conversations, memory with yours/inferred badges,
+  influence map, journal teaser, Continue/Start chat FAB.
+- [x] **Review AI inputs** — sheet with Keep / Remove / Accept all (banner count updates live).
+- [x] **Add something the app should know** — free user fact.
+- [x] **X-ray sheet (boards 07/08)** — graph-paper sheet, 3x2 score grid derived from the scenario's own
+  payoffs, headline + Robust/Fragile pinned to the engine's directive (never contradicts the chat), odds
+  slider recomputes the pure grid live, Keep as my estimate / Reset, Why this works.
+- [x] **Settings** — Reveal the math (Always / On tap / Never) replaces "Show details"; model picker shown
+  whenever a key is connected.
 
-**Next UI:** wire `MainActivity` to a nav graph (Projects → Overview → Talk, dock = Projects/Journal/
-Settings), then the Project Overview screen onto its repositories, then Talk, X-ray, Journal, Settings.
-This step replaces the old tab UI, so it wants a visual review first.
+Interim (still the proven legacy screens, hosted inside the calm shell): **Talk**, **Journal**, **Settings
+(key/model/privacy)**. They work but are not yet restyled.
+
+Remaining:
+- [ ] Talk redesign: serif coach card, engine pill that honours Reveal the math (the setting is stored but
+  nothing reads it yet), topic chips, composer with dictation; Overview thread rows should open that thread.
+- [ ] Journal redesign: week strip + month calendar, per-project Journal tab with link suggestions
+  (`JournalRepository.linkSuggestions/link/dismissLink` are ready).
+- [ ] Settings visual redesign (board 11) incl. "Delete everything" typed confirm; Archived list;
+  onboarding (board 03) and the States board (13): empty / error / offline / long content.
+- [ ] Real fonts (Figtree, Source Serif 4, IBM Plex Mono) — platform families stand in today.
+- [ ] X-ray second slider (third-party "backs your limit") — needs a BLUEPRINT decision; only the
+  "takes it well" odds are wired.
 
 _Note: `ProvenanceDefaultsTest.TC_PROV_02` is a pre-existing time-flake (two `Scenario()` defaults a
-millisecond apart); it passes on rerun and is unrelated to these changes._
-
----
-
-## Already exists (no backend change)
-Engine robustness / payoffs / `stressVerdict` (ROBUST/FRAGILE); `ScenarioRepository.scenarios`
-StateFlow; thread CRUD; `TrajectoryCalculator` positive/negative projections; `FactStatus`;
-`ProvenanceStats` counts; journal encryption + screener + post-note Apply/Dismiss + multi-project
-fan-out + per-project filter + mood tags; archetype detection + the five plain labels.
+millisecond apart); it passes on rerun._

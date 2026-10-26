@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import com.drkkr.strategos.agent.AiSettingsUi
 import com.drkkr.strategos.agent.KeyState
 import com.drkkr.strategos.data.repo.UiMode
+import androidx.compose.material3.FilterChip
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.components.UiPalette
 import com.drkkr.strategos.ui.components.rememberPalette
@@ -110,18 +111,19 @@ fun AiSettingsScreen(vm: StrategosViewModel) {
 
         // ── Model ─────────────────────────────────────────────────────────────
         Text("Model", color = p.ink, style = MaterialTheme.typography.titleMedium)
-        if (mode == UiMode.EXPERT && ui.hasKey) ModelPicker(ui, p, onSelect = controller::selectModel, onRefresh = { controller.refreshModels() })
+        if (ui.hasKey) ModelPicker(ui, p, onSelect = controller::selectModel, onRefresh = { controller.refreshModels() })
         else Text(ui.model, color = p.muted, style = MaterialTheme.typography.bodyMedium)
         ui.modelMessage?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall) }
 
-        // ── Mode ──────────────────────────────────────────────────────────────
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Show details (for professionals)", color = p.ink, style = MaterialTheme.typography.titleMedium)
-                Text("Adds the model tabs, the engine's reports and the AI input review.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+        // ── Reveal the math ───────────────────────────────────────────────────
+        val reveal by vm.revealMath.collectAsState()
+        Text("Reveal the math", color = p.ink, style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(com.drkkr.strategos.data.repo.RevealMath.ALWAYS to "Always", com.drkkr.strategos.data.repo.RevealMath.ON_TAP to "On tap", com.drkkr.strategos.data.repo.RevealMath.NEVER to "Never").forEach { (m, label) ->
+                FilterChip(selected = reveal == m, onClick = { vm.setRevealMath(m) }, label = { Text(label) }, modifier = Modifier.testTag("reveal_${m.name.lowercase()}"))
             }
-            Switch(checked = mode == UiMode.EXPERT, onCheckedChange = { vm.setUiMode(if (it) UiMode.EXPERT else UiMode.GUIDED) }, modifier = Modifier.testTag("expert_toggle"))
         }
+        Text("A small label sits under each reply. Tap it to see the numbers behind the advice. Nothing else changes.", color = p.muted, style = MaterialTheme.typography.bodySmall)
 
         // ── Privacy and data ──────────────────────────────────────────────────
         var showPrivacy by remember { mutableStateOf(false) }

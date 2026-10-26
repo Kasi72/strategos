@@ -138,6 +138,13 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         .map { v -> runCatching { UiMode.valueOf(v.orEmpty()) }.getOrDefault(UiMode.GUIDED) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, UiMode.GUIDED)
 
+    /** Settings ▸ Reveal the math (Always | On tap | Never); On tap is the default. */
+    val revealMath: StateFlow<com.drkkr.strategos.data.repo.RevealMath> = (container.settingsRepository?.observeRevealMath() ?: flowOf(null))
+        .map { v -> runCatching { com.drkkr.strategos.data.repo.RevealMath.valueOf(v.orEmpty()) }.getOrDefault(com.drkkr.strategos.data.repo.RevealMath.ON_TAP) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.drkkr.strategos.data.repo.RevealMath.ON_TAP)
+
+    fun setRevealMath(m: com.drkkr.strategos.data.repo.RevealMath) { viewModelScope.launch { container.settingsRepository?.setRevealMath(m) } }
+
     fun setUiMode(mode: UiMode) { viewModelScope.launch { container.settingsRepository?.setUiMode(mode) } }
 
     /** Deletes every conversation (messages, summaries, change sets). Scenarios stay. */
