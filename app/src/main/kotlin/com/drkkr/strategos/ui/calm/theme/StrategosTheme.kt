@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -147,7 +148,8 @@ val CalmType.wordmark: TextStyle get() = title.copy(fontFamily = FontFamily.Seri
  */
 fun Modifier.calmCard(colors: CalmColors, shape: Shape = RoundedCornerShape(CalmDimens.cardRadius)): Modifier =
     this.shadow(elevation = 10.dp, shape = shape, ambientColor = Color(0xFF18306A), spotColor = Color(0xFF18306A))
-        .background(colors.card, shape)
+        // Opaque base first: a translucent fill lets the drop shadow show through as an inner rectangle.
+        .background(colors.card.compositeOver(colors.ground), shape)
         .border(1.dp, colors.cardBorder, shape)
 
 /** Shape and spacing constants named in DESIGN.md §2 (the only literal dp/sp screens may use). */

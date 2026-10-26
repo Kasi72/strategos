@@ -21,6 +21,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.drkkr.strategos.ui.StrategosViewModel
+import com.drkkr.strategos.ui.counsel.CounselTab
+import com.drkkr.strategos.ui.journal.JournalTab
+import com.drkkr.strategos.ui.settings.AiSettingsScreen
 import com.drkkr.strategos.ui.calm.overview.OverviewActions
 import com.drkkr.strategos.ui.calm.overview.OverviewScreen
 import com.drkkr.strategos.ui.calm.overview.OverviewViewModel
@@ -45,9 +49,9 @@ fun CalmApp() {
             when (val route = nav.current) {
                 CalmRoute.Projects -> ProjectsRoute(nav)
                 is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
-                is CalmRoute.Talk -> Placeholder("Talk — coming next")
-                CalmRoute.Journal -> Placeholder("Journal — coming next")
-                CalmRoute.Settings -> Placeholder("Settings — coming next")
+                is CalmRoute.Talk -> LegacyTalkRoute(nav, route.projectId)
+                CalmRoute.Journal -> LegacyHost { JournalTab(it) }
+                CalmRoute.Settings -> LegacyHost { AiSettingsScreen(it) }
             }
         }
     }
@@ -98,9 +102,33 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     ))
 }
 
+/**
+ * Interim hosts: Talk, Journal and Settings still render the proven screens from the old UI inside the
+ * calm shell (old theme, shared StrategosViewModel) until their redesigned versions land, so the app
+ * stays fully usable (chat, AI key, journal) while migrating.
+ */
 @Composable
-private fun Placeholder(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, style = Calm.type.title, color = Calm.colors.ink3)
+private fun LegacyHost(content: @Composable (StrategosViewModel) -> Unit) {
+    val vm: StrategosViewModel = viewModel()
+    OldTheme { Box(Modifier.fillMaxSize().background(OldTheme.surface())) { content(vm) } }
+}
+
+@Composable
+private fun LegacyTalkRoute(nav: CalmNav, projectId: String) {
+    val vm: StrategosViewModel = viewModel()
+    val st by vm.state.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(projectId, st.scenarios.size) {
+        st.scenarios.firstOrNull { it.id == projectId }?.let { if (st.activeScenario?.id != projectId) vm.setActiveScenario(it) }
     }
+    BackHandler { nav.back() }
+    OldTheme {
+        Box(Modifier.fillMaxSize().background(OldTheme.surface())) {
+            CounselTab(vm, expert = false, onOpenSettings = { nav.selectTab(DockTab.SETTINGS) }, onGoHome = { nav.back() }, onReviewAi = {})
+        }
+    }
+}
+
+private object OldTheme {
+    @Composable operator fun invoke(content: @Composable () -> Unit) = com.drkkr.strategos.ui.theme.StrategosTheme(content = content)
+    @Composable fun surface() = androidx.compose.material3.MaterialTheme.colorScheme.background
 }
