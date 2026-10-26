@@ -8,8 +8,14 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -131,6 +137,18 @@ private val Type = CalmType(
 )
 
 private val LocalCalmType = staticCompositionLocalOf { Type }
+
+/** The serif wordmark style ("Strategos"), Source Serif 4 22/600 on the boards. */
+val CalmType.wordmark: TextStyle get() = title.copy(fontFamily = FontFamily.Serif)
+
+/**
+ * The lifted glass card: a soft cool-blue shadow, the glass fill, and a bright 1dp border
+ * (DESIGN.md §2 "card"). Use everywhere a card, composer or dock surface is drawn.
+ */
+fun Modifier.calmCard(colors: CalmColors, shape: Shape = RoundedCornerShape(CalmDimens.cardRadius)): Modifier =
+    this.shadow(elevation = 10.dp, shape = shape, ambientColor = Color(0xFF18306A), spotColor = Color(0xFF18306A))
+        .background(colors.card, shape)
+        .border(1.dp, colors.cardBorder, shape)
 
 /** Shape and spacing constants named in DESIGN.md §2 (the only literal dp/sp screens may use). */
 object CalmDimens {

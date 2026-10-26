@@ -47,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import com.drkkr.strategos.domain.analysis.MomentumStatus
 import com.drkkr.strategos.ui.calm.theme.Calm
 import com.drkkr.strategos.ui.calm.theme.StrategosTheme
+import com.drkkr.strategos.ui.calm.theme.calmCard
 import com.drkkr.strategos.ui.calm.theme.groundBrush
+import com.drkkr.strategos.ui.calm.theme.wordmark
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -69,7 +71,7 @@ fun ProjectsScreen(ui: ProjectsUiState, a: ProjectsActions) {
         Box(Modifier.fillMaxSize().background(c.groundBrush).padding(pad)) {
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
-                    Text("Strategos", style = Calm.type.title, color = c.ink,
+                    Text("Strategos", style = Calm.type.wordmark, color = c.ink,
                         modifier = Modifier.padding(start = Calm.dimens.gutter, top = 12.dp, bottom = 4.dp))
                     Text("What's on your mind?", style = Calm.type.display, color = c.ink,
                         modifier = Modifier.padding(horizontal = Calm.dimens.gutter).padding(bottom = 16.dp))
@@ -115,8 +117,7 @@ private fun StartComposer(draft: String, canSend: Boolean, onDraft: (String) -> 
     val c = Calm.colors
     Column(
         Modifier.padding(horizontal = Calm.dimens.gutter)
-            .clip(RoundedCornerShape(24.dp)).background(c.card)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(24.dp))
+            .calmCard(c, RoundedCornerShape(24.dp))
             .padding(start = Calm.dimens.gutter, end = 4.dp, top = Calm.dimens.cardPadding, bottom = 4.dp)
     ) {
         Box(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(end = 8.dp)) {
@@ -149,8 +150,7 @@ private fun KeyNudgeCard(onAddKey: () -> Unit) {
     val c = Calm.colors
     Row(
         Modifier.padding(horizontal = Calm.dimens.gutter, vertical = 12.dp).fillMaxWidth()
-            .clip(RoundedCornerShape(Calm.dimens.cardRadius)).background(c.card)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(Calm.dimens.cardRadius))
+            .calmCard(c)
             .clickable { onAddKey() }.padding(Calm.dimens.cardPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -165,8 +165,7 @@ private fun ExampleStarter(text: String, onClick: () -> Unit) {
     Text(
         text, style = Calm.type.body, color = c.ink2,
         modifier = Modifier.padding(horizontal = Calm.dimens.gutter, vertical = 6.dp).fillMaxWidth()
-            .clip(RoundedCornerShape(Calm.dimens.cardRadius)).background(c.card)
-            .border(1.dp, c.cardBorder, RoundedCornerShape(Calm.dimens.cardRadius))
+            .calmCard(c)
             .clickable { onClick() }.heightIn(min = Calm.dimens.rowMinHeight).padding(Calm.dimens.cardPadding)
     )
 }
@@ -179,8 +178,7 @@ private fun ProjectCard(p: ProjectCardUi, onClick: () -> Unit, onRename: () -> U
     Box {
         Row(
             Modifier.padding(horizontal = Calm.dimens.gutter, vertical = 6.dp).fillMaxWidth()
-                .clip(RoundedCornerShape(Calm.dimens.cardRadius)).background(c.card)
-                .border(1.dp, c.cardBorder, RoundedCornerShape(Calm.dimens.cardRadius))
+                .calmCard(c)
                 .combinedClickable(onClick = onClick, onLongClick = { menu = true })
                 .heightIn(min = 80.dp).padding(Calm.dimens.cardPadding),
             verticalAlignment = Alignment.CenterVertically
