@@ -49,7 +49,8 @@ data class OverviewUiState(
     val inferredTotal: Int = 0,
     val modelStrip: String = "",
     val influence: InfluenceGraph? = null,
-    val journalTeasers: List<JournalTeaserUi> = emptyList()
+    val journalTeasers: List<JournalTeaserUi> = emptyList(),
+    val reviewItems: List<com.drkkr.strategos.domain.agent.ReviewItem> = emptyList()
 )
 
 /** A conversation row for the Conversations section. */

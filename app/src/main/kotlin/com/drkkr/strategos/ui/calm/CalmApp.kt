@@ -90,6 +90,10 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     )
     val ui by vm.state.collectAsState()
     var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showReview by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showAdd by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (showReview) com.drkkr.strategos.ui.calm.overview.ReviewAiInputsSheet(ui.reviewItems, vm::review, vm::acceptAll) { showReview = false }
+    if (showAdd) com.drkkr.strategos.ui.calm.overview.AddFactDialog(onAdd = vm::addFact, onDismiss = { showAdd = false })
     if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
     OverviewScreen(ui, OverviewActions(
         onBack = { nav.back() },
@@ -100,8 +104,8 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
         onOpenReply = { nav.go(CalmRoute.Talk(projectId)) },
         onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
         onOpenXRay = { showXRay = true },
-        onReview = {},
-        onAddFact = {},
+        onReview = { showReview = true },
+        onAddFact = { showAdd = true },
         onApplyJournal = { vm.review(it, apply = true) },
         onDismissJournal = { vm.review(it, apply = false) },
         onOpenJournalTab = {}

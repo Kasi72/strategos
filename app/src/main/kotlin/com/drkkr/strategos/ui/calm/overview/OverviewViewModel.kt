@@ -8,6 +8,8 @@ import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.GuidanceRepository
 import com.drkkr.strategos.domain.agent.GuidanceKind
 import com.drkkr.strategos.domain.agent.PatternCatalog
+import com.drkkr.strategos.domain.agent.ReviewAction
+import com.drkkr.strategos.domain.agent.ReviewItem
 import com.drkkr.strategos.domain.agent.ProjectBrain
 import com.drkkr.strategos.domain.analysis.MomentumStatus
 import com.drkkr.strategos.ui.calm.projects.ProjectsUi
@@ -83,6 +85,7 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
                 inferredTotal = brain?.inferredTotal ?: 0,
                 modelStrip = brain?.counts?.let { "${it.people} people · ${it.options} options · ${it.outcomesFilled}/${it.outcomesExpected} outcomes" } ?: "",
                 influence = brainRepo?.influence(projectId),
+                reviewItems = brainRepo?.reviewItems(projectId).orEmpty(),
                 journalTeasers = notes.filter { !it.applied }.map {
                     JournalTeaserUi(it.id, it.insightHeadline, "Suggested takeaway: ${it.doThis}".trimEnd(), relative(it.createdAt, now))
                 }
@@ -97,6 +100,16 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
 
     fun review(postNoteId: String, apply: Boolean) = viewModelScope.launch {
         if (apply) journal?.applyPostNote(postNoteId) else journal?.dismissPostNote(postNoteId)
+    }
+
+    /** "Add something the app should know": a free fact, the user's own. */
+    fun addFact(text: String) = viewModelScope.launch { if (text.isNotBlank()) brainRepo?.addFact(projectId, text) }
+
+    fun review(item: ReviewItem, action: ReviewAction) = viewModelScope.launch { brainRepo?.review(projectId, item, action) }
+
+    /** "Accept all as my estimates": keep every inferred value as the user's own. */
+    fun acceptAll() = viewModelScope.launch {
+        brainRepo?.reviewItems(projectId)?.forEach { brainRepo.review(projectId, it, ReviewAction.KEEP) }
     }
 
     private suspend fun countLinked(id: String): Int = journal?.linkSuggestions(id)?.size ?: 0
