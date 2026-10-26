@@ -104,10 +104,13 @@ Feeds: Momentum chart pins/event list, Quick-check card. Board: Hub.
 ## Phase UX-7 — Influence map
 Feeds: "Who pulls on whom". Board: Hub.
 
-- [ ] **Influence graph (new read)** — nodes + typed edges with weight = sway, dashed = inferred,
-  plain-language edge labels ("shares your limit", "pushing for a yes", "can tip it"), derived from
-  `Stakeholder` authority/influence/coalitions/trustRelationships/`GameRole`.
-- **Accept:** weight + inferred-flag + label tests from a fixture.
+- [x] **Influence graph (`InfluenceGraph`, new read)** — nodes (self + inferred flags) and edges with
+  `weight` = sway (max authority/influence, floored so a tie still shows), plain labels ("wants their
+  way" / "can block this" / "can sway this" / "on your side" / "allied"), and an inferred flag for
+  dashed rendering. Derived from `Stakeholder` authority/influence/coalitions/trustRelationships/
+  `GameRole`. Exposed via `ProjectBrainRepository.influence(id)`. _Done UX.7._
+- [x] **Accept:** `InfluenceGraphTest` (node/self, pull labels, weight+floor, inferred node+edge,
+  one alliance edge per pair) from `Fx.loanFamily`.
 
 ## Phase UX-8 — X-ray engine wiring
 Feeds: X-ray sheet. Board: Compose, Xray/Prototype.

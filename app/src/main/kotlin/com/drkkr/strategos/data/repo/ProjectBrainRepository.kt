@@ -4,6 +4,7 @@ import com.drkkr.strategos.data.db.entities.MemoryItemEntity
 import com.drkkr.strategos.domain.agent.AiReview
 import com.drkkr.strategos.domain.agent.BrainFact
 import com.drkkr.strategos.domain.agent.BrainFactKind
+import com.drkkr.strategos.domain.agent.InfluenceGraph
 import com.drkkr.strategos.domain.agent.ProjectBrain
 import com.drkkr.strategos.domain.agent.ReviewAction
 import com.drkkr.strategos.domain.agent.ReviewItem
@@ -38,6 +39,10 @@ class ProjectBrainRepository(
     /** The inferred values still awaiting review (the amber banner's list). */
     fun reviewItems(scenarioId: String): List<ReviewItem> =
         scenarios.find(scenarioId)?.let { AiReview.items(it) } ?: emptyList()
+
+    /** The "Who pulls on whom" map: nodes and weighted, labelled, inferred-flagged edges. */
+    fun influence(scenarioId: String): InfluenceGraph? =
+        scenarios.find(scenarioId)?.let { InfluenceGraph.from(it) }
 
     /** "Add something the app should know": a free, user-stated fact. Returns its memory id. */
     suspend fun addFact(scenarioId: String, text: String): String =
