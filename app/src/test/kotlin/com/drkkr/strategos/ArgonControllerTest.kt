@@ -93,7 +93,8 @@ class ArgonControllerTest {
 
     @Test fun TC_CTRL2_03_applyPostNoteFromController() = runBlocking {
         fake.enqueue(textReply(high))
-        controller.recordJournalEntry("x", "ANXIOUS", "loan")
+        // >= 2 words so the Phase G.5 trivial-entry pre-filter screens it; the post-note content comes from the reply.
+        controller.recordJournalEntry("I keep checking my phone", "ANXIOUS", "loan")
         waitFor { controller.state.value.postNotes.isNotEmpty() }
         val id = controller.state.value.postNotes.single().id
         controller.applyJournalPostNote(id).join()

@@ -8,10 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -25,6 +27,8 @@ import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.counsel.CounselTab
 import com.drkkr.strategos.ui.journal.JournalTab
 import com.drkkr.strategos.ui.settings.AiSettingsScreen
+import com.drkkr.strategos.ui.calm.xray.XRayViewModel
+import com.drkkr.strategos.ui.calm.xray.XRayContent
 import com.drkkr.strategos.ui.calm.overview.OverviewActions
 import com.drkkr.strategos.ui.calm.overview.OverviewScreen
 import com.drkkr.strategos.ui.calm.overview.OverviewViewModel
@@ -85,6 +89,8 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
         factory = viewModelFactory { initializer { OverviewViewModel(app, projectId) } }
     )
     val ui by vm.state.collectAsState()
+    var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
     OverviewScreen(ui, OverviewActions(
         onBack = { nav.back() },
         onOpenChat = { nav.go(CalmRoute.Talk(projectId)) },
@@ -93,13 +99,31 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
         onSaveQuickCheck = { did, landed -> vm.saveQuickCheck(did, landed) },
         onOpenReply = { nav.go(CalmRoute.Talk(projectId)) },
         onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
-        onOpenXRay = {},
+        onOpenXRay = { showXRay = true },
         onReview = {},
         onAddFact = {},
         onApplyJournal = { vm.review(it, apply = true) },
         onDismissJournal = { vm.review(it, apply = false) },
         onOpenJournalTab = {}
     ))
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun XRayRoute(projectId: String, onDismiss: () -> Unit, onReadMore: (String) -> Unit) {
+    val app = LocalContext.current.applicationContext as Application
+    val vm: XRayViewModel = viewModel(key = "xray-$projectId", factory = viewModelFactory { initializer { XRayViewModel(app, projectId) } })
+    val ui by vm.state.collectAsState()
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = Calm.dimens.sheetTopRadius, topEnd = Calm.dimens.sheetTopRadius),
+        containerColor = Color.Transparent,
+        scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)
+    ) {
+        androidx.compose.foundation.layout.Box(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+            XRayContent(ui, onOdds = vm::setOdds, onKeep = { vm.keep() }, onReset = vm::reset, onReadMore = onReadMore, onClose = onDismiss)
+        }
+    }
 }
 
 /**

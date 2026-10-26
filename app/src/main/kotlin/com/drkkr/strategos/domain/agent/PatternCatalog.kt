@@ -107,13 +107,15 @@ object PatternCatalog {
         val other = s.players().firstOrNull { it.id != self?.id }
         return buildList {
             (s.constraints.firstOrNull { it.kind == Constraint.Kind.USER_HARD } ?: s.constraints.firstOrNull())
-                ?.label?.takeIf { it.isNotBlank() }?.let { add(PatternVariable("Your limit", it)) }
-            other?.goals?.firstOrNull { it.isNotBlank() }?.let { add(PatternVariable("${possessive(other.name)} need", it)) }
+                ?.label?.takeIf { it.isNotBlank() }?.let { add(PatternVariable("Your limit", cap(it))) }
+            other?.goals?.firstOrNull { it.isNotBlank() }?.let { add(PatternVariable("${possessive(other.name)} need", cap(it))) }
             s.stakeholders.firstOrNull { it.gameRole == GameRole.INFLUENCER }
-                ?.let { add(PatternVariable(it.name, it.role.ifBlank { "can tip it either way" })) }
-            other?.fears?.firstOrNull { it.isNotBlank() }?.let { add(PatternVariable("The doubt", it)) }
+                ?.let { add(PatternVariable(it.name, cap(it.role.ifBlank { "can tip it either way" }))) }
+            other?.fears?.firstOrNull { it.isNotBlank() }?.let { add(PatternVariable("The doubt", cap(it))) }
         }
     }
+
+    private fun cap(t: String) = t.trim().replaceFirstChar { it.uppercase() }
 
     private fun possessive(name: String): String = when {
         name.equals("You", ignoreCase = true) -> "Your"

@@ -104,13 +104,32 @@ class JournalTest {
 
     @Test fun TC_JRN_06_applyPostNoteUpdatesMemoryAndMarksApplied() = runBlocking {
         fake.enqueue(reply(high))
-        service.screen(journal.recordEntry("x", "ANXIOUS", sid).entryId)
+        // A substantive entry (>= 2 words) so the Phase G.5 trivial-entry pre-filter doesn't skip the screening call;
+        // the post-note content under test comes from the enqueued reply, not from this text.
+        service.screen(journal.recordEntry("I keep checking my phone", "ANXIOUS", sid).entryId)
         val note = journal.activePostNotes(sid).single()
         assertTrue(journal.applyPostNote(note.id))
         assertTrue(db.journalDao().getPostNote(note.id)!!.applied)
         val pref = memory.open(sid).single { it.kind == "PREFERENCE" }
         assertEquals("Urgency when facing silence: DO Wait a day | AVOID Don't double-text", pref.text)
         assertEquals("USER_ESTIMATE", pref.factStatus)
+    }
+
+    @Test fun TC_JRN_07_trivialEntryIsScreenedWithoutANetworkCall() = runBlocking {
+        // A single-word entry has nothing to link to a project: it is marked SCREENED locally, with no model call.
+        val id = journal.recordEntry("tired", "DRAINED", sid).entryId
+        assertTrue(service.screen(id))
+        assertEquals("SCREENED", db.journalDao().getEntry(id)!!.syncStatus)
+        assertTrue("no model call for a trivial entry", fake.requests.isEmpty())
+        assertTrue(journal.activePostNotes(sid).isEmpty())
+    }
+
+    @Test fun TC_JRN_08_trivialButCrisisStillScreens() = runBlocking {
+        // A crisis signal is never treated as trivial, even when short: the pre-filter must not skip it.
+        fake.enqueue(reply(""))
+        val id = journal.recordEntry("suicide", "DRAINED", sid).entryId
+        assertTrue(service.screen(id))
+        assertEquals("the crisis carve-out forces a screening call", 1, fake.requests.size)
     }
 
     @Test fun aiOffMakesNoCallAndKeepsRecorded() = runBlocking {
