@@ -63,11 +63,12 @@ class ConversationRepository(private val db: StrategosDatabase) {
      * caller creates Main on the first send. Shared with the thread chips so the two never disagree.
      */
     suspend fun landingThread(scenarioId: String): ConversationEntity? {
-        val threads = db.conversationDao().listThreadsForScenario(scenarioId)
+        val threads = db.conversationDao().listThreadsForScenario(scenarioId)   // pinned desc, then updated_at desc
         if (threads.isEmpty()) return null
-        val newest = threads.first()   // pinned desc, then updated_at desc
-        if (db.messageDao().lastVisible(newest.id) != null) return newest
-        return threads.minByOrNull { it.createdAt } ?: newest
+        // The most recently active thread that actually has a visible message…
+        threads.firstOrNull { db.messageDao().lastVisible(it.id) != null }?.let { return it }
+        // …otherwise the original "Main": earliest created, id as a deterministic tie-break.
+        return threads.minWithOrNull(compareBy({ it.createdAt }, { it.id }))
     }
 
     /**

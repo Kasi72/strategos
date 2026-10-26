@@ -80,11 +80,14 @@ Feeds: What-to-do section. Board: Hub.
 ## Phase UX-5 — PatternCatalog
 Feeds: Overview pattern card + X-ray "Why this works" (one shared source). Board: Compose, Hub.
 
-- [ ] **`PatternCatalog` (new)** — archetype label → { plain name, 3-sentence explainer, variable
-  templates filled from the scenario (limit / their need / third party / the doubt), Wikipedia URL }.
-  Extends the five `EngineDirectiveBuilder.PLAIN_LABEL` labels.
-- **Accept:** every archetype resolves to name + explainer + valid wiki URL; variable-fill from a
-  fixture scenario.
+- [x] **`PatternCatalog` (new)** — archetype id → { plain name, 3-sentence explainer, variable
+  templates filled from the scenario (limit / their need / third party / the doubt), Wikipedia URL },
+  for the 5 behavioral modules + `ultimatum` + the generic `pure-nash`. Accepts the trajectory's
+  UPPER_SNAKE form. _Done UX.5._
+  - `EngineDirective` now carries `dynamicArchetype` (the top module id) so the Overview/X-ray can look
+    it up; `PatternCatalog.forDirective(d, s)` is the convenience. Shared by both surfaces.
+- [x] **Accept:** `PatternCatalogTest` (every archetype → name/3-sentence summary/wiki; unknown → null;
+  UPPER_SNAKE; Trust-trap→Prisoner's-dilemma page; variable-fill from `Fx.loanFamily`).
 
 ## Phase UX-6 — Momentum events + Quick-check
 Feeds: Momentum chart pins/event list, Quick-check card. Board: Hub.

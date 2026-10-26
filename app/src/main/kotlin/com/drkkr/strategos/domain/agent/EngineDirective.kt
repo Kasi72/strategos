@@ -47,7 +47,9 @@ data class EngineDirective(
      */
     val knownFacts: List<String> = emptyList(),
     /** Phase F.6: the strongest pattern [BayesianUpdater] has learned about the counterpart's track record, or null if nothing has moved off the defaults yet. */
-    val bayesianLearningNote: String? = null
+    val bayesianLearningNote: String? = null,
+    /** The top behavioral module id (e.g. "prisoners-dilemma"), so the Overview can look it up in [PatternCatalog]. Null when no single pattern dominates. */
+    val dynamicArchetype: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -65,6 +67,7 @@ data class EngineDirective(
         put("stress_flip", stressFlip)
         putJsonArray("known_stakeholder_facts") { knownFacts.forEach { add(JsonPrimitive(it)) } }
         put("bayesian_learning_note", bayesianLearningNote)
+        put("dynamic_archetype", dynamicArchetype)
     }
 
     /**
@@ -187,7 +190,7 @@ object EngineDirectiveBuilder {
                 BlockedMove(a.label, reason, triggers)
             }
 
-        val (dynamicTexts, dynamicLabel) = dynamics(s, report.moduleResults.map { it.moduleId to it })
+        val (dynamicTexts, dynamicLabel, dynamicArchetype) = dynamics(s, report.moduleResults.map { it.moduleId to it })
         return EngineDirective(
             ready = true, recommendedMove = recommended.label, recommendedWhy = (recommendedPathway?.rationale ?: rankedPick.rationale).take(MAX_TEXT),
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
@@ -196,7 +199,8 @@ object EngineDirectiveBuilder {
             stressVerdict = if (fragile) "FRAGILE" else "ROBUST", stressFlip = flipText,
             moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
             knownFacts = knownFacts(s, previousMove, recommended.label),
-            bayesianLearningNote = BayesianUpdater.learningNote(s)
+            bayesianLearningNote = BayesianUpdater.learningNote(s),
+            dynamicArchetype = dynamicArchetype
         )
     }
 
@@ -230,7 +234,7 @@ object EngineDirectiveBuilder {
      * relationship: the user's calm move or their reactive one, against the other person's receptive or defensive reply.
      * Falls back to the whole model, then to generic equilibrium, only if nothing else applies.
      */
-    private fun dynamics(s: Scenario, fromReport: List<Pair<String, com.drkkr.strategos.domain.framework.AnalysisResult>>): Pair<List<String>, String?> {
+    private fun dynamics(s: Scenario, fromReport: List<Pair<String, com.drkkr.strategos.domain.framework.AnalysisResult>>): Triple<List<String>, String?, String?> {
         val dyad = twoByTwo(s) ?: s
         val modules = AnalysisPipeline.defaultRegistry().all().filter { it.id in PLAIN_LABEL }
         val scored = modules.mapNotNull { m ->
@@ -244,10 +248,10 @@ object EngineDirectiveBuilder {
                 val f = r.findings.firstOrNull()
                 "${PLAIN_LABEL.getValue(id)}: " + (f?.let { "${it.title}. ${it.detail}" } ?: r.explanation).take(MAX_TEXT)
             }
-            return texts to PLAIN_LABEL.getValue(scored.first().first)
+            return Triple(texts, PLAIN_LABEL.getValue(scored.first().first), scored.first().first)
         }
-        val generic = fromReport.firstOrNull { it.first == GENERIC }?.second ?: return emptyList<String>() to null
-        return listOf("$GENERIC_LABEL: " + (generic.findings.firstOrNull()?.let { "${it.title}. ${it.detail}" } ?: generic.explanation).take(MAX_TEXT)) to GENERIC_LABEL
+        val generic = fromReport.firstOrNull { it.first == GENERIC }?.second ?: return Triple(emptyList(), null, null)
+        return Triple(listOf("$GENERIC_LABEL: " + (generic.findings.firstOrNull()?.let { "${it.title}. ${it.detail}" } ?: generic.explanation).take(MAX_TEXT)), GENERIC_LABEL, GENERIC)
     }
 
     /** The user's calm move and reactive move against the other person's receptive and defensive replies, as a 2×2 game. */
