@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.QuickCheckFeedbackEntity
 import com.drkkr.strategos.data.db.entities.TrajectoryPointEntity
+import com.drkkr.strategos.domain.analysis.MomentumStatus
 import com.drkkr.strategos.domain.analysis.QuickCheckUpdater
 import com.drkkr.strategos.domain.analysis.TrajectoryCalculator
 import com.drkkr.strategos.domain.analysis.TrajectorySnapshot
@@ -21,6 +22,18 @@ class TrajectoryRepository(
     fun observePoints(scenarioId: String): Flow<List<TrajectoryPointEntity>> = db.trajectoryDao().observeForScenario(scenarioId)
 
     suspend fun points(scenarioId: String): List<TrajectoryPointEntity> = db.trajectoryDao().forScenario(scenarioId)
+
+    /** The last [n] points (oldest first), for the project-card sparkline and the Overview momentum chart. */
+    suspend fun recent(scenarioId: String, n: Int = SPARK_POINTS): List<TrajectoryPointEntity> {
+        val all = db.trajectoryDao().forScenario(scenarioId)
+        return if (all.size <= n) all else all.subList(all.size - n, all.size)
+    }
+
+    /** The one soft word for this project, from the trust/tension slopes of its recent points. */
+    suspend fun momentum(scenarioId: String, n: Int = SPARK_POINTS): MomentumStatus {
+        val pts = recent(scenarioId, n)
+        return MomentumStatus.of(pts.map { it.trustScore }, pts.map { it.tensionScore })
+    }
 
     /** The latest stored point as a snapshot, or the neutral start (50 / 50, streak 0) when the project has none. */
     suspend fun current(scenarioId: String): TrajectorySnapshot {
@@ -95,5 +108,5 @@ class TrajectoryRepository(
         consistencyStreak = s.consistencyStreak, activeArchetype = s.activeArchetype, timestamp = at
     )
 
-    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME"; const val JOURNAL_MOMENTUM = 3.0; const val MAX_SHIFT = 5.0; const val BACKSTORY_MAX_SHIFT = 2.0 }
+    companion object { const val DEFAULT_ARCHETYPE = "CHICKEN_GAME"; const val JOURNAL_MOMENTUM = 3.0; const val MAX_SHIFT = 5.0; const val BACKSTORY_MAX_SHIFT = 2.0; const val SPARK_POINTS = 12 }
 }
