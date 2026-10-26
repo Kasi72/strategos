@@ -51,6 +51,41 @@ class ConversationRepository(private val db: StrategosDatabase) {
         t.copy(updatedAt = maxOf(System.currentTimeMillis(), newest + 1)).also { db.conversationDao().upsert(it) }   // +1: a tie would not win
     }
 
+    /**
+     * Total visible (USER/ASSISTANT) messages across every thread of a project.
+     * The Overview chat button reads "Start chat" while this is 0, "Continue chat" otherwise.
+     */
+    suspend fun messageCount(scenarioId: String): Int = db.messageDao().countVisibleForScenario(scenarioId)
+
+    /**
+     * Where the chat button resumes: the most-recent thread if it has a visible message, otherwise the
+     * original "Main" thread (the earliest created). Null when the project has no thread yet, so the
+     * caller creates Main on the first send. Shared with the thread chips so the two never disagree.
+     */
+    suspend fun landingThread(scenarioId: String): ConversationEntity? {
+        val threads = db.conversationDao().listThreadsForScenario(scenarioId)
+        if (threads.isEmpty()) return null
+        val newest = threads.first()   // pinned desc, then updated_at desc
+        if (db.messageDao().lastVisible(newest.id) != null) return newest
+        return threads.minByOrNull { it.createdAt } ?: newest
+    }
+
+    /**
+     * One row per thread for the Overview's Conversations section: the thread's last visible line
+     * (raw; the screen truncates it) with its time, and whether it is the thread the chat button
+     * would open. Pinned-then-recent order, same as [listThreads].
+     */
+    suspend fun threadSummaries(scenarioId: String): List<ThreadSummary> {
+        val openId = landingThread(scenarioId)?.id
+        return db.conversationDao().listThreadsForScenario(scenarioId).map { t ->
+            val last = db.messageDao().lastVisible(t.id)
+            ThreadSummary(
+                id = t.id, title = t.title, lastLine = last?.text ?: "",
+                lastAt = last?.createdAt ?: t.updatedAt, isOpenNow = t.id == openId
+            )
+        }
+    }
+
     suspend fun deleteAll() = db.conversationDao().deleteAll()
 
     suspend fun get(id: String): ConversationEntity? = db.conversationDao().get(id)

@@ -25,20 +25,27 @@ numbered step.
 ## Phase UX-1 — Momentum status + Projects list data
 Feeds: Projects list (card sparkline + status word), Overview header word. Board: Compose, Projects.
 
-- [ ] **`MomentumStatus` (new, pure function)** — `from(trustSlope, tensionSlope) → improving | steady | tense`.
-- [ ] **`TrajectoryRepository.recent(id, n)` (new)** — last `n` points as a series; a `slope` helper.
+- [x] **`MomentumStatus` (new, pure function)** — `from(trustSlope, tensionSlope) → improving | steady | tense`.
+  _Done UX.1: `domain/analysis/MomentumStatus.kt`, with `slope()`/`of()` helpers._
+- [x] **`TrajectoryRepository.recent(id, n)` (new)** — last `n` points as a series; `momentum(id)` word.
+  _Done UX.1._
 - [ ] **Projects combined read** — expose scenario + recent trajectory together (currently
   `ScenarioRepository.scenarios` has no trajectory) so the card shows spark + word without an N+1.
-- **Accept:** unit tests for `MomentumStatus.from` boundaries; `recent`/slope tested.
+  _Deferred to the Projects UI slice: `ProjectsViewModel` combines `scenarios` with per-id `momentum`;
+  the repo methods above are the building blocks._
+- [x] **Accept:** unit tests for `MomentumStatus.from` boundaries; `slope` tested (`MomentumStatusTest`).
 
 ## Phase UX-2 — Conversation landing + rows
 Feeds: Chat FAB label/target, Conversations section. Board: Compose, Hub.
 
-- [ ] **`ConversationRepository.landingThread(id)` (new)** — last active thread if it has messages,
-  else Main.
-- [ ] **`messageCount(scenarioId)` (new)** — total across threads; drives "Start chat" vs "Continue chat".
-- [ ] **Thread rows (new read)** — last message text (truncated), relative time, `isOpenNow`.
-- **Accept:** tests for landing rule (empty project → Main + Start; active thread → Continue).
+- [x] **`ConversationRepository.landingThread(id)` (new)** — newest thread if it has a visible
+  message, else the original Main; null when no thread yet. _Done UX.2._
+- [x] **`messageCount(scenarioId)` (new)** — visible (USER/ASSISTANT) total across threads; drives
+  "Start chat" vs "Continue chat". _Done UX.2 (`MessageDao.countVisibleForScenario`)._
+- [x] **Thread rows (`ThreadSummary`, new read)** — last visible line (raw), `lastAt`, `isOpenNow`,
+  shared with the chat button. _Done UX.2._
+- [x] **Accept:** `ConversationLandingTest` (empty → null/Start; empty newest → Main; active newest →
+  Continue; summaries carry last line + open flag).
 
 ## Phase UX-3 — ProjectBrainRepository (Memory)
 Feeds: "What the app knows", model strip, Review AI inputs. Board: Compose, Hub.
