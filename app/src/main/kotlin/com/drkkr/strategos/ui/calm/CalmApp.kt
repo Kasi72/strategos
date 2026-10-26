@@ -57,7 +57,7 @@ fun CalmApp() {
                 when (val route = nav.current) {
                     CalmRoute.Projects -> ProjectsRoute(nav)
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
-                    is CalmRoute.Talk -> LegacyTalkRoute(nav, route.projectId)
+                    is CalmRoute.Talk -> TalkRoutePane(nav, route.projectId)
                     CalmRoute.Journal -> LegacyHost { JournalTab(it) }
                     CalmRoute.Settings -> LegacyHost { AiSettingsScreen(it) }
                 }
@@ -168,6 +168,18 @@ private fun XRayRoute(projectId: String, onDismiss: () -> Unit, onReadMore: (Str
 private fun LegacyHost(content: @Composable (StrategosViewModel) -> Unit) {
     val vm: StrategosViewModel = viewModel()
     OldTheme { Box(Modifier.fillMaxSize().background(OldTheme.surface())) { content(vm) } }
+}
+
+@Composable
+private fun TalkRoutePane(nav: CalmNav, projectId: String) {
+    var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val ctx = LocalContext.current
+    BackHandler { nav.back() }
+    if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
+    com.drkkr.strategos.ui.calm.talk.TalkRoute(
+        projectId, onBack = { nav.back() }, onOpenXRay = { showXRay = true },
+        onOpenSettings = { nav.selectTab(DockTab.SETTINGS) }, onOpenMemory = { nav.back() }
+    )
 }
 
 @Composable

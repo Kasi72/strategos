@@ -54,6 +54,15 @@ data class CalmColors(
     /** Engine-only amber ("rigor"): the pill, the model strip, and the X-ray may use it — nothing else. */
     val rigor: Color,
     val rigorGraphic: Color,
+    /** Quiet surfaces from the prototype: chips (paper2), coach skeleton, "yours" badge, inferred badge, sheets. */
+    val paper: Color,
+    val paper2: Color,
+    val coachSkeleton: Color,
+    val yoursBg: Color,
+    val inferredBg: Color,
+    val inferredFg: Color,
+    val error: Color,
+    val errorBg: Color,
     val isDark: Boolean
 )
 
@@ -77,6 +86,14 @@ private val Light = CalmColors(
     tension = Color(0xFFA93509),
     rigor = Color(0xFF7A4F0C),
     rigorGraphic = Color(0xFFB27A10),
+    paper = Color(0xFFF3F7FC),
+    paper2 = Color(0xFFFFFFFF).copy(alpha = 0.58f),
+    coachSkeleton = Color(0xFFB8CFF4),
+    yoursBg = Color(0xFFE3EAF6),
+    inferredBg = Color(0xFFF6E6BC),
+    inferredFg = Color(0xFF7A4F0C),
+    error = Color(0xFF9A3412),
+    errorBg = Color(0xFFFCE5DB),
     isDark = false
 )
 
@@ -100,6 +117,14 @@ private val Dark = CalmColors(
     tension = Color(0xFFFB9A6C),
     rigor = Color(0xFFE6B450),
     rigorGraphic = Color(0xFFE6B450),
+    paper = Color(0xFF0E1626),
+    paper2 = Color(0xFF162238).copy(alpha = 0.68f),
+    coachSkeleton = Color(0xFF264275),
+    yoursBg = Color(0xFFFFFFFF).copy(alpha = 0.10f),
+    inferredBg = Color(0xFFE6B450).copy(alpha = 0.18f),
+    inferredFg = Color(0xFFE6B450),
+    error = Color(0xFFFB9A6C),
+    errorBg = Color(0xFF3A2218),
     isDark = true
 )
 
