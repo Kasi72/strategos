@@ -11,6 +11,7 @@ import com.drkkr.strategos.data.migration.LegacySource
 import com.drkkr.strategos.data.migration.LegacyStorageMigrator
 import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
+import com.drkkr.strategos.data.repo.GuidanceRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.ProjectBrainRepository
 import com.drkkr.strategos.data.repo.ScenarioRepository
@@ -92,6 +93,9 @@ class AppContainer(
     val projectBrainRepository: ProjectBrainRepository? by lazy {
         database?.let { ProjectBrainRepository(scenarioRepository, MemoryRepository(it)) }
     }
+
+    /** Overview "What to do": standing Do's/Don'ts merged across threads and applied journal takeaways. */
+    val guidanceRepository: GuidanceRepository? by lazy { database?.let { GuidanceRepository(it) } }
 
     private val journalCipher: TextCipher by lazy { journalCipherOverride ?: KeystoreTextCipher() }
 

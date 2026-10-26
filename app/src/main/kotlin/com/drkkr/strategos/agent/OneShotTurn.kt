@@ -12,7 +12,9 @@ import com.drkkr.strategos.domain.agent.BayesianUpdater
 import com.drkkr.strategos.domain.agent.CoachFacts
 import com.drkkr.strategos.domain.agent.ArgonPrompts
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
+import com.drkkr.strategos.domain.agent.CoachGuideSketch
 import com.drkkr.strategos.domain.agent.CoachReply
+import com.drkkr.strategos.domain.agent.GuidanceCodec
 import com.drkkr.strategos.domain.agent.EngineDirective
 import com.drkkr.strategos.domain.agent.EngineDirectiveBuilder
 import com.drkkr.strategos.domain.agent.InferredStressTest
@@ -188,15 +190,21 @@ class OneShotTurn(
                 cid, turnId, MessageRole.TOOL_RESULT, text = "Ran $ran frameworks in ${System.currentTimeMillis() - started} ms on device",
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
+            var guide: CoachGuideSketch? = null
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson)
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson) { guide = it }
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
                 val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
                 if (talk != null) "$talk\n\n$reply" else "$note$reply"
             }
-            conversations.append(cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body)
+            // The structured Do's/Don'ts ride along on the reply's payload so the Overview can aggregate them later.
+            val assistant = conversations.append(
+                cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body,
+                payloadJson = guide?.let { GuidanceCodec.encode(it) }
+            )
+            if (guide != null) conversations.setRefId(assistant.id, assistant.id)
         }
         afterTurn(cid)
         return TurnResult.Done
@@ -209,7 +217,8 @@ class OneShotTurn(
      */
     private suspend fun engineGroundedReply(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
-        understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null
+        understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
+        onGuide: (CoachGuideSketch) -> Unit = {}
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -228,7 +237,7 @@ class OneShotTurn(
         if (!directive.ready) return PlainResult.build(s, pr, understood)
         onActivity("Writing my reply…")
         val reply = interpret(cid, turnId, directive, text)
-        return if (reply != null) PlainResult.coach(reply.guide())
+        return if (reply != null) { val g = reply.guide(); onGuide(g); PlainResult.coach(g) }
         else PlainResult.build(s, pr, understood)
     }
 

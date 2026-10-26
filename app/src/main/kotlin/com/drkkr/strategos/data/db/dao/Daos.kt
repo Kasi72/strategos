@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM message WHERE conversation_id = :cid ORDER BY seq ASC") suspend fun all(cid: String): List<MessageEntity>
     @Query("SELECT COALESCE(MAX(seq), 0) FROM message WHERE conversation_id = :cid") suspend fun maxSeq(cid: String): Int
     @Query("SELECT * FROM message WHERE conversation_id = :cid AND role IN ('USER','ASSISTANT') AND text != '' ORDER BY seq DESC LIMIT 1") suspend fun lastVisible(cid: String): MessageEntity?
+    @Query("SELECT * FROM message WHERE conversation_id = :cid AND role = 'ASSISTANT' AND payload_json IS NOT NULL ORDER BY seq DESC LIMIT 1") suspend fun lastGuided(cid: String): MessageEntity?
     @Query("SELECT COUNT(*) FROM message m JOIN conversation c ON m.conversation_id = c.id WHERE c.scenario_id = :sid AND m.role IN ('USER','ASSISTANT') AND m.text != ''") suspend fun countVisibleForScenario(sid: String): Int
     @Insert suspend fun insert(e: MessageEntity)
     @Query("UPDATE message SET ref_id = :refId WHERE id = :id") suspend fun setRefId(id: String, refId: String)
@@ -102,6 +103,7 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM journal_post_note WHERE scenario_id = :scenarioId AND dismissed = 0 ORDER BY created_at DESC")
     suspend fun activePostNotes(scenarioId: String): List<JournalInsightPostNoteEntity>
     @Query("SELECT * FROM journal_post_note WHERE id = :id") suspend fun getPostNote(id: String): JournalInsightPostNoteEntity?
+    @Query("SELECT * FROM journal_post_note WHERE scenario_id = :scenarioId AND applied = 1 AND dismissed = 0 ORDER BY created_at DESC") suspend fun appliedPostNotes(scenarioId: String): List<JournalInsightPostNoteEntity>
     @Query("UPDATE journal_post_note SET applied = 1 WHERE id = :id") suspend fun markPostNoteApplied(id: String)
     @Query("UPDATE journal_post_note SET dismissed = 1 WHERE id = :id") suspend fun dismissPostNote(id: String)
 }

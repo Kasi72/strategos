@@ -66,10 +66,16 @@ Feeds: "What the app knows", model strip, Review AI inputs. Board: Compose, Hub.
 ## Phase UX-4 — Standing guidance ("What to do")
 Feeds: What-to-do section. Board: Hub.
 
-- [ ] **Guidance aggregation (new read)** — latest `do_this`/`dont_do_this` merged across all
-  threads + applied journal takeaways, de-duplicated by text, each with a source label and a
-  `refId` to jump to the originating reply.
-- **Accept:** dedup + provenance/refId tests.
+- [x] **Guidance aggregation (`GuidanceRepository`, new read)** — latest coach Do's/Don'ts per thread
+  merged with applied journal takeaways, de-duplicated by (kind, text) newest-first, each `GuidanceItem`
+  carrying its source (THREAD/JOURNAL), source label and a `refId` to jump to the reply/entry. _Done UX.4._
+  - Coach guide is now persisted: `OneShotTurn` writes the `CoachGuideSketch` onto the reply's existing
+    `payload_json` (no schema change) via `GuidanceCodec`, and sets the message `refId` to itself.
+    Pure merge/dedup in `StandingGuidance.of`. Applied journal notes via `JournalDao.appliedPostNotes`.
+    Wired in `AppContainer`.
+- [x] **Accept:** `GuidanceTest` (separation, dedup newest-wins, kind-keyed, ordering, codec) +
+  `GuidanceRepositoryTest` (per-thread latest, cross-thread merge, applied journal takeaways,
+  pending note excluded).
 
 ## Phase UX-5 — PatternCatalog
 Feeds: Overview pattern card + X-ray "Why this works" (one shared source). Board: Compose, Hub.
