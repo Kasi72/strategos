@@ -92,11 +92,14 @@ Feeds: Overview pattern card + X-ray "Why this works" (one shared source). Board
 ## Phase UX-6 — Momentum events + Quick-check
 Feeds: Momentum chart pins/event list, Quick-check card. Board: Hub.
 
-- [ ] **Event timeline (new read)** — short user-facing labels + dates derived from turn summaries
-  and trajectory points (the numbered pins).
-- [ ] **`TrajectoryRepository.pendingCheck(id)` + `CheckIn` (new)** — whether a check is pending and
-  the dynamically generated question ("How did the last talk with him go?"); `onSave` writes a `CheckIn`.
-- **Accept:** pending-state + question-generation tests; event labels tested.
+- [x] **Event timeline (`MomentumEvents`, new read)** — deterministic pins (invariant I12, no LLM):
+  the start, each quick-check (labelled from its coded answers, e.g. "You did as suggested; it eased")
+  and each journal shift; everyday turns are not pinned. `TrajectoryRepository.events(id)`. _Done UX.6._
+- [x] **`TrajectoryRepository.pendingCheck(id)` + `PendingCheck` (new)** — pending once a turn has
+  happened with no later quick-check; question names the counterpart ("How did the last talk with
+  <Name> go?"), with a fallback. `submitQuickCheck` (existing) remains the write. _Done UX.6._
+- [x] **Accept:** `MomentumEventsTest` (pins, check labels incl. DE_ESCALATED ordering, pending rules,
+  name fallback) + `TrajectoryRepositoryTest.TC_EVENTS_07` (repo events + pending across a turn/check).
 
 ## Phase UX-7 — Influence map
 Feeds: "Who pulls on whom". Board: Hub.

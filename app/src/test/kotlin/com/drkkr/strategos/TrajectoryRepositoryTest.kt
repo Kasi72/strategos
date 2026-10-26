@@ -43,6 +43,24 @@ class TrajectoryRepositoryTest {
     }
 
     @Test
+    fun TC_EVENTS_07_repositoryEventsAndPendingCheckFromRecordedTurns() = runBlocking {
+        val scenarios = ScenarioRepository(db, null).also { it.load() }
+        val s = (scenarios.save(Fx.loanFamily()) as com.drkkr.strategos.data.repo.SaveResult.Success).saved
+        val repo = TrajectoryRepository(db, scenarios)
+
+        repo.recordTurn(s.id, null, 6.0, -8.0, "STAG_HUNT")          // a talk happened
+        val pending = repo.pendingCheck(s.id)
+        assertNotNull("a check is due after a turn", pending)
+        assertEquals("How did the last talk with Brother go?", pending!!.question)
+
+        repo.submitQuickCheck(s.id, null, "Pause 24h", "DID_AS_SUGGESTED", "DE_ESCALATED", "GROUNDED")
+        assertNull("no longer pending once checked", repo.pendingCheck(s.id))
+
+        val events = repo.events(s.id)
+        assertEquals(listOf("You did as suggested; it eased"), events.map { it.label })   // only the quick-check is pinned
+    }
+
+    @Test
     fun recordTurnAppliesDeltasAndArchetype() = runBlocking {
         val scenarios = ScenarioRepository(db, null).also { it.load() }
         val s = (scenarios.save(Fx.loanFamily()) as com.drkkr.strategos.data.repo.SaveResult.Success).saved

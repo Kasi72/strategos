@@ -4,7 +4,12 @@ import androidx.room.withTransaction
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.QuickCheckFeedbackEntity
 import com.drkkr.strategos.data.db.entities.TrajectoryPointEntity
+import com.drkkr.strategos.domain.analysis.CheckRecord
+import com.drkkr.strategos.domain.analysis.MomentumEvent
+import com.drkkr.strategos.domain.analysis.MomentumEvents
+import com.drkkr.strategos.domain.analysis.MomentumPoint
 import com.drkkr.strategos.domain.analysis.MomentumStatus
+import com.drkkr.strategos.domain.analysis.PendingCheck
 import com.drkkr.strategos.domain.analysis.QuickCheckUpdater
 import com.drkkr.strategos.domain.analysis.TrajectoryCalculator
 import com.drkkr.strategos.domain.analysis.TrajectorySnapshot
@@ -33,6 +38,23 @@ class TrajectoryRepository(
     suspend fun momentum(scenarioId: String, n: Int = SPARK_POINTS): MomentumStatus {
         val pts = recent(scenarioId, n)
         return MomentumStatus.of(pts.map { it.trustScore }, pts.map { it.tensionScore })
+    }
+
+    /** The numbered pins under the momentum chart: the start, each quick-check and each journal shift. */
+    suspend fun events(scenarioId: String): List<MomentumEvent> {
+        val points = db.trajectoryDao().forScenario(scenarioId).map { MomentumPoint(it.source, it.timestamp, it.note) }
+        val checks = db.quickCheckDao().forScenario(scenarioId).map { CheckRecord(it.executionChoice, it.counterpartReaction, it.createdAt, it.reflectionNote) }
+        return MomentumEvents.of(points, checks)
+    }
+
+    /** The Quick-check to offer, or null when nothing has happened since the last one. */
+    suspend fun pendingCheck(scenarioId: String): PendingCheck? {
+        val points = db.trajectoryDao().forScenario(scenarioId).map { MomentumPoint(it.source, it.timestamp, it.note) }
+        val counterpart = scenarios.find(scenarioId)?.let { s ->
+            val self = s.players().firstOrNull { it.name.equals("You", ignoreCase = true) } ?: s.players().firstOrNull()
+            s.players().firstOrNull { it.id != self?.id }?.name
+        }
+        return MomentumEvents.pendingCheck(points, counterpart)
     }
 
     /** The latest stored point as a snapshot, or the neutral start (50 / 50, streak 0) when the project has none. */
