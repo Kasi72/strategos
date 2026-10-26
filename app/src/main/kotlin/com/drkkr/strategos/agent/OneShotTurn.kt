@@ -237,9 +237,19 @@ class OneShotTurn(
         if (!directive.ready) return PlainResult.build(s, pr, understood)
         onActivity("Writing my reply…")
         val reply = interpret(cid, turnId, directive, text)
-        return if (reply != null) { val g = reply.guide(); onGuide(g); PlainResult.coach(g) }
+        return if (reply != null) {
+            // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
+            val g = reply.guide().copy(pill = pillFor(directive))
+            onGuide(g); PlainResult.coach(g)
+        }
         else PlainResult.build(s, pr, understood)
     }
+
+    private fun pillFor(d: EngineDirective): String = listOfNotNull(
+        d.moveToImplement?.takeIf { it.isNotBlank() },
+        d.dynamicLabel,
+        if (d.stressVerdict == "FRAGILE") "Fragile" else "Robust"
+    ).joinToString(" · ")
 
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
     private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String): CoachReply? {

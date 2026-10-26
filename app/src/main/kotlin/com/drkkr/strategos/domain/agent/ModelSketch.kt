@@ -69,7 +69,9 @@ data class CoachGuideSketch(
     @SerialName("do_this") val doThis: List<String> = emptyList(),
     @SerialName("dont_do_this") val dontDoThis: List<String> = emptyList(),
     /** Phase G.4: a short, situation-specific closing line (a concrete next step or a real question), replacing the static footer. */
-    @SerialName("follow_up") val followUp: String = ""
+    @SerialName("follow_up") val followUp: String = "",
+    /** The engine's one-line label for this reply ("Wait · Mutual trust needed · Robust"), set by Kotlin, never by the model. Shown as the pill. */
+    @SerialName("pill") val pill: String = ""
 )
 
 /**

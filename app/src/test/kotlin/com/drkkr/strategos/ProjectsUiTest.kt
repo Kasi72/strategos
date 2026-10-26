@@ -33,4 +33,18 @@ class ProjectsUiTest {
         assertFalse(ProjectsUiState(draft = "   ").canSend)
         assertTrue(ProjectsUiState(draft = "co-sign?").canSend)
     }
+
+    @Test fun TC_PROJ_05_displayNameIsShortAndHumanFromARawFirstMessage() {
+        assertEquals("I've been working in a company for 2 years now", ProjectsUi.displayName("Hey I've been working in a company for 2 years now. My boss keeps moving the goalposts and I don't know what to do."))
+        assertEquals("Loan for my brother", ProjectsUi.displayName("Loan for my brother"))
+    }
+
+    @Test fun TC_PROJ_06_displayNameCutsAtAWordBoundaryWithEllipsis() {
+        val n = ProjectsUi.displayName("I am currently at my sister's place in Mount Lavinia and everything about it is getting to me")
+        assertTrue(n.endsWith("…")); assertTrue(n.length <= 49); assertFalse(n.dropLast(1).endsWith(" "))
+    }
+
+    @Test fun TC_PROJ_07_displayNameNeverEmpty() {
+        assertEquals("Untitled", ProjectsUi.displayName("   "))
+    }
 }

@@ -3,6 +3,7 @@ package com.drkkr.strategos
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -85,6 +86,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Draw behind the system bars; the calm shell paints the ground and pads for the insets itself.
+        enableEdgeToEdge()
         setContent {
             // Redesigned "calm" UI (ui/calm.CalmApp) is built but not yet the entry point: it launches
             // blank on device (nav/VM wiring bug to fix) so the old working UI stays wired for now.

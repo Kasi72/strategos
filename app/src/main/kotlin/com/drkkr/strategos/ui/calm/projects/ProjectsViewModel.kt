@@ -51,7 +51,7 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
     /** Creates a project from the draft, named from the first line, and returns its id (or null if blank). */
     suspend fun createProject(): String? {
         val text = draft.value.trim().ifEmpty { return null }
-        val name = text.lineSequence().firstOrNull()?.trim()?.take(60).orEmpty().ifEmpty { "Untitled" }
+        val name = ProjectsUi.displayName(text)
         val saved = scenarios.save(Scenario(title = name, description = text))
         draft.value = ""
         return (saved as? SaveResult.Success)?.saved?.id
@@ -90,7 +90,7 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
         val status = MomentumStatus.of(points.map { it.trustScore }, points.map { it.tensionScore })
         val lastAt = maxOf(s.updatedAt, points.lastOrNull()?.timestamp ?: 0L, threads.maxOfOrNull { it.updatedAt } ?: 0L)
         return Carded(
-            ProjectCardUi(s.id, s.title, ProjectsUi.subtitle(lastAt, now, threads.size), status, trust, tension),
+            ProjectCardUi(s.id, ProjectsUi.displayName(s.title), ProjectsUi.subtitle(lastAt, now, threads.size), status, trust, tension),
             lastAt
         )
     }

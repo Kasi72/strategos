@@ -66,7 +66,9 @@ object MessageMapper {
                     flushActivity()
                     when (m.role) {
                         MessageRole.USER.name -> items += ChatItem.UserText(m.id, m.text)
-                        MessageRole.ASSISTANT.name -> items += ChatItem.AssistantText(m.id, m.text)
+                        MessageRole.ASSISTANT.name -> items += ChatItem.AssistantText(
+                            m.id, m.text, pill = m.payloadJson?.let { com.drkkr.strategos.domain.agent.GuidanceCodec.decode(it) }?.pill?.takeIf { it.isNotBlank() }
+                        )
                         MessageRole.EVENT.name -> items += ChatItem.EventNote(m.id, m.text)
                         MessageRole.ERROR.name -> items += ChatItem.Error(m.id, m.text, retryable = m.seq == lastSeq)
                     }

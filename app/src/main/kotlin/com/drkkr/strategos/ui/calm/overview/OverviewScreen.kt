@@ -240,7 +240,7 @@ private fun PatternCard(p: Pattern, onReadMore: (String) -> Unit, onOpenXRay: ()
     val c = Calm.colors
     SectionHeader("The pattern here")
     Column(Modifier.padding(horizontal = Calm.dimens.gutter).clip(RoundedCornerShape(Calm.dimens.cardRadius)).background(c.coach).padding(20.dp, 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(p.name, style = Calm.type.title.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Serif), color = c.coachInk)
+        Text(p.name, style = Calm.type.title.copy(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Serif), color = c.coachInk)
         Text(p.summary, style = Calm.type.coachBody, color = c.coachInk)
         if (p.variables.isNotEmpty()) {
             Text("WHAT MATTERS IN YOUR CASE", style = Calm.type.caption, color = c.trust)
@@ -307,8 +307,8 @@ private fun MemorySection(ui: OverviewUiState, onReview: () -> Unit, onAddFact: 
         }
         if (ui.modelStrip.isNotBlank()) Column(Modifier.calmCard(c).padding(Calm.dimens.cardPadding), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("THE MODEL BEHIND THE ADVICE", style = Calm.type.caption, color = c.rigor)
-            Text(ui.modelStrip, style = Calm.type.caption.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = c.ink2)
-            Text("${ui.reviewedCount} of ${ui.inferredTotal} reviewed", style = Calm.type.caption.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace), color = c.ink2)
+            Text(ui.modelStrip, style = Calm.type.caption.copy(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Mono), color = c.ink2)
+            Text("${ui.reviewedCount} of ${ui.inferredTotal} reviewed", style = Calm.type.caption.copy(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Mono), color = c.ink2)
         }
     }
 }

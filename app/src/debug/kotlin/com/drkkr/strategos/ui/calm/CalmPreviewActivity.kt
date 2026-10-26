@@ -3,6 +3,9 @@ package com.drkkr.strategos.ui.calm
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.drkkr.strategos.domain.agent.BrainFact
 import com.drkkr.strategos.domain.agent.BrainFactKind
 import com.drkkr.strategos.domain.agent.InfluenceEdge
@@ -44,6 +47,19 @@ class CalmPreviewActivity : ComponentActivity() {
                 when (screen) {
                     "firstrun" -> ProjectsScreen(ProjectsUiState(projects = emptyList(), archivedCount = 0, hasKey = true, loading = false), ProjectsActions())
                     "overview" -> OverviewScreen(SAMPLE_OVERVIEW, OverviewActions())
+                    "fonts" -> androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.padding(24.dp)) {
+                        listOf(400, 500, 600, 700).forEach { w ->
+                            androidx.compose.material3.Text("Figtree $w — Is it getting better?", fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Sans, fontWeight = androidx.compose.ui.text.font.FontWeight(w), fontSize = 22.sp)
+                        }
+                        androidx.compose.material3.Text("A style SemiBold — Is it getting", style = androidx.compose.ui.text.TextStyle(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Sans, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 22.sp))
+                        androidx.compose.material3.Text("B style W600 — Is it getting", style = androidx.compose.ui.text.TextStyle(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Sans, fontWeight = androidx.compose.ui.text.font.FontWeight(600), fontSize = 22.sp))
+                        androidx.compose.material3.Text("C params SemiBold — Is it getting", fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Sans, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 22.sp)
+                        androidx.compose.material3.Text("THEME title — Is it getting better?", style = com.drkkr.strategos.ui.calm.theme.Calm.type.title)
+                        androidx.compose.material3.Text("THEME display — What's on your mind?", style = com.drkkr.strategos.ui.calm.theme.Calm.type.display)
+                        androidx.compose.material3.Text("THEME subtitle — Loan for my brother", style = com.drkkr.strategos.ui.calm.theme.Calm.type.subtitle)
+                        androidx.compose.material3.Text("Serif 600 — Mutual trust", fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Serif, fontWeight = androidx.compose.ui.text.font.FontWeight(600), fontSize = 22.sp)
+                        androidx.compose.material3.Text("Mono 500 — 18/18 outcomes", fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Mono, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 22.sp)
+                    }
                     else -> ProjectsScreen(ProjectsUiState(projects = SAMPLE, archivedCount = 1, hasKey = true, loading = false), ProjectsActions())
                 }
             }

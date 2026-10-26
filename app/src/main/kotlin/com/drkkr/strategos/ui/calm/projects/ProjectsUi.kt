@@ -52,6 +52,23 @@ object ProjectsUi {
         "I need to tell my manager no, and I'm dreading it."
     )
 
+    private val GREETING = Regex("^(hey|hi|hello|hiya)[,!.]?\\s+", RegexOption.IGNORE_CASE)
+
+    /**
+     * A short, human project name from a long first message: the first sentence, minus a leading greeting,
+     * cut at a word boundary. Display-only (the user can always rename); the stored text is never altered.
+     */
+    fun displayName(raw: String, max: Int = 48): String {
+        val first = raw.trim().lineSequence().firstOrNull().orEmpty()
+            .split(Regex("(?<=[.!?])\\s")).firstOrNull().orEmpty()
+            .trim().trimEnd('.', '!', '?', ',', ' ')
+            .replace(GREETING, "").trim()
+        val base = first.ifEmpty { raw.trim() }.replaceFirstChar { it.uppercase() }
+        if (base.length <= max) return base.ifEmpty { "Untitled" }
+        val cut = base.take(max).substringBeforeLast(' ', base.take(max))
+        return cut.trimEnd(',', ' ', '.') + "…"
+    }
+
     /** "Today · 3 topics" — a soft, number-light activity line. */
     fun subtitle(lastActivityAt: Long, now: Long, topicCount: Int): String {
         val topics = if (topicCount == 1) "1 topic" else "$topicCount topics"

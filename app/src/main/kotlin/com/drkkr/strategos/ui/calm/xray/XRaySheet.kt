@@ -38,7 +38,7 @@ import com.drkkr.strategos.domain.agent.XRayRow
 import com.drkkr.strategos.ui.calm.theme.Calm
 import kotlin.math.roundToInt
 
-private val MONO = FontFamily.Monospace
+private val MONO = com.drkkr.strategos.ui.calm.theme.CalmFonts.Mono
 private val CORAL = Color(0xFFF4B8A4)
 private val MIST = Color(0xFFEEF1F6)
 private val TEAL = Color(0xFF8EC9B5)

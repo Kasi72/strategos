@@ -59,7 +59,7 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
 
             OverviewUiState(
                 loading = false,
-                projectName = s.title,
+                projectName = ProjectsUi.displayName(s.title),
                 subtitle = subtitle(threads.size, pts.lastOrNull()?.timestamp ?: s.updatedAt, now),
                 linkedJournalCount = journal?.let { countLinked(projectId) } ?: 0,
                 status = status,

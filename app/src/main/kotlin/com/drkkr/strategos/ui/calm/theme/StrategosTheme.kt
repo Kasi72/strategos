@@ -127,20 +127,20 @@ data class CalmType(
 )
 
 private val Type = CalmType(
-    display = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, lineHeight = 38.sp),
-    title = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp),
-    subtitle = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 24.sp),
-    body = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
-    caption = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp),
-    pill = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    coachLead = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, lineHeight = 26.sp),
-    coachBody = TextStyle(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 27.sp)
+    display = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Bold, fontSize = 32.sp, lineHeight = 38.sp),
+    title = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp),
+    subtitle = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 24.sp),
+    body = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
+    caption = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp),
+    pill = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
+    coachLead = TextStyle(fontFamily = CalmFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, lineHeight = 26.sp),
+    coachBody = TextStyle(fontFamily = CalmFonts.Serif, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 27.sp)
 )
 
 private val LocalCalmType = staticCompositionLocalOf { Type }
 
 /** The serif wordmark style ("Strategos"), Source Serif 4 22/600 on the boards. */
-val CalmType.wordmark: TextStyle get() = title.copy(fontFamily = FontFamily.Serif)
+val CalmType.wordmark: TextStyle get() = title.copy(fontFamily = CalmFonts.Serif)
 
 /**
  * The lifted glass card: a soft cool-blue shadow, the glass fill, and a bright 1dp border

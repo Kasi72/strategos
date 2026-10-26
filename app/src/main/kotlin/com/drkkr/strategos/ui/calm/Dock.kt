@@ -4,6 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,7 +37,7 @@ import com.drkkr.strategos.ui.calm.theme.Calm
 fun StrategosDock(selected: DockTab, onSelect: (DockTab) -> Unit) {
     val c = Calm.colors
     Row(
-        Modifier.fillMaxWidth().background(c.card).height(80.dp).padding(horizontal = 8.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().background(c.card.compositeOver(c.ground)).windowInsetsPadding(WindowInsets.navigationBars).height(80.dp).padding(horizontal = 8.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         DockEntry("Projects", Icons.Outlined.Folder, selected == DockTab.PROJECTS, Modifier.weight(1f)) { onSelect(DockTab.PROJECTS) }

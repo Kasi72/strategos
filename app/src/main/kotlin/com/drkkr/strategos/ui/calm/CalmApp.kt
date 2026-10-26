@@ -47,17 +47,20 @@ fun CalmApp() {
     val nav = rememberCalmNav()
     BackHandler(enabled = nav.canBack) { nav.back() }
     val c = Calm.colors
-    Scaffold(
-        containerColor = Color.Transparent,
-        bottomBar = { if (nav.current !is CalmRoute.Talk) StrategosDock(nav.tab) { nav.selectTab(it) } }
-    ) { pad ->
-        Box(Modifier.fillMaxSize().background(c.groundBrush).padding(pad)) {
-            when (val route = nav.current) {
-                CalmRoute.Projects -> ProjectsRoute(nav)
-                is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
-                is CalmRoute.Talk -> LegacyTalkRoute(nav, route.projectId)
-                CalmRoute.Journal -> LegacyHost { JournalTab(it) }
-                CalmRoute.Settings -> LegacyHost { AiSettingsScreen(it) }
+    // The ground is painted once, behind everything including the system bars (edge-to-edge).
+    Box(Modifier.fillMaxSize().background(c.groundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = { if (nav.current !is CalmRoute.Talk) StrategosDock(nav.tab) { nav.selectTab(it) } }
+        ) { pad ->
+            Box(Modifier.fillMaxSize().padding(pad)) {
+                when (val route = nav.current) {
+                    CalmRoute.Projects -> ProjectsRoute(nav)
+                    is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
+                    is CalmRoute.Talk -> LegacyTalkRoute(nav, route.projectId)
+                    CalmRoute.Journal -> LegacyHost { JournalTab(it) }
+                    CalmRoute.Settings -> LegacyHost { AiSettingsScreen(it) }
+                }
             }
         }
     }

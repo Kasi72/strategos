@@ -177,6 +177,7 @@ private fun ProjectCard(p: ProjectCardUi, onClick: () -> Unit, onRename: () -> U
         ) {
             Column(Modifier.weight(1f)) {
                 Text(p.name, style = Calm.type.subtitle, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
                 Text(p.subtitle, style = Calm.type.caption, color = c.ink3)
             }
             Spacer(Modifier.width(12.dp))
@@ -204,33 +205,29 @@ private fun StatusWord(status: MomentumStatus) {
     Text(status.word, style = Calm.type.caption, color = color)
 }
 
-/** 64×24dp trust (solid) + tension (dashed) spark. Each series is scaled to its own range. */
+/** 64×24dp trust (solid, heavier) + tension (dashed, lighter) spark. Each series is scaled to its own range. */
 @Composable
 private fun MomentumSpark(trust: List<Float>, tension: List<Float>, status: MomentumStatus) {
     val c = Calm.colors
     Canvas(
-        Modifier.width(64.dp).height(24.dp).semantics {
-            contentDescription = "Momentum: ${status.word}"
-        }
+        Modifier.width(64.dp).height(24.dp).semantics { contentDescription = "Momentum: ${status.word}" }
     ) {
-        fun path(series: List<Float>): List<Offset> {
-            if (series.size < 2) {
-                val y = size.height / 2
-                return listOf(Offset(0f, y), Offset(size.width, y))
-            }
+        val pad = 3f
+        fun line(series: List<Float>): androidx.compose.ui.graphics.Path {
+            val path = androidx.compose.ui.graphics.Path()
+            if (series.size < 2) { path.moveTo(0f, size.height / 2); path.lineTo(size.width, size.height / 2); return path }
             val min = series.min(); val max = series.max()
-            val span = (max - min).takeIf { it > 0f } ?: 1f
+            val span = (max - min).takeIf { it > 1f } ?: 1f           // a flat series stays flat, never exaggerated
             val dx = size.width / (series.size - 1)
-            return series.mapIndexed { i, v -> Offset(i * dx, size.height - ((v - min) / span) * size.height) }
-        }
-        fun draw(points: List<Offset>, color: androidx.compose.ui.graphics.Color, width: Float, dashed: Boolean) {
-            for (i in 0 until points.size - 1) {
-                if (dashed && i % 2 == 1) continue
-                drawLine(color, points[i], points[i + 1], strokeWidth = width, cap = StrokeCap.Round)
+            series.forEachIndexed { i, v ->
+                val y = if (max - min <= 1f) size.height / 2 else size.height - pad - ((v - min) / span) * (size.height - 2 * pad)
+                if (i == 0) path.moveTo(0f, y) else path.lineTo(i * dx, y)
             }
+            return path
         }
-        draw(path(tension), c.tension, 3f, dashed = true)
-        draw(path(trust), c.trust, 5f, dashed = false)
+        val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 7f))
+        drawPath(line(tension), c.tension, style = Stroke(width = 3f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round, pathEffect = dash))
+        drawPath(line(trust), c.trust, style = Stroke(width = 5f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
     }
 }
 

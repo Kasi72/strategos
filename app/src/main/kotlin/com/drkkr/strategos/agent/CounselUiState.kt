@@ -34,7 +34,8 @@ data class ThreadUi(val id: String, val title: String, val topicTag: String, val
 sealed class ChatItem {
     abstract val id: String
     data class UserText(override val id: String, val text: String) : ChatItem()
-    data class AssistantText(override val id: String, val text: String) : ChatItem()
+    /** [pill] is the engine's label for this reply (null when the reply had no engine pick), tapped to open the X-ray. */
+    data class AssistantText(override val id: String, val text: String, val pill: String? = null) : ChatItem()
     data class Activity(override val id: String, val steps: List<String>) : ChatItem()        // consecutive TOOL_RESULT labels merged
     data class ChangeSetCard(override val id: String, val ui: ChangeSetUi) : ChatItem()
     data class Questions(override val id: String, val questions: List<QuestionUi>, val answered: Boolean) : ChatItem()
