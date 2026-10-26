@@ -16,6 +16,7 @@ import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.ProjectBrainRepository
 import com.drkkr.strategos.data.repo.ScenarioRepository
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.data.repo.XRayRepository
 import com.drkkr.strategos.data.secure.KeystoreCipher
 import com.drkkr.strategos.data.secure.SecretStore
 import com.drkkr.strategos.data.storage.LoadResult
@@ -96,6 +97,9 @@ class AppContainer(
 
     /** Overview "What to do": standing Do's/Don'ts merged across threads and applied journal takeaways. */
     val guidanceRepository: GuidanceRepository? by lazy { database?.let { GuidanceRepository(it) } }
+
+    /** X-ray what-if priors and their "Keep as my estimate" / Reset persistence. */
+    val xRayRepository: XRayRepository by lazy { XRayRepository(scenarioRepository) }
 
     private val journalCipher: TextCipher by lazy { journalCipherOverride ?: KeystoreTextCipher() }
 

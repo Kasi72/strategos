@@ -115,14 +115,22 @@ Feeds: "Who pulls on whom". Board: Hub.
 ## Phase UX-8 — X-ray engine wiring
 Feeds: X-ray sheet. Board: Compose, Xray/Prototype.
 
-- [ ] **`RecommendationEngine.rank(model)` + `model.withPriors(Map<PriorId, Float>)` (new)** —
-  lightweight 3×2 re-rank for the what-if sliders (conflated per frame).
-- [ ] **User-prior persistence (new)** — "Keep as my estimate" writes a `yours`-badged prior per
-  project (shown in Memory with Reset); coach told it's user-supplied, never silently overwritten
-  (open question #2).
-- [ ] **`NotEnough(question, options)` (new shape)** — surface the engine's "not enough input" skip
-  as a clarifying question (reuse phase-G elicitation).
-- **Accept:** re-rank changes order under prior override; prior persists as USER; NotEnough path tested.
+- [x] **`XRayPriors.withPriors(scenario, overrides)` (new, pure)** — the re-rank primitive the design
+  calls `model.withPriors(it)`, mapping the sliders to the counterpart's Bayesian fields
+  (`probRespectsBoundary` / `probSoftensOnRepair` / `probEscalatesOnReactive` / `trustBaseline`),
+  clamped. The live per-frame re-rank reuses the existing `AnalysisPipeline` on the varied scenario
+  (`WhatIfRunner` already does this) — no new ranking engine. `XRayPriors.of(s)` lists the sliders. _Done UX.8._
+- [x] **User-prior persistence (`XRayRepository`, new)** — `keepAsMine` writes the dragged priors and
+  vouches for the person (`USER_ESTIMATE`, so Memory badges them yours); `reset` clears back to the
+  engine's defaults (open question #2). Saved through `ScenarioRepository` (user action, not a
+  ChangeSet). Wired in `AppContainer`. _Done UX.8._
+- [x] **`NotEnough(question, options)` (`XRayNotEnough`, new)** — surfaces the engine's exploratory /
+  no-clear-pick skip as a plain question built from the first missing fact; decoupled from
+  `DecisionReport` (takes the two signals the VM already reads) for testability. _Done UX.8._
+- [x] **Accept:** `XRayPriorsTest` (labels, clamp, keep-as-mine read-back, reset, NotEnough rules &
+  phrasing) + `XRayRepositoryTest` (persist-as-yours, reset).
+  _Note: the UI drives the conflated re-rank via `AnalysisPipeline().run(withPriors(...))`; no engine
+  internals were changed, keeping the 77 `FrameworkTests` untouched._
 
 ## Phase UX-9 — Settings: Reveal the math
 Feeds: pill visibility + one-line peek. Board: Cutlist Q#1, Settings.
