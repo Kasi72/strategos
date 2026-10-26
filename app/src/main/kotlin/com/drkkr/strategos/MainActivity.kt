@@ -86,6 +86,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            // Redesigned "calm" UI (ui/calm.CalmApp) is built but not yet the entry point: it launches
+            // blank on device (nav/VM wiring bug to fix) so the old working UI stays wired for now.
+            // To preview the new UI: adb am start …/.ui.calm.CalmPreviewActivity (debug build).
             StrategosTheme {
                 StrategosApp(vm)
             }

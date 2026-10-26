@@ -57,19 +57,10 @@ import com.drkkr.strategos.ui.calm.theme.Calm
 import com.drkkr.strategos.ui.calm.theme.calmCard
 
 @Composable
-fun OverviewScreen(ui: OverviewUiState, a: OverviewActions) {
-    val c = Calm.colors
-    Scaffold(
-        containerColor = Color.Transparent,
-        floatingActionButton = {
-            if (!ui.loading) ExtendedFloatingActionButton(
-                onClick = a.onOpenChat, containerColor = c.action, contentColor = c.actionText,
-                icon = { Icon(Icons.Outlined.ChatBubbleOutline, null) }, text = { Text(ui.chatLabel) }
-            )
-        }
-    ) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad)) {
-            TopBar(ui.projectName, ui.subtitle, a.onBack)
+fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxSize()) {
+        TopBar(ui.projectName, ui.subtitle, a.onBack)
+        Box(Modifier.fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize()) {
                 item { MomentumSection(ui) }
                 if (ui.pendingCheck != null) item { QuickCheckCard(ui.pendingCheck.question, a.onSaveQuickCheck) }
@@ -81,6 +72,12 @@ fun OverviewScreen(ui: OverviewUiState, a: OverviewActions) {
                 if (ui.journalTeasers.isNotEmpty()) item { JournalTeaserSection(ui, a.onApplyJournal, a.onDismissJournal, a.onOpenJournalTab) }
                 item { Spacer(Modifier.height(96.dp)) }
             }
+            if (!ui.loading) ExtendedFloatingActionButton(
+                onClick = a.onOpenChat,
+                containerColor = Calm.colors.action, contentColor = Calm.colors.actionText,
+                icon = { Icon(Icons.Outlined.ChatBubbleOutline, null) }, text = { Text(ui.chatLabel) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(Calm.dimens.gutter)
+            )
         }
     }
 }

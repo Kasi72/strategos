@@ -58,18 +58,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
-/** The three dock destinations (DESIGN.md product rules: Projects, Journal, Settings only). */
-enum class DockItem { PROJECTS, JOURNAL, SETTINGS }
-
 @Composable
-fun ProjectsScreen(ui: ProjectsUiState, a: ProjectsActions) {
+fun ProjectsScreen(ui: ProjectsUiState, a: ProjectsActions, modifier: Modifier = Modifier) {
     val c = Calm.colors
-    Scaffold(
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
-        bottomBar = { StrategosDock(DockItem.PROJECTS, a.onOpenJournal, a.onOpenSettings) }
-    ) { pad ->
-        Box(Modifier.fillMaxSize().background(c.groundBrush).padding(pad)) {
-            LazyColumn(Modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize()) {
                 item {
                     Text("Strategos", style = Calm.type.wordmark, color = c.ink,
                         modifier = Modifier.padding(start = Calm.dimens.gutter, top = 12.dp, bottom = 4.dp))
@@ -103,7 +96,6 @@ fun ProjectsScreen(ui: ProjectsUiState, a: ProjectsActions) {
                 item { Spacer(Modifier.height(16.dp)) }
             }
         }
-    }
 }
 
 @Composable
@@ -239,35 +231,6 @@ private fun MomentumSpark(trust: List<Float>, tension: List<Float>, status: Mome
         }
         draw(path(tension), c.tension, 3f, dashed = true)
         draw(path(trust), c.trust, 5f, dashed = false)
-    }
-}
-
-@Composable
-fun StrategosDock(selected: DockItem, onJournal: () -> Unit, onSettings: () -> Unit) {
-    val c = Calm.colors
-    Row(
-        Modifier.fillMaxWidth().background(c.card).height(80.dp).padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        DockTab("Projects", Icons.Outlined.Folder, selected == DockItem.PROJECTS, Modifier.weight(1f)) {}
-        DockTab("Journal", Icons.AutoMirrored.Outlined.MenuBook, selected == DockItem.JOURNAL, Modifier.weight(1f), onJournal)
-        DockTab("Settings", Icons.Outlined.Tune, selected == DockItem.SETTINGS, Modifier.weight(1f), onSettings)
-    }
-}
-
-@Composable
-private fun DockTab(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, on: Boolean, modifier: Modifier, onClick: () -> Unit = {}) {
-    val c = Calm.colors
-    Column(
-        modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Box(
-            Modifier.width(56.dp).height(32.dp).clip(RoundedCornerShape(16.dp))
-                .background(if (on) c.selected else androidx.compose.ui.graphics.Color.Transparent),
-            contentAlignment = Alignment.Center
-        ) { Icon(icon, contentDescription = label, tint = if (on) c.onAction else c.ink3, modifier = Modifier.size(24.dp)) }
-        Text(label, style = Calm.type.pill, color = if (on) c.ink else c.ink3)
     }
 }
 
