@@ -155,12 +155,30 @@ Feeds: LinkSuggestionChip, "Bring over what I know about X?". Board: Hub, Cutlis
 ---
 
 ## Status
-All ten phases complete; `./gradlew :app:testDebugUnitTest` green and `:app:compileDebugKotlin`
+All ten backend phases complete; `./gradlew :app:testDebugUnitTest` green and `:app:compileDebugKotlin`
 clean. Backend read models + repositories are in place for the redesigned Overview (dashboard),
-Projects list, X-ray and journal/settings surfaces. **Next:** the UI slices (per `DESIGN.md` §4) wire
-per-screen ViewModels (`ProjectsViewModel`, `ProjectOverviewViewModel`, `XRayViewModel`) onto these
-repositories — including the one deferred backend item, the Projects combined read (UX-1), which is a
-`combine()` in `ProjectsViewModel`.
+Projects list, X-ray and journal/settings surfaces.
+
+## UI slices (DESIGN.md §4) — in progress
+Built in a new package `ui/calm/` so it compiles **alongside** the old app; nothing is wired into
+`MainActivity` navigation yet, so the running app is unchanged until the visual direction is reviewed.
+
+- [x] **UI-1 Theme & tokens** — `ui/calm/theme/StrategosTheme.kt`: calm color tokens (light+dark per
+  §2), `CalmColors`/`CalmType`/`CalmDimens`, the sky `groundBrush`, and the M3 wrapper. Fonts stand in
+  with platform SansSerif/Serif/Monospace (no font dep added) — swapping the real faces is a later,
+  isolated change.
+- [x] **UI-2 Projects (board 04)** — `ProjectsViewModel` does the deferred UX-1 combined read
+  (`combine(scenarios, draft)` → per-project momentum/spark/subtitle), with create/archive/rename/
+  delete. `ProjectsScreen` (stateless) + `StartComposer`, `ProjectCard` (long-press rename/archive/
+  delete), `MomentumSpark`, `StatusWord`, `ExampleStarters`, `KeyNudgeCard`, `StrategosDock`, with
+  light/dark/first-run `@Preview`s. Pure label logic tested in `ProjectsUiTest`.
+
+**Next UI:** wire `MainActivity` to a nav graph (Projects → Overview → Talk, dock = Projects/Journal/
+Settings), then the Project Overview screen onto its repositories, then Talk, X-ray, Journal, Settings.
+This step replaces the old tab UI, so it wants a visual review first.
+
+_Note: `ProvenanceDefaultsTest.TC_PROV_02` is a pre-existing time-flake (two `Scenario()` defaults a
+millisecond apart); it passes on rerun and is unrelated to these changes._
 
 ---
 
