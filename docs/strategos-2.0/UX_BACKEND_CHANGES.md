@@ -135,8 +135,9 @@ Feeds: X-ray sheet. Board: Compose, Xray/Prototype.
 ## Phase UX-9 — Settings: Reveal the math
 Feeds: pill visibility + one-line peek. Board: Cutlist Q#1, Settings.
 
-- [ ] **`Settings.revealMath` = `Always | OnTap | Never` (new key + enum)** in `SettingsRepository`.
-- **Accept:** default is On-tap; persisted + observable.
+- [x] **`Settings.revealMath` = `ALWAYS | ON_TAP | NEVER` (new `RevealMath` enum + `ui.reveal_math`
+  key)** in `SettingsRepository`, with `revealMath()`/`setRevealMath()`/`observeRevealMath()`. _Done UX.9._
+- [x] **Accept:** `RevealMathSettingTest` (default On-tap, persist/read-back, observable, bad value → On-tap).
 
 ## Phase UX-10 — Journal link suggestions + cross-project carry-over
 Feeds: LinkSuggestionChip, "Bring over what I know about X?". Board: Hub, Cutlist Q#3.

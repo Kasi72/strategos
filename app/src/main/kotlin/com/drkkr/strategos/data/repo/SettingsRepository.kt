@@ -32,6 +32,11 @@ class SettingsRepository(private val db: StrategosDatabase) {
     fun observeUiMode(): Flow<String?> = dao.observe(UI_MODE)
     suspend fun setUiMode(m: UiMode) = put(UI_MODE, m.name)
 
+    /** Reveal the math: how much of the engine shows. On-tap is the default (board 16, open question #1). */
+    suspend fun revealMath(): RevealMath = dao.get(UI_REVEAL_MATH)?.let { runCatching { RevealMath.valueOf(it) }.getOrNull() } ?: RevealMath.ON_TAP
+    fun observeRevealMath(): Flow<String?> = dao.observe(UI_REVEAL_MATH)
+    suspend fun setRevealMath(m: RevealMath) = put(UI_REVEAL_MATH, m.name)
+
     suspend fun expertPin(): String? = dao.get(UI_EXPERT_PIN)
     suspend fun setExpertPin(ciphertext: String?) = if (ciphertext == null) dao.remove(UI_EXPERT_PIN) else put(UI_EXPERT_PIN, ciphertext)
 
@@ -67,6 +72,7 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val AI_INCLUDE_MEMORY = "ai.include_memory"
         const val AI_AUTO_CONTINUE = "ai.auto_continue"
         const val UI_MODE = "ui.mode"
+        const val UI_REVEAL_MATH = "ui.reveal_math"
         const val UI_EXPERT_PIN = "ui.expert_pin"
         const val SAFETY_SUPPORT_TEXT = "safety.support_text"
         const val LEGACY_MIGRATED = "legacy.migrated"
