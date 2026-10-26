@@ -26,5 +26,7 @@ class MemoryRepository(private val db: StrategosDatabase) {
 
     suspend fun setStatus(id: String, status: FactStatus) = db.memoryDao().setStatus(id, status.name)
 
+    suspend fun setText(id: String, text: String) = db.memoryDao().setText(id, text.trim())
+
     suspend fun delete(id: String) = db.memoryDao().delete(id)
 }

@@ -5,6 +5,9 @@ import com.drkkr.strategos.domain.model.Scenario
 
 enum class ReviewKind { PERSON, OPTION, LIMIT, OUTCOME, BELIEF }
 
+/** What the user chose for one inferred value in the review sheet. */
+enum class ReviewAction { KEEP, CONFIRM, REMOVE }
+
 /** One AI-inferred value the user can review (blueprint §11.6). [key] identifies it inside the scenario. */
 data class ReviewItem(val kind: ReviewKind, val key: String, val title: String, val note: String)
 

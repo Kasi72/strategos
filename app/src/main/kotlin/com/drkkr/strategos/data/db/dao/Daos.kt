@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.Flow
     @Insert suspend fun insert(e: MemoryItemEntity)
     @Query("UPDATE memory_item SET resolved_at = :at WHERE id IN (:ids) AND scenario_id = :sid") suspend fun resolve(sid: String, ids: List<String>, at: Long): Int
     @Query("UPDATE memory_item SET fact_status = :status WHERE id = :id") suspend fun setStatus(id: String, status: String)
+    @Query("UPDATE memory_item SET text = :text WHERE id = :id") suspend fun setText(id: String, text: String)
     @Query("DELETE FROM memory_item WHERE id = :id") suspend fun delete(id: String)
 }
 

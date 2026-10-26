@@ -50,13 +50,18 @@ Feeds: Chat FAB label/target, Conversations section. Board: Compose, Hub.
 ## Phase UX-3 — ProjectBrainRepository (Memory)
 Feeds: "What the app knows", model strip, Review AI inputs. Board: Compose, Hub.
 
-- [ ] **`ProjectBrainRepository` (new)** — read model over scenario + learned priors + AI-input
-  ledger. Groups facts by person (Wants / Fears / Role) + a Limits group; every line carries
-  `Provenance.USER | INFERRED`; exposes `inferredCount` and model counts (people/options/outcomes,
-  reviewed count).
-- [ ] **Memory write paths** — `onEditFact` / `onAddFact` set `Provenance.USER` (never agent →
-  `CONFIRMED`, per hard rule); `onReview` advances the reviewed ledger.
-- **Accept:** grouping + provenance tests; reviewed counter increments.
+- [x] **`ProjectBrainRepository` (new)** — read model (`ProjectBrain`) over the scenario + free user
+  notes. Groups facts by person (Wants / Fears / Role, self first) + a Limits group; every
+  `BrainFact` carries `Provenance.USER | INFERRED`; exposes `inferredCount` (still to review),
+  `reviewedCount`, `inferredTotal`, and `ModelCounts` (people · options · outcomes). _Done UX.3._
+  - New `Provenance` enum + `FactStatus.provenance()` (`domain/model`); pure `ProjectBrain.from(s)`
+    (`domain/agent`); reviewed = AI-origin fact (keeps its `provenanceNote`) promoted off AI_INFERRED,
+    so the "N of M reviewed" strip needs no new storage. Wired in `AppContainer`.
+- [x] **Memory write paths** — `addFact` (USER_ESTIMATE free note), `editNote`/`removeNote`
+  (`MemoryDao.setText` added), and `review(item, KEEP|CONFIRM|REMOVE)` reusing `AiReview` + saving
+  through `ScenarioRepository` (user action, not a ChangeSet). Agent still can't write `CONFIRMED`.
+- [x] **Accept:** `ProjectBrainTest` (grouping, provenance, counts, reviewed derivation) +
+  `ProjectBrainRepositoryTest` (add/edit/remove note, review keep/remove).
 
 ## Phase UX-4 — Standing guidance ("What to do")
 Feeds: What-to-do section. Board: Hub.

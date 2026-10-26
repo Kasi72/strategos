@@ -12,6 +12,7 @@ import com.drkkr.strategos.data.migration.LegacyStorageMigrator
 import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
+import com.drkkr.strategos.data.repo.ProjectBrainRepository
 import com.drkkr.strategos.data.repo.ScenarioRepository
 import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.data.secure.KeystoreCipher
@@ -86,6 +87,11 @@ class AppContainer(
 
     // Argon: Space 2 (journal) and Space 3 (trajectory).
     val trajectoryRepository: TrajectoryRepository? by lazy { database?.let { TrajectoryRepository(it, scenarioRepository) } }
+
+    /** Overview "What the app knows": read model over the scenario + free user notes. */
+    val projectBrainRepository: ProjectBrainRepository? by lazy {
+        database?.let { ProjectBrainRepository(scenarioRepository, MemoryRepository(it)) }
+    }
 
     private val journalCipher: TextCipher by lazy { journalCipherOverride ?: KeystoreTextCipher() }
 
