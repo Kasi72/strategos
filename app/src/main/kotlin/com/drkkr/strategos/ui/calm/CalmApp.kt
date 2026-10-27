@@ -58,7 +58,7 @@ fun CalmApp() {
                     CalmRoute.Projects -> ProjectsRoute(nav)
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
                     is CalmRoute.Talk -> TalkRoutePane(nav, route.projectId)
-                    CalmRoute.Journal -> LegacyHost { JournalTab(it) }
+                    CalmRoute.Journal -> com.drkkr.strategos.ui.calm.journal.JournalRoute(onOpenProject = { nav.go(CalmRoute.Overview(it)) })
                     CalmRoute.Settings -> LegacyHost { AiSettingsScreen(it) }
                 }
             }
