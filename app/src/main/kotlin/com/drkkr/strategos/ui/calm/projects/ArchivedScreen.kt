@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drkkr.strategos.ui.calm.theme.Calm
+import com.drkkr.strategos.ui.calm.theme.link
 import com.drkkr.strategos.ui.calm.theme.calmCard
 
 /** Archived projects: bring one back, or delete it for good. Stateless. */
@@ -46,7 +47,7 @@ fun ArchivedScreen(items: List<Pair<String, String>>, onBack: () -> Unit, onRest
                 Row(Modifier.fillMaxWidth().calmCard(c, RoundedCornerShape(20.dp)).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(name, color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f).padding(vertical = 16.dp))
                     Box(Modifier.heightIn(min = 48.dp).clickable { onRestore(id) }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-                        Text("Restore", color = c.actionText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Restore", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Box(Modifier.heightIn(min = 48.dp).clickable { onDelete(id) }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                         Text("Delete", color = c.tension, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)

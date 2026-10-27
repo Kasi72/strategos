@@ -259,7 +259,7 @@ private fun Composer(
         Box(Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             if (draft.isEmpty()) Text("What’s on your heart?", color = c.ink3, fontSize = size)
             BasicTextField(draft, onDraft, textStyle = Calm.type.body.copy(color = c.ink, fontSize = size, lineHeight = 26.sp),
-                cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth(), minLines = 2)
+                cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), minLines = 2)
         }
         MoodRow(mood, onMood)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

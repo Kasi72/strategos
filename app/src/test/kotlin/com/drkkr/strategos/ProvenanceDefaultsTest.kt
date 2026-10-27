@@ -9,7 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProvenanceDefaultsTest {
-    private val json = Json { ignoreUnknownKeys = true }
+    // Same setting as production (ScenarioMapper): timestamps default to "now" and must always be written, or a round trip drifts by a millisecond.
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     @Test
     fun TC_PROV_01_v1JsonDecodesToUserEstimateAndPlayer() {

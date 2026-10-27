@@ -21,12 +21,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drkkr.strategos.ui.calm.theme.Calm
+import com.drkkr.strategos.ui.calm.theme.link
 import com.drkkr.strategos.ui.calm.theme.calmCard
 import com.drkkr.strategos.ui.components.rememberVoiceInput
 
@@ -53,17 +55,17 @@ fun ProjectJournalPage(
             Box(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(top = 8.dp)) {
                 if (draft.isEmpty()) Text("Write about this, just for you…", color = c.ink3, fontSize = 17.sp, lineHeight = 25.sp)
                 BasicTextField(draft, { draft = it }, textStyle = Calm.type.body.copy(color = c.ink, fontSize = 17.sp, lineHeight = 25.sp),
-                    cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth().padding(end = 8.dp))
+                    cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 8.dp))
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Box(Modifier.heightIn(min = 48.dp).clickable(onClick = voice.start).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-                    Text("Speak", color = c.actionText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Speak", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Box(
                     Modifier.height(48.dp).clip(RoundedCornerShape(24.dp)).background(if (can) c.action else c.yoursBg)
                         .clickable(enabled = can) { onSave(draft.trim()); draft = "" }.padding(horizontal = 20.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("Save privately", color = if (can) c.onAction else c.ink3, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+                ) { Text("Save privately", color = if (can) Color.White else c.ink3, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
 
@@ -74,7 +76,7 @@ fun ProjectJournalPage(
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, c.cardBorder, RoundedCornerShape(16.dp)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Link this entry to $projectName?", color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
                         Box(Modifier.heightIn(min = 48.dp).clickable { onLink(e.id) }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-                            Text("Link", color = c.actionText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Link", color = c.link, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Box(Modifier.heightIn(min = 48.dp).clickable { onDismiss(e.id) }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                             Text("Not this", color = c.ink3, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

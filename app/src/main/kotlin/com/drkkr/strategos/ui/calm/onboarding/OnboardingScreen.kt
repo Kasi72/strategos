@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drkkr.strategos.ui.calm.theme.Calm
+import com.drkkr.strategos.ui.calm.theme.link
 import com.drkkr.strategos.ui.calm.theme.CalmFonts
 import com.drkkr.strategos.ui.calm.theme.calmCard
 import com.drkkr.strategos.ui.components.rememberVoiceInput
@@ -87,7 +89,7 @@ private fun Welcome(onNext: () -> Unit, modifier: Modifier) {
         }
         Column(Modifier.padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background(c.action).clickable(onClick = onNext), contentAlignment = Alignment.Center) {
-                Text("Describe a situation  →", color = c.onAction, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("Describe a situation  →", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             }
             Dots(1)
         }
@@ -98,11 +100,12 @@ private fun Welcome(onNext: () -> Unit, modifier: Modifier) {
 private fun Describe(draft: String, onDraft: (String) -> Unit, onBack: () -> Unit, onSend: () -> Unit, modifier: Modifier) {
     val c = Calm.colors
     val shape = RoundedCornerShape(24.dp)
+    androidx.activity.compose.BackHandler(onBack = onBack)
     val voice = rememberVoiceInput(onText = { onDraft((draft + " " + it).trim()) })
     Column(modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Strategos", color = c.ink, fontFamily = CalmFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-            Box(Modifier.heightIn(min = 48.dp).clickable(onClick = onBack).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) { Text("Back", color = c.ink3, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
+            Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp)).clickable(onClick = onBack).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) { Text("Back", color = c.ink3, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
         }
         Text("What’s on your mind?", color = c.ink, style = Calm.type.display.copy(fontSize = 32.sp, lineHeight = 38.sp), modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp))
         Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().calmCard(c, shape).border(1.5.dp, c.selectedBorder, shape).padding(start = 16.dp, top = 16.dp, end = 8.dp, bottom = 8.dp)) {
@@ -110,17 +113,17 @@ private fun Describe(draft: String, onDraft: (String) -> Unit, onBack: () -> Uni
                 if (draft.isEmpty()) Text("My brother wants me to co-sign a loan…", color = c.ink3, fontSize = 18.sp, lineHeight = 26.sp)
                 BasicTextField(
                     draft, onDraft, textStyle = Calm.type.body.copy(color = c.ink, fontSize = 18.sp, lineHeight = 26.sp),
-                    cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth().padding(end = 8.dp)
+                    cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth().heightIn(min = 104.dp).padding(end = 8.dp)
                 )
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp)).clickable(onClick = voice.start).padding(start = 8.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Mic, null, tint = c.actionText, modifier = Modifier.size(24.dp))
-                    Text("Speak", color = c.actionText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Default.Mic, null, tint = c.link, modifier = Modifier.size(24.dp))
+                    Text("Speak", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
                 val can = draft.isNotBlank()
                 Box(Modifier.size(48.dp).clip(CircleShape).background(if (can) c.action else c.yoursBg).clickable(enabled = can, onClick = onSend), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.ArrowUpward, "Send situation", tint = if (can) c.onAction else c.ink3, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.ArrowUpward, "Send situation", tint = if (can) Color.White else c.ink3, modifier = Modifier.size(24.dp))
                 }
             }
         }

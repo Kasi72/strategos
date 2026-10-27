@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.drkkr.strategos.agent.AiSettingsUi
 import com.drkkr.strategos.data.repo.RevealMath
 import com.drkkr.strategos.ui.calm.theme.Calm
+import com.drkkr.strategos.ui.calm.theme.link
 import com.drkkr.strategos.ui.calm.theme.CalmFonts
 import com.drkkr.strategos.ui.calm.theme.calmCard
 import com.drkkr.strategos.ui.settings.AiConsentText
@@ -72,7 +74,7 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                     }
                     Switch(
                         checked = ui.aiOn, onCheckedChange = actions.onToggleAi, enabled = ui.keyStatus != KeyStatus.MISSING,
-                        colors = SwitchDefaults.colors(checkedTrackColor = c.action, checkedThumbColor = c.onAction)
+                        colors = SwitchDefaults.colors(checkedTrackColor = c.action, checkedThumbColor = Color.White)
                     )
                 }
                 if (ui.needsConsent) ConsentBlock(actions)
@@ -85,7 +87,7 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                         Text("AI key", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                         Text("✓ Connected · ends in ${ui.keyLast4.orEmpty()}", color = c.trust, fontSize = 14.sp)
                     }
-                    Text("Change", color = c.actionText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Change", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Divider()
@@ -189,7 +191,7 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
     Box(
         Modifier.height(48.dp).clip(RoundedCornerShape(24.dp)).background(if (primary) c.action else c.card).border(1.dp, if (primary) c.action else c.cardBorder, RoundedCornerShape(24.dp)).clickable(onClick = onClick).padding(horizontal = 22.dp),
         contentAlignment = Alignment.Center
-    ) { Text(text, color = if (primary) c.onAction else c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(text, color = if (primary) Color.White else c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable private fun KeyEditor(ui: SettingsUiState, help: Boolean, onHelp: () -> Unit, actions: SettingsActions, canClose: Boolean, onClose: () -> Unit) {
@@ -223,15 +225,15 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                 Modifier.height(48.dp).clip(RoundedCornerShape(24.dp)).background(if (text.isBlank() || checking) c.line else c.action)
                     .clickable(enabled = text.isNotBlank() && !checking) { actions.onSaveKey(text); text = ""; onClose() }.padding(horizontal = 24.dp),
                 contentAlignment = Alignment.Center
-            ) { Text("Test key", color = if (text.isBlank() || checking) c.ink3 else c.onAction, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("Test key", color = if (text.isBlank() || checking) c.ink3 else Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
             Box(Modifier.height(48.dp).clickable(onClick = onHelp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-                Text("Where do I find it?", color = c.actionText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Where do I find it?", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
             if (canClose) Box(Modifier.weight(1f).height(48.dp).clickable(onClick = onClose).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterEnd) {
                 Text("Close", color = c.ink3, fontSize = 14.sp)
             }
         }
-        if (help) TextButton(onClick = actions.onOpenKeyHelp) { Text("Open the key page", color = c.actionText) }
+        if (help) TextButton(onClick = actions.onOpenKeyHelp) { Text("Open the key page", color = c.link) }
     }
 }
 
@@ -254,7 +256,7 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                 if (ui.models.isEmpty()) Text(ui.model, color = c.ink2)
             }
         },
-        confirmButton = { TextButton(onClick = { actions.onRefreshModels() }) { Text("Refresh list", color = c.actionText) } },
+        confirmButton = { TextButton(onClick = { actions.onRefreshModels() }) { Text("Refresh list", color = c.link) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = c.ink2) } }
     )
 }
@@ -277,12 +279,12 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                 )
             }
             Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(26.dp)).background(c.action).clickable(onClick = onKeep), contentAlignment = Alignment.Center) {
-                Text("Keep everything", color = c.onAction, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Keep everything", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             Box(
                 Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(26.dp)).background(if (ok) c.tension else c.errorBg).clickable(enabled = ok, onClick = onDelete),
                 contentAlignment = Alignment.Center
-            ) { Text("Delete", color = if (ok) c.onAction else c.ink3, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("Delete", color = if (ok) Color.White else c.ink3, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }

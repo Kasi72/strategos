@@ -118,7 +118,7 @@ private fun StartComposer(draft: String, canSend: Boolean, onDraft: (String) -> 
                 value = draft, onValueChange = onDraft,
                 textStyle = Calm.type.body.copy(color = c.ink),
                 cursorBrush = SolidColor(c.action),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp)
             )
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {

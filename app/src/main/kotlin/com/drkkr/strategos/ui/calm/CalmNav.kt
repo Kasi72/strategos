@@ -43,24 +43,38 @@ class CalmNav {
     var current by mutableStateOf<CalmRoute>(CalmRoute.Projects)
         private set
 
-    /** True when the current tab has somewhere to go back to (so the system can exit at a root). */
-    val canBack: Boolean get() = stacks.getValue(tab).size > 1
+    /** The tabs visited before this one, so Back from a tab's root returns to the previous tab before it exits. */
+    private val history = mutableListOf<DockTab>()
 
-    private fun sync() { current = stacks.getValue(tab).last() }
+    /** True when there is somewhere to go back to: deeper in this tab, or a previous tab. At the first tab's root the system exits. */
+    val canBack: Boolean get() { depthVersion; return stacks.getValue(tab).size > 1 || history.isNotEmpty() }
 
-    fun selectTab(t: DockTab) { tab = t; sync() }
+    /** Bumped whenever the stacks or history change, so [canBack] is observable (the stacks themselves are plain collections). */
+    private var depthVersion by mutableStateOf(0)
+
+    private fun sync() { current = stacks.getValue(tab).last(); depthVersion++ }
+
+    private fun moveTo(t: DockTab) {
+        if (t == tab) return
+        history.remove(t)               // no loops: going back to a tab drops its older entry
+        history += tab
+        tab = t
+    }
+
+    fun selectTab(t: DockTab) { moveTo(t); sync() }
 
     fun go(route: CalmRoute) {
         val t = route.tab
-        tab = t
+        moveTo(t)
         stacks[t] = stacks.getValue(t) + route
         sync()
     }
 
     fun back(): Boolean {
         val stack = stacks.getValue(tab)
-        if (stack.size <= 1) return false
-        stacks[tab] = stack.dropLast(1)
+        if (stack.size > 1) { stacks[tab] = stack.dropLast(1); sync(); return true }
+        if (history.isEmpty()) return false
+        tab = history.removeAt(history.lastIndex)
         sync()
         return true
     }

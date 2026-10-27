@@ -234,7 +234,12 @@ class OneShotTurn(
         // Phase G.4: the static "Engine: <move> · <pattern> · Robust" badge is no longer appended to the chat reply --
         // it read as boilerplate noise. The move still leads the coach text, and the coach conveys any fragility in
         // plain words (ENGINE_COACH_PROMPT rule 4). badge() is kept for tests and any future UI chip.
-        if (!directive.ready) return PlainResult.build(s, pr, understood)
+        if (!directive.ready) {
+            // No confident pick yet. Still answer THIS message in the coach's own words; the fixed template ignores what was said.
+            DebugLog.d { "FALLBACK engine has no pick (directive not ready); asking the coach to reflect on the message" }
+            onActivity("Writing my reply…")
+            return reflect(cid, turnId, s, pr, text) ?: PlainResult.build(s, pr, understood)
+        }
         onActivity("Writing my reply…")
         val reply = interpret(cid, turnId, directive, text)
         return if (reply != null) {
@@ -242,8 +247,16 @@ class OneShotTurn(
             val g = reply.guide().copy(pill = pillFor(directive))
             onGuide(g); PlainResult.coach(g)
         }
-        else PlainResult.build(s, pr, understood)
+        else {
+            // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.
+            DebugLog.d { "FALLBACK structured reply unusable (not parsed, or did not echo the engine's pick); showing the engine's text" }
+            PlainResult.build(s, pr, understood)
+        }
     }
+
+    /** A warm, specific answer to what the person just said, written from the engine's facts. Null if the model can't deliver one. */
+    private suspend fun reflect(cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult, text: String): String? =
+        coachReply(cid, turnId, s, pr, text)
 
     private fun pillFor(d: EngineDirective): String = listOfNotNull(
         d.moveToImplement?.takeIf { it.isNotBlank() },

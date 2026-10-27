@@ -128,6 +128,9 @@ private val Dark = CalmColors(
     isDark = true
 )
 
+/** Colour for tappable text on the light surfaces (actionText is the white that sits ON an action-coloured button). */
+val CalmColors.link: Color get() = if (isDark) onAction else action
+
 private val LocalCalmColors = staticCompositionLocalOf { Light }
 
 /** The sky gradient drawn once in the scaffold as the app background (DESIGN.md §2 "ground"). */
