@@ -120,7 +120,7 @@ class ArgonContextTest {
 
         // Call 1: extraction only, small and nearly deterministic, with no advice in its prompt.
         val c1 = llm.requests.first { it.purpose == "TURN" }
-        assertTrue(c1.jsonObjectMode); assertEquals(900, c1.maxOutputTokens); assertEquals(0.1, c1.temperature, 0.0)
+        assertTrue(c1.jsonObjectMode); assertEquals(3_000, c1.maxOutputTokens); assertEquals(0.1, c1.temperature, 0.0)
         assertTrue(c1.input.first().jsonObject.getValue("content").jsonPrimitive.content.contains("extraction step"))
         // Call 2: gets the engine's directive and may only implement it.
         val c2 = llm.requests.first { it.purpose == "COACH" }

@@ -1,0 +1,53 @@
+package com.drkkr.strategos.e2e
+
+import androidx.compose.ui.test.performClick
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class TalkE2e : E2eBase() {
+
+    private fun openTalk(name: String) {
+        waitForText(name); text(name).performClick(); waitForText("Start chat"); text("Start chat").performClick(); waitForDesc("Back to overview")
+    }
+
+    @Test fun TC_E2E_TALK_01_noKeyShowsTheConnectCardAndSettingsLink() {
+        reset(withKey = false); seedProject("Loan for my brother"); launch()
+        openTalk("Loan for my brother")
+        waitForText("Open Settings")
+        text("Open Settings").performClick()
+        waitForText("AI counsel")
+    }
+
+    @Test fun TC_E2E_TALK_02_messageRoundTripGetsARealCoachReply() {
+        requireLiveKey()
+        reset(withKey = true); val id = seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
+        openTalk("Loan for my brother")
+        typeInto(0, "My wife is against it and I do not want to lose him either. What should I do?")
+        desc("Send message").performClick()
+        waitForText("My wife is against it", substring = true)
+        waitForCoachReply()
+        waitFor(what = "reply text on screen", timeoutMs = 20_000) { !hasText("Thinking") }
+        val dao = container.database!!.messageDao()
+        assertTrue(kotlinx.coroutines.runBlocking { dao.countVisibleForScenario(id) } >= 2)
+    }
+
+    @Test fun TC_E2E_TALK_03_newTopicCreatesASeparateThread() {
+        requireLiveKey()
+        reset(withKey = true); seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
+        openTalk("Loan for my brother")
+        text("+ Topic").performClick()
+        waitForText("A new topic")
+        typeInto(0, "Money angle")
+        text("Start talking").performClick()
+        waitForText("Money angle")      // the new chip
+    }
+
+    @Test fun TC_E2E_TALK_04_emptyProjectInvitesTheFirstMessage() {
+        reset(withKey = true.also { requireLiveKey() }); seedProject("Loan for my brother"); launch()
+        openTalk("Loan for my brother")
+        waitForText("Tell me what’s going on with loan for my brother", substring = true)
+    }
+}

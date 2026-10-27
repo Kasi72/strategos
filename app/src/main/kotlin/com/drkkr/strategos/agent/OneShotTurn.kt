@@ -420,7 +420,9 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
-        private const val EXTRACTION_MAX_TOKENS = 900
+        // BLUEPRINT-QUESTION: 900 was sized for Groq's 8,000 tokens/minute cap (LEAN PROFILE). On DeepSeek it cut the sketch JSON mid-array,
+        // so every substantive first message failed with "Couldn't reach the coach" (found by the emulator E2E run). 3,000 fits a full sketch.
+        private const val EXTRACTION_MAX_TOKENS = 3_000
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3

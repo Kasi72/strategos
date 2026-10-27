@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,7 +65,7 @@ fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier =
         TopBar(ui.projectName, ui.subtitle, a.onBack)
         if (journalPage != null) ProjectTabs(onJournal, ui.linkedJournalCount) { onJournal = it }
         Box(Modifier.fillMaxSize()) {
-            if (onJournal && journalPage != null) androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
+            if (onJournal && journalPage != null) androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().imePadding()) {
                 item { journalPage() }
                 item { Spacer(Modifier.height(96.dp)) }
             } else LazyColumn(Modifier.fillMaxSize()) {
@@ -94,7 +95,7 @@ private fun ProjectTabs(onJournal: Boolean, linkedCount: Int, onPick: (Boolean) 
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         listOf(false to "Overview", true to "Journal").forEach { (isJ, label) ->
             val on = onJournal == isJ
-            Column(Modifier.heightIn(min = 48.dp).clickable { onPick(isJ) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Column(Modifier.weight(1f).heightIn(min = 48.dp).clickable { onPick(isJ) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(label, color = if (on) c.ink else c.ink3, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, fontSize = 15.sp)
                     if (isJ && linkedCount > 0) Text("$linkedCount", color = c.selectedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
