@@ -80,6 +80,7 @@ fun TalkRoute(
 
     val lastError = counselUi.items.lastOrNull() as? ChatItem.Error
     val problem = when {
+        !counselUi.statusLoaded -> TalkProblem.NONE          // still reading the key: say nothing rather than flash "no key"
         counselUi.keyInvalid -> TalkProblem.KEY_REJECTED
         lastError != null -> TalkProblem.FAILED
         counselUi.aiReady -> TalkProblem.NONE

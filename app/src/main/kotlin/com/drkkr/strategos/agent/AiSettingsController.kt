@@ -41,6 +41,8 @@ enum class KeyState { NONE, CHECKING, CONNECTED, REJECTED, OFFLINE, ERROR }
 data class ModelRow(val id: String, val priceLabel: String, val recommended: Boolean, val current: Boolean)
 
 data class AiSettingsUi(
+    /** False until the first read of the key and settings, so the screen doesn't flash "no key". */
+    val loaded: Boolean = false,
     val enabled: Boolean = false,
     val hasKey: Boolean = false,
     val keyLast4: String? = null,
@@ -77,7 +79,7 @@ class AiSettingsController(
         val consented = settings.consentVersion() == AgentConfig.CONSENT_VERSION
         _state.update {
             it.copy(
-                enabled = settings.aiEnabled(), hasKey = has, keyLast4 = if (has) vault.get()?.takeLast(4) else null,
+                loaded = true, enabled = settings.aiEnabled(), hasKey = has, keyLast4 = if (has) vault.get()?.takeLast(4) else null,
                 keyState = if (has && it.keyState == KeyState.NONE) KeyState.CONNECTED else if (!has) KeyState.NONE else it.keyState,
                 needsConsent = has && !consented && it.needsConsent, keyInvalid = settings.keyInvalid(), model = settings.model()
             )

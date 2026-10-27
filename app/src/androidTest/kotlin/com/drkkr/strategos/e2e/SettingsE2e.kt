@@ -2,6 +2,8 @@ package com.drkkr.strategos.e2e
 
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -80,6 +82,18 @@ class SettingsE2e : E2eBase() {
         waitForText("Remove your key?"); text("Remove").performClick()
         waitFor(what = "key removed") { !runBlocking { container.keyVault!!.has() } }
         waitForText("Test key")
+    }
+
+    @Test fun TC_E2E_SET_08_withAKeyTheNoKeyEditorNeverFlashes() {
+        requireLiveKey()
+        reset(withKey = true); launch(); waitForText("What's on your mind?")
+        rule.mainClock.autoAdvance = false
+        rule.onAllNodesWithText("Settings", useUnmergedTree = true).onLast().performClick()
+        var flashed = false
+        repeat(80) { rule.mainClock.advanceTimeByFrame(); Thread.sleep(20); if (hasText("Add a key below to turn this on.")) flashed = true }
+        rule.mainClock.autoAdvance = true
+        assertTrue("the no-key state flashed while the key was loading", !flashed)
+        waitForText("Connected", substring = true)
     }
 
     private fun field_last(): Int = rule.onAllNodes(androidx.compose.ui.test.hasSetTextAction()).fetchSemanticsNodes().size - 1

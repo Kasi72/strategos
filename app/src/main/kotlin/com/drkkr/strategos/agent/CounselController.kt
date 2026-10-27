@@ -239,7 +239,7 @@ class CounselController(
         val hasKey = deps.hasKey()
         _state.update {
             it.copy(
-                aiReady = s.aiReady(), hasKey = hasKey, keyInvalid = s.keyInvalid(),
+                statusLoaded = true, aiReady = s.aiReady(), hasKey = hasKey, keyInvalid = s.keyInvalid(),
                 needsConsent = hasKey && s.consentVersion() != AgentConfig.CONSENT_VERSION
             )
         }

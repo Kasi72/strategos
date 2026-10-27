@@ -9,6 +9,7 @@ enum class KeyStatus { CONNECTED, MISSING, ERROR, CHECKING }
 
 data class SettingsUiState(
     val available: Boolean = true,
+    val loaded: Boolean = true,
     val aiOn: Boolean = false,
     val keyStatus: KeyStatus = KeyStatus.MISSING,
     val keyLast4: String? = null,
@@ -35,7 +36,7 @@ data class SettingsActions(
 
 object SettingsUi {
     fun from(ai: AiSettingsUi, reveal: RevealMath, available: Boolean = true) = SettingsUiState(
-        available = available,
+        available = available, loaded = ai.loaded,
         aiOn = ai.ready,
         keyStatus = when {
             ai.keyState == KeyState.CHECKING -> KeyStatus.CHECKING

@@ -47,6 +47,22 @@ class CalmPreviewActivity : ComponentActivity() {
                 when (screen) {
                     "firstrun" -> ProjectsScreen(ProjectsUiState(projects = emptyList(), archivedCount = 0, hasKey = true, loading = false), ProjectsActions())
                     "overview" -> OverviewScreen(SAMPLE_OVERVIEW, OverviewActions())
+                    "talk" -> com.drkkr.strategos.ui.calm.talk.TalkScreen(
+                        com.drkkr.strategos.ui.calm.talk.TalkUiState(
+                            projectName = "CoFounder conflict",
+                            topics = listOf(com.drkkr.strategos.ui.calm.talk.TopicUi("1", "Main Thread", "", "now", true)),
+                            turns = listOf(
+                                com.drkkr.strategos.ui.calm.talk.TalkUi.turns(listOf(
+                                    com.drkkr.strategos.agent.ChatItem.AssistantText("a1",
+                                        "What's happening underneath: Alex feels cornered and hears \"give up equity\" as losing his say.\n" +
+                                        "Clear-win move: Wait a day, then offer to write the decision criteria together.\n" +
+                                        "What to say: \"I know you want to push sales instead of giving up equity. Let's write the criteria together before Monday.\"\n" +
+                                        "Do this:\n• Wait a day before raising it again.\n• Ask Alex to co-draft the decision criteria.\n" +
+                                        "Don't do this:\n• Don't push now, he'll get defensive.\n• Don't decide alone, he'll feel sidelined.\n" +
+                                        "Try the co-drafting line once he's cooled off and tell me how he responds.")
+                                )).first()
+                            )
+                        ), com.drkkr.strategos.ui.calm.talk.TalkActions())
                     "fonts" -> androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.padding(24.dp)) {
                         listOf(400, 500, 600, 700).forEach { w ->
                             androidx.compose.material3.Text("Figtree $w — Is it getting better?", fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Sans, fontWeight = androidx.compose.ui.text.font.FontWeight(w), fontSize = 22.sp)

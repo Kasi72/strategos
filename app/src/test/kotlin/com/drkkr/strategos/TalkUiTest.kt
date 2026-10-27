@@ -66,4 +66,20 @@ class TalkUiTest {
         val t = com.drkkr.strategos.ui.calm.talk.CoachText("Take a breath.", "Say **no** once.", listOf("Be kind", "Be brief"), "What matters most?")
         assertEquals("Take a breath.\n\nSay no once.\n\n• Be kind\n• Be brief\n\nWhat matters most?", t.plain())
     }
+
+    @Test fun TC_TALK_09_doAndDontListsBecomeAQuickReadAndKeepTheirBullets() {
+        val raw = "What's happening underneath: He feels cornered.\nClear-win move: Wait a day.\nWhat to say: \"Let's co-draft.\"\n" +
+            "Do this:\n• Wait a day\n• Ask Alex to co-draft\nDon't do this:\n• Push now\n• Decide alone\nTry the line once he's cooled off."
+        val t = TalkUi.split(raw)
+        assertEquals(listOf("Wait a day", "Ask Alex to co-draft"), t.dos)
+        assertEquals(listOf("Push now", "Decide alone"), t.donts)
+        assertEquals("Try the line once he's cooled off.", t.closing)
+        assertTrue(t.body.contains("**Clear-win move:** Wait a day."))
+        assertFalse(t.body.contains("Do this"))
+        assertTrue(t.plain().contains("Do this:\n• Wait a day"))
+    }
+
+    @Test fun TC_TALK_10_aReplyWithoutDoDontHeadingsIsUnchanged() {
+        assertFalse(TalkUi.split("Just a thought.\n\nAnother one.").hasQuickRead)
+    }
 }

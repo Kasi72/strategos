@@ -235,8 +235,9 @@ private fun CoachCard(t: CoachText, tag: EngineTagUi?, reveal: RevealMath, onXRa
                     Text(emphasis(b), style = Calm.type.coachBody, color = c.coachInk)
                 }
             }
-            if (t.closing.isNotEmpty()) Text(emphasis(t.closing), style = Calm.type.coachBody, color = c.coachInk, modifier = Modifier.padding(top = 8.dp))
         }
+        if (t.hasQuickRead) QuickRead(t)
+        if (t.closing.isNotEmpty() && (!folded || t.hasQuickRead)) Text(emphasis(t.closing), style = Calm.type.coachBody, color = c.coachInk, modifier = Modifier.padding(top = 4.dp))
         if (tag != null && reveal != RevealMath.NEVER) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             EnginePill(tag, onXRay, onExplain)
         }
@@ -258,6 +259,30 @@ private fun CopyMenu(text: String, content: @Composable (Modifier) -> Unit) {
                 onClick = { clipboard.setText(AnnotatedString(text)); open = false; android.widget.Toast.makeText(ctx, "Copied", android.widget.Toast.LENGTH_SHORT).show() }
             )
         }
+    }
+}
+
+/** "Do this / Don't do this" as a short, bold quick read at the bottom of the reply, for people who skim. */
+@Composable
+private fun QuickRead(t: CoachText) {
+    val c = Calm.colors
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card.copy(alpha = 0.72f)).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (t.dos.isNotEmpty()) {
+            Text("Do this", color = c.trust, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp)
+            t.dos.forEach { QuickLine("✓", it, c.trust) }
+        }
+        if (t.donts.isNotEmpty()) {
+            Text("Don't do this", color = c.tension, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, modifier = Modifier.padding(top = if (t.dos.isNotEmpty()) 6.dp else 0.dp))
+            t.donts.forEach { QuickLine("✕", it, c.tension) }
+        }
+    }
+}
+
+@Composable
+private fun QuickLine(mark: String, text: String, color: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(mark, color = color, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(emphasis(text), color = Calm.colors.coachInk, fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
     }
 }
 

@@ -13,10 +13,19 @@ data class EngineTagUi(val move: String, val archetype: String, val robust: Bool
 /** The whole reply as plain text for the clipboard: no emphasis markers, bullets kept. */
 fun CoachText.plain(): String = listOfNotNull(
     lead.takeIf { it.isNotEmpty() }, body.takeIf { it.isNotEmpty() },
-    bullets.takeIf { it.isNotEmpty() }?.joinToString("\n") { "• $it" }, closing.takeIf { it.isNotEmpty() }
+    bullets.takeIf { it.isNotEmpty() }?.joinToString("\n") { "• $it" },
+    dos.takeIf { it.isNotEmpty() }?.let { "Do this:\n" + it.joinToString("\n") { d -> "• $d" } },
+    donts.takeIf { it.isNotEmpty() }?.let { "Don't do this:\n" + it.joinToString("\n") { d -> "• $d" } },
+    closing.takeIf { it.isNotEmpty() }
 ).joinToString("\n\n").replace("**", "")
 
-data class CoachText(val lead: String, val body: String, val bullets: List<String>, val closing: String)
+data class CoachText(
+    val lead: String, val body: String, val bullets: List<String>, val closing: String,
+    /** The "Do this" / "Don't do this" lists, shown as a bold quick-read box under the reply. */
+    val dos: List<String> = emptyList(), val donts: List<String> = emptyList()
+) {
+    val hasQuickRead: Boolean get() = dos.isNotEmpty() || donts.isNotEmpty()
+}
 
 /** A row in the conversation stream. */
 sealed class TalkTurn {
@@ -95,7 +104,36 @@ object TalkUi {
     }
 
     /** Splits a reply into lead / body / list / closing question without inventing any words. */
+    private val DO_HEAD = Regex("^\\s*do this\\s*:?\\s*$", RegexOption.IGNORE_CASE)
+    private val DONT_HEAD = Regex("^\\s*don['’]t do this\\s*:?\\s*$", RegexOption.IGNORE_CASE)
+    private val LABEL = Regex("^(What's happening underneath|Clear-win move|What to say):")
+
+    /**
+     * The structured coach reply ("Do this:" / "Don't do this:" each followed by bullets) splits into prose, a quick-read pair of
+     * lists and a closing line. Returns null when the reply has no such headings, so the general splitter handles it.
+     */
+    private fun splitStructured(raw: String): CoachText? {
+        val lines = raw.trim().lines().map { it.trim() }
+        if (lines.none { DO_HEAD.matches(it) || DONT_HEAD.matches(it) }) return null
+        val dos = mutableListOf<String>(); val donts = mutableListOf<String>()
+        val prose = mutableListOf<String>(); val tail = mutableListOf<String>()
+        var mode = 0                       // 0 none, 1 under "Do this", 2 under "Don't do this"
+        var afterLists = false
+        for (t in lines) when {
+            t.isEmpty() -> if (mode != 0) { mode = 0; afterLists = true }
+            DO_HEAD.matches(t) -> mode = 1
+            DONT_HEAD.matches(t) -> mode = 2
+            mode != 0 && BULLET.containsMatchIn(t) -> (if (mode == 1) dos else donts) += t.replace(BULLET, "").trim()
+            else -> {
+                if (mode != 0) { mode = 0; afterLists = true }
+                if (afterLists) tail += t else prose += LABEL.replace(t) { "**${it.groupValues[1]}:**" }
+            }
+        }
+        return CoachText("", prose.joinToString("\n\n"), emptyList(), tail.joinToString(" "), dos, donts)
+    }
+
     fun split(raw: String): CoachText {
+        splitStructured(raw)?.let { return it }
         val paras = raw.trim().split(Regex("\\n\\s*\\n")).map { it.trim() }.filter { it.isNotEmpty() }
         if (paras.isEmpty()) return CoachText("", "", emptyList(), "")
         val bullets = mutableListOf<String>()

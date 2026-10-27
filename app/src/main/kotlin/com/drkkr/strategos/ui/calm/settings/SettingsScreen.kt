@@ -59,7 +59,7 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
         Text("Settings", style = Calm.type.display.copy(fontSize = 28.sp, lineHeight = 34.sp), color = c.ink, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp))
         if (!ui.available) {
             Text("Secure storage isn't available on this phone, so the coach can't be set up.", color = c.ink2, fontSize = 15.sp, modifier = Modifier.padding(16.dp))
-        } else {
+        } else if (ui.loaded) {
             Header("Your coach")
             Column(Modifier.padding(horizontal = 16.dp).calmCard(c, RoundedCornerShape(20.dp))) {
                 Row(Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

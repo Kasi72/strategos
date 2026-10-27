@@ -9,6 +9,8 @@ import kotlinx.serialization.json.JsonObject
 
 /** Everything the Counsel screen renders (blueprint §10.6). */
 data class CounselUiState(
+    /** False until the key and consent have been read once, so screens don't flash "no key" while they load. */
+    val statusLoaded: Boolean = false,
     val aiReady: Boolean = false, val needsConsent: Boolean = false, val hasKey: Boolean = false,
     val conversationId: String? = null, val items: List<ChatItem> = emptyList(),
     val running: Boolean = false, val activity: String? = null, val error: String? = null, val canRetry: Boolean = false,

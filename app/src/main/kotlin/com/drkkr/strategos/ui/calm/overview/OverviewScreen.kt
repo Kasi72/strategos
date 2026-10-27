@@ -224,7 +224,9 @@ private fun QuickCheckCard(question: String, onSave: (String, String) -> Unit) {
 @Composable
 private fun ChipRow(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
     val c = Calm.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Wraps to a second line instead of squeezing a long label into a sliver on narrow phones.
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         options.forEach { (key, label) ->
             val on = key == selected
             Text(label, style = Calm.type.caption, color = if (on) c.selectedText else c.ink2,

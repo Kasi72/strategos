@@ -72,4 +72,16 @@ class TalkE2e : E2eBase() {
             s = cm.primaryClip?.getItemAt(0)?.text?.toString().orEmpty() }; s }
         assertEquals(mine, clip())
     }
+
+    @Test fun TC_E2E_TALK_06_withAKeyTheNoKeyCardNeverFlashes() {
+        requireLiveKey()
+        reset(withKey = true); seedProject("Loan for my brother"); launch()
+        waitForText("Loan for my brother"); text("Loan for my brother").performClick()
+        waitForText("Start chat"); rule.mainClock.autoAdvance = false
+        text("Start chat").performClick()
+        var flashed = false
+        repeat(80) { rule.mainClock.advanceTimeByFrame(); Thread.sleep(20); if (hasText("Add your AI key")) flashed = true }
+        rule.mainClock.autoAdvance = true
+        assertTrue("the no-key card flashed while the key was loading", !flashed)
+    }
 }
