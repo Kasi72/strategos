@@ -1,6 +1,10 @@
 package com.drkkr.strategos.e2e
 
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,5 +53,23 @@ class TalkE2e : E2eBase() {
         reset(withKey = true.also { requireLiveKey() }); seedProject("Loan for my brother"); launch()
         openTalk("Loan for my brother")
         waitForText("Tell me what’s going on with loan for my brother", substring = true)
+    }
+
+    @Test fun TC_E2E_TALK_05_longPressCopiesMyMessageAndTheCoachReply() {
+        requireLiveKey()
+        reset(withKey = true); seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
+        openTalk("Loan for my brother")
+        val mine = "My wife is against it. What should I do?"
+        typeInto(0, mine)
+        desc("Send message").performClick()
+        waitForCoachReply()
+        waitForText(mine)
+        text(mine).performTouchInput { longClick() }
+        text("Copy").performClick()
+        rule.waitForIdle()
+        val clip = { var s = ""; InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            s = cm.primaryClip?.getItemAt(0)?.text?.toString().orEmpty() }; s }
+        assertEquals(mine, clip())
     }
 }

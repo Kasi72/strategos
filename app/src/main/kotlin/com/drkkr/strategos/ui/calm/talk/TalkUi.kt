@@ -10,6 +10,12 @@ data class EngineTagUi(val move: String, val archetype: String, val robust: Bool
 }
 
 /** One coach reply split the way the card lays it out: one lead, a body, an optional list, one closing question. */
+/** The whole reply as plain text for the clipboard: no emphasis markers, bullets kept. */
+fun CoachText.plain(): String = listOfNotNull(
+    lead.takeIf { it.isNotEmpty() }, body.takeIf { it.isNotEmpty() },
+    bullets.takeIf { it.isNotEmpty() }?.joinToString("\n") { "• $it" }, closing.takeIf { it.isNotEmpty() }
+).joinToString("\n\n").replace("**", "")
+
 data class CoachText(val lead: String, val body: String, val bullets: List<String>, val closing: String)
 
 /** A row in the conversation stream. */

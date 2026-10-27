@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -190,14 +191,14 @@ private fun UserBubble(t: TalkTurn.User) {
     var expanded by remember(t.id) { mutableStateOf(false) }
     val long = t.text.length > 240
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Column(
+        CopyMenu(t.text) { longPress -> Column(
             Modifier.widthIn(max = 320.dp).alpha(if (t.queued) 0.82f else 1f)
-                .clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(c.action).padding(horizontal = 16.dp, vertical = 12.dp)
+                .clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(c.action).then(longPress).padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(t.text, color = Color.White, fontSize = 16.sp, lineHeight = 24.sp, maxLines = if (long && !expanded) 6 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
             if (long && !expanded) Text("Read more", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 8.dp).clickable { expanded = true })
-        }
+        } }
         if (t.queued) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(Icons.Default.Schedule, null, tint = c.ink3, modifier = Modifier.size(14.dp))
             Text("Waiting for a connection", color = c.ink3, fontSize = 12.sp)
@@ -215,7 +216,7 @@ internal fun emphasis(text: String): AnnotatedString = buildAnnotatedString {
 private fun CoachCard(t: CoachText, tag: EngineTagUi?, reveal: RevealMath, onXRay: () -> Unit, onExplain: (EngineTagUi) -> Unit) {
     val c = Calm.colors
     var folded by remember(t.body) { mutableStateOf(t.body.length > 600) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.coach).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    CopyMenu(t.plain()) { longPress -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.coach).then(longPress).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (t.lead.isNotEmpty()) Text(emphasis(t.lead), style = Calm.type.coachLead, color = c.coachInk)
         if (folded) {
             Box(Modifier.heightIn(max = 92.dp)) {
@@ -238,6 +239,24 @@ private fun CoachCard(t: CoachText, tag: EngineTagUi?, reveal: RevealMath, onXRa
         }
         if (tag != null && reveal != RevealMath.NEVER) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             EnginePill(tag, onXRay, onExplain)
+        }
+    } }
+}
+
+/** Long-press a message to copy all of it. The content gets the gesture modifier; the menu hangs off the same spot. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun CopyMenu(text: String, content: @Composable (Modifier) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Box {
+        content(Modifier.combinedClickable(onClick = {}, onLongClick = { open = true }))
+        androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("Copy") },
+                onClick = { clipboard.setText(AnnotatedString(text)); open = false; android.widget.Toast.makeText(ctx, "Copied", android.widget.Toast.LENGTH_SHORT).show() }
+            )
         }
     }
 }

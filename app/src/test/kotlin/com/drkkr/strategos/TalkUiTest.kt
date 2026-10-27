@@ -4,6 +4,7 @@ import com.drkkr.strategos.agent.ChatItem
 import com.drkkr.strategos.agent.QuestionUi
 import com.drkkr.strategos.ui.calm.talk.TalkTurn
 import com.drkkr.strategos.ui.calm.talk.TalkUi
+import com.drkkr.strategos.ui.calm.talk.plain
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -59,5 +60,10 @@ class TalkUiTest {
         assertEquals(listOf("What is this about?", "Who else is involved?"), t.bullets)
         assertTrue((t.lead + t.body).contains("Before I call it"))
         assertFalse((t.lead + t.body).contains("What is this about"))
+    }
+
+    @Test fun TC_TALK_08_plainTextForCopyKeepsEveryWordAndDropsEmphasis() {
+        val t = com.drkkr.strategos.ui.calm.talk.CoachText("Take a breath.", "Say **no** once.", listOf("Be kind", "Be brief"), "What matters most?")
+        assertEquals("Take a breath.\n\nSay no once.\n\n• Be kind\n• Be brief\n\nWhat matters most?", t.plain())
     }
 }
