@@ -12,6 +12,7 @@ sealed interface CalmRoute {
     data object Projects : CalmRoute
     data class Overview(val projectId: String) : CalmRoute
     data class Talk(val projectId: String) : CalmRoute
+    data object Archived : CalmRoute
     data object Journal : CalmRoute
     data object Settings : CalmRoute
 

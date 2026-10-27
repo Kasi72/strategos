@@ -39,6 +39,15 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
             .mapLatest { (list, d) -> build(list, d) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProjectsUiState())
 
+    /** Archived projects (id, short name), newest first. */
+    val archived: StateFlow<List<Pair<String, String>>> = scenarios.scenarios
+        .mapLatest { all -> all.filter { it.status == ScenarioStatus.ARCHIVED }.sortedByDescending { it.updatedAt }.map { it.id to ProjectsUi.displayName(it.title) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun restore(id: String) = viewModelScope.launch {
+        scenarios.find(id)?.let { scenarios.save(it.copy(status = ScenarioStatus.ACTIVE)) }
+    }
+
     init {
         viewModelScope.launch {
             hasKey = runCatching { container.keyVault?.has() ?: false }.getOrDefault(false)

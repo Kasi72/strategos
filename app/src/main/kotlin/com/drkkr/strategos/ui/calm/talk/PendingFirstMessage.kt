@@ -10,3 +10,14 @@ object PendingFirstMessage {
     @Synchronized fun take(id: String): String? =
         if (projectId == id) text.also { projectId = null; text = null } else null
 }
+
+/** The topic the Overview asked Talk to open. In memory only. */
+object PendingThread {
+    private var projectId: String? = null
+    private var threadId: String? = null
+
+    @Synchronized fun set(project: String, thread: String) { projectId = project; threadId = thread }
+
+    @Synchronized fun take(project: String): String? =
+        if (projectId == project) threadId.also { projectId = null; threadId = null } else null
+}

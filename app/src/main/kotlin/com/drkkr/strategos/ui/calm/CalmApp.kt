@@ -63,6 +63,7 @@ fun CalmApp() {
                     CalmRoute.Projects -> if (onboarding) OnboardingRoute(nav, projectsVm) { prefs.edit().putBoolean("onboarded", true).apply(); onboardedFlag = true } else ProjectsRoute(nav)
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
                     is CalmRoute.Talk -> TalkRoutePane(nav, route.projectId)
+                    CalmRoute.Archived -> ArchivedRoute(nav, projectsVm)
                     CalmRoute.Journal -> com.drkkr.strategos.ui.calm.journal.JournalRoute(onOpenProject = { nav.go(CalmRoute.Overview(it)) })
                     CalmRoute.Settings -> com.drkkr.strategos.ui.calm.settings.SettingsRoute(viewModel())
                 }
@@ -107,7 +108,7 @@ private fun ProjectsRoute(nav: CalmNav) {
         onRename = { renaming = it },
         onArchive = vm::archive,
         onDelete = { deleting = it },
-        onOpenArchived = {},
+        onOpenArchived = { nav.go(CalmRoute.Archived) },
         onAddKey = { nav.selectTab(DockTab.SETTINGS) },
         onOpenJournal = { nav.selectTab(DockTab.JOURNAL) },
         onOpenSettings = { nav.selectTab(DockTab.SETTINGS) }
@@ -132,7 +133,7 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     OverviewScreen(ui, OverviewActions(
         onBack = { nav.back() },
         onOpenChat = { nav.go(CalmRoute.Talk(projectId)) },
-        onOpenThread = { nav.go(CalmRoute.Talk(projectId)) },
+        onOpenThread = { id -> com.drkkr.strategos.ui.calm.talk.PendingThread.set(projectId, id); nav.go(CalmRoute.Talk(projectId)) },
         onNewTopic = { nav.go(CalmRoute.Talk(projectId)) },
         onSaveQuickCheck = { did, landed -> vm.saveQuickCheck(did, landed) },
         onOpenReply = { nav.go(CalmRoute.Talk(projectId)) },
@@ -220,4 +221,21 @@ private fun OnboardingRoute(nav: CalmNav, vm: ProjectsViewModel, onDone: () -> U
             }
         }
     })
+}
+
+@Composable
+private fun ArchivedRoute(nav: CalmNav, vm: ProjectsViewModel) {
+    val items by vm.archived.collectAsState()
+    var deleting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<String, String>?>(null) }
+    BackHandler { nav.back() }
+    deleting?.let { (id, name) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete $name?") },
+            text = { Text("Its memory and topics go with it. Your journal entries stay.") },
+            confirmButton = { Text("Delete project", color = Calm.colors.tension, modifier = Modifier.clickable { vm.delete(id); deleting = null }.padding(12.dp)) },
+            dismissButton = { Text("Cancel", color = Calm.colors.ink2, modifier = Modifier.clickable { deleting = null }.padding(12.dp)) }
+        )
+    }
+    com.drkkr.strategos.ui.calm.projects.ArchivedScreen(items, onBack = { nav.back() }, onRestore = vm::restore, onDelete = { id -> deleting = items.firstOrNull { it.first == id } })
 }

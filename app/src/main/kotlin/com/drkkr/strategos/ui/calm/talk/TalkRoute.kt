@@ -67,6 +67,10 @@ fun TalkRoute(
         }
     }
 
+    LaunchedEffect(projectId, app.activeScenario?.id, counselUi.conversationId) {
+        if (app.activeScenario?.id == projectId && counselUi.conversationId != null) PendingThread.take(projectId)?.let { counsel?.selectThread(it) }
+    }
+
     // A project started from the Projects composer or onboarding sends its first message once the coach is ready.
     LaunchedEffect(projectId, app.activeScenario?.id, counselUi.conversationId, counselUi.aiReady, counselUi.running) {
         if (app.activeScenario?.id == projectId && counselUi.conversationId != null && counselUi.aiReady && !counselUi.running) {
