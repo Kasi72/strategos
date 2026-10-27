@@ -49,4 +49,15 @@ class JournalUiTest {
         assertNull(ui.first { it.id == "b" }.suggestedProjectId)
         assertEquals(Mood.UNEASY, ui.first { it.id == "b" }.mood)
     }
+
+    @Test fun TC_JRN_06_projectTabSplitsLinkedFromSuggested() {
+        val titles = mapOf("p1" to "Loan")
+        val entries = listOf(
+            JournalEntryView("a", null, "maybe", "CALM", "RECORDED", at(21)),
+            JournalEntryView("c", "p1", "linked", "NEUTRAL", "RECORDED", at(23))
+        )
+        val rows = JournalUi.build(entries, titles, mapOf("a" to "p1"), now, utc)
+        assertEquals(listOf("c"), rows.filter { it.linkedProjectId == "p1" }.map { it.id })
+        assertEquals(listOf("a"), rows.filter { it.suggestedProjectId == "p1" }.map { it.id })
+    }
 }

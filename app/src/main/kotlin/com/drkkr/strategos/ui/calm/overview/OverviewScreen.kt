@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -57,11 +58,16 @@ import com.drkkr.strategos.ui.calm.theme.Calm
 import com.drkkr.strategos.ui.calm.theme.calmCard
 
 @Composable
-fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier) {
+fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier, journalPage: (@Composable () -> Unit)? = null) {
+    var onJournal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
         TopBar(ui.projectName, ui.subtitle, a.onBack)
+        if (journalPage != null) ProjectTabs(onJournal, ui.linkedJournalCount) { onJournal = it }
         Box(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize()) {
+            if (onJournal && journalPage != null) androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize()) {
+                item { journalPage() }
+                item { Spacer(Modifier.height(96.dp)) }
+            } else LazyColumn(Modifier.fillMaxSize()) {
                 item { MomentumSection(ui) }
                 if (ui.pendingCheck != null) item { QuickCheckCard(ui.pendingCheck.question, a.onSaveQuickCheck) }
                 if (ui.guidance.isNotEmpty()) item { GuidanceSection(ui, a.onOpenReply) }
@@ -75,11 +81,30 @@ fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier =
             if (!ui.loading) ExtendedFloatingActionButton(
                 onClick = a.onOpenChat,
                 containerColor = Calm.colors.action, contentColor = Calm.colors.actionText,
-                icon = { Icon(Icons.Outlined.ChatBubbleOutline, null) }, text = { Text(ui.chatLabel) },
+                icon = { Icon(Icons.Outlined.ChatBubbleOutline, ui.chatLabel) }, text = { if (!onJournal) Text(ui.chatLabel) },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(Calm.dimens.gutter)
             )
         }
     }
+}
+
+@Composable
+private fun ProjectTabs(onJournal: Boolean, linkedCount: Int, onPick: (Boolean) -> Unit) {
+    val c = Calm.colors
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        listOf(false to "Overview", true to "Journal").forEach { (isJ, label) ->
+            val on = onJournal == isJ
+            Column(Modifier.heightIn(min = 48.dp).clickable { onPick(isJ) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(label, color = if (on) c.ink else c.ink3, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, fontSize = 15.sp)
+                    if (isJ && linkedCount > 0) Text("$linkedCount", color = c.selectedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.selected).padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+                Box(Modifier.padding(top = 4.dp).height(3.dp).fillMaxWidth().background(if (on) c.action else Color.Transparent))
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
 }
 
 @Composable

@@ -130,7 +130,7 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     if (showReview) com.drkkr.strategos.ui.calm.overview.ReviewAiInputsSheet(ui.reviewItems, vm::review, vm::acceptAll) { showReview = false }
     if (showAdd) com.drkkr.strategos.ui.calm.overview.AddFactDialog(onAdd = vm::addFact, onDismiss = { showAdd = false })
     if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
-    OverviewScreen(ui, OverviewActions(
+    OverviewScreen(ui, journalPage = { ProjectJournalTab(projectId, ui.projectName) }, a = OverviewActions(
         onBack = { nav.back() },
         onOpenChat = { nav.go(CalmRoute.Talk(projectId)) },
         onOpenThread = { id -> com.drkkr.strategos.ui.calm.talk.PendingThread.set(projectId, id); nav.go(CalmRoute.Talk(projectId)) },
@@ -238,4 +238,27 @@ private fun ArchivedRoute(nav: CalmNav, vm: ProjectsViewModel) {
         )
     }
     com.drkkr.strategos.ui.calm.projects.ArchivedScreen(items, onBack = { nav.back() }, onRestore = vm::restore, onDelete = { id -> deleting = items.firstOrNull { it.first == id } })
+}
+
+/** The Journal tab of a project: entries linked to it, the screener's suggestions, and a composer linked to it. */
+@Composable
+private fun ProjectJournalTab(projectId: String, projectName: String) {
+    val vm: StrategosViewModel = viewModel()
+    val ui by vm.counselState.collectAsState()
+    val scope = rememberCoroutineScope()
+    val repo = (LocalContext.current.applicationContext as com.drkkr.strategos.StrategosApplication).container.journalRepository
+    var suggestions by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Map<String, String>>(emptyMap()) }
+    var refresh by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(ui.journalEntries.size, projectId, refresh) {
+        suggestions = repo?.linkSuggestions(projectId)?.associate { it.entryId to it.scenarioId }.orEmpty()
+    }
+    val rows = com.drkkr.strategos.ui.calm.journal.JournalUi.build(ui.journalEntries, mapOf(projectId to projectName), suggestions, System.currentTimeMillis())
+    com.drkkr.strategos.ui.calm.journal.ProjectJournalPage(
+        projectName,
+        linked = rows.filter { it.linkedProjectId == projectId },
+        suggested = rows.filter { it.suggestedProjectId == projectId },
+        onSave = { text -> scope.launch { vm.counsel?.recordJournalEntry(text, "NEUTRAL", projectId); refresh++ } },
+        onLink = { id -> scope.launch { repo?.link(id, projectId); refresh++ } },
+        onDismiss = { id -> scope.launch { repo?.dismissLink(id, projectId); refresh++ } }
+    )
 }
