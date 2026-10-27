@@ -53,4 +53,11 @@ class TalkUiTest {
         assertEquals("2h", TalkUi.whenLabel(now - 2 * 3_600_000, now))
         assertEquals("1d", TalkUi.whenLabel(now - 26 * 3_600_000, now))
     }
+
+    @Test fun TC_TALK_07_introLineBeforeBulletsInOneParagraphStaysProse() {
+        val t = TalkUi.split("Before I call it, let me get this right —\n- What is this about?\n\n- Who else is involved?")
+        assertEquals(listOf("What is this about?", "Who else is involved?"), t.bullets)
+        assertTrue((t.lead + t.body).contains("Before I call it"))
+        assertFalse((t.lead + t.body).contains("What is this about"))
+    }
 }

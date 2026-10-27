@@ -96,7 +96,10 @@ object TalkUi {
         val prose = mutableListOf<String>()
         for (p in paras) {
             val lines = p.lines()
-            if (lines.all { BULLET.containsMatchIn(it) }) lines.forEach { bullets += it.replace(BULLET, "").trim() } else prose += p
+            // An intro line followed by bullets in one paragraph splits into prose + list, so the intro can lead.
+            val (b, rest) = lines.partition { BULLET.containsMatchIn(it) }
+            b.forEach { bullets += it.replace(BULLET, "").trim() }
+            if (rest.isNotEmpty()) prose += rest.joinToString("\n").trim()
         }
         if (prose.isEmpty()) return CoachText("", "", bullets, "")
         var closing = ""
