@@ -154,4 +154,21 @@ class ArgonContextTest {
         assertTrue("falls back to the engine's own text", reply.contains("Options to consider"))
         assertFalse("no engine badge in the chat text", reply.lines().any { it.startsWith("Engine: ") })
     }
+
+    @Test fun TC_CTX2_04_coachSeesLinkedJournalAndOtherTopics() = runBlocking {
+        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+        journal.recordEntry("Alex skipped standup and ignored the Lisbon intro.", "ANXIOUS", "loan")
+        journal.recordEntry("An unlinked note about my garden.", "NEUTRAL", null)
+        val other = conversations.createNamedThread("loan", "The money side")
+        conversations.append(other.id, "o1", MessageRole.USER, "Who pays the first instalment?")
+        val llm = com.drkkr.strategos.fixtures.EngineEchoLlm(listOf(extraction))
+        val controller = controllerWith(llm)
+        controller.bindScenario("loan").join()
+        controller.createNamedThread("Current topic").join()      // the sibling above is a different topic
+        controller.send("My brother wants me to co-sign a loan.")!!.join(); controller.awaitIdle()
+        val coach = llm.requests.first { it.purpose == "COACH" }.input.last().jsonObject.getValue("content").jsonPrimitive.content
+        assertTrue(coach, coach.contains("Lisbon intro"))
+        assertTrue(coach, coach.contains("The money side: Who pays the first instalment?"))
+        assertFalse("unlinked entries stay out", coach.contains("garden"))
+    }
 }

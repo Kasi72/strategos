@@ -110,7 +110,7 @@ class CounselController(
     private val oneShotTurn = OneShotTurn(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
         onSupport = { showModelSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
-        argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!) }
+        argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!, deps.journal) }
     )
 
     init {

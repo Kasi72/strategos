@@ -69,7 +69,7 @@ class OneShotTurn(
     /** Argon: prefix-cached request, JSON mode, coach guide in the answer, and one trajectory point per turn. Null keeps the v2.0 flow. */
     private val argon: ArgonTurn? = null
 ) {
-    class ArgonTurn(val assembler: ContextAssembler, val trajectory: TrajectoryRepository)
+    class ArgonTurn(val assembler: ContextAssembler, val trajectory: TrajectoryRepository, val journal: com.drkkr.strategos.data.repo.JournalRepository? = null)
 
     suspend fun run(
         conversationId: String, scenarioId: String, trigger: TurnTrigger, onActivity: (String) -> Unit
@@ -264,13 +264,37 @@ class OneShotTurn(
         if (d.stressVerdict == "FRAGILE") "Fragile" else "Robust"
     ).joinToString(" · ")
 
+
+    /**
+     * What the person has told the coach elsewhere in this project: their linked journal entries, the takeaways drawn
+     * from them, and what the other topics are about. Without it, call 2 only knows the engine facts and this thread.
+     */
+    private suspend fun background(cid: String): String {
+        val sid = conversations.get(cid)?.scenarioId ?: return ""
+        val journal = argon?.journal
+        val entries = journal?.linkedEntries(sid, BACKGROUND_ENTRIES).orEmpty()
+        val notes = journal?.activePostNotes(sid).orEmpty().filter { !it.applied }.take(BACKGROUND_ENTRIES)
+        val topics = conversations.listThreads(sid).filter { it.id != cid }.take(BACKGROUND_TOPICS).mapNotNull { t ->
+            val said = conversations.messages(t.id).lastOrNull { it.role == MessageRole.USER.name }?.text ?: return@mapNotNull null
+            "- ${t.title}: ${said.take(BACKGROUND_LINE_CHARS)}"
+        }
+        if (entries.isEmpty() && notes.isEmpty() && topics.isEmpty()) return ""
+        return buildString {
+            append("BACKGROUND FROM THIS PROJECT (use it only where it bears on what they say; if they ask about their journal or another topic, answer from it):\n")
+            if (entries.isNotEmpty()) append("JOURNAL ENTRIES THEY LINKED (newest first):\n").append(entries.joinToString("\n") { "- " + it.text.take(BACKGROUND_LINE_CHARS) }).append('\n')
+            if (notes.isNotEmpty()) append("TAKEAWAYS FROM THEIR JOURNAL:\n").append(notes.joinToString("\n") { "- ${it.insightHeadline}" }).append('\n')
+            if (topics.isNotEmpty()) append("OTHER TOPICS IN THIS PROJECT:\n").append(topics.joinToString("\n")).append('\n')
+            append('\n')
+        }
+    }
+
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
     private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String): CoachReply? {
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         val request = LlmRequest(
@@ -302,6 +326,7 @@ class OneShotTurn(
             add(buildJsonObject {
                 put("role", "user")
                 put("content", buildString {
+                    append(background(cid))
                     append("WHAT THE ANALYSIS SHOWS:\n").append(CoachFacts.build(s, pr)).append('\n')
                     if (earlier.isNotEmpty()) append("EARLIER MESSAGES:\n").append(earlier.joinToString("\n") { "- " + it.take(200) }).append('\n')
                     append("THE PERSON SAYS:\n").append(text.take(MAX_USER_CHARS))
@@ -325,6 +350,7 @@ class OneShotTurn(
             add(buildJsonObject {
                 put("role", "user")
                 put("content", buildString {
+                    append(background(cid))
                     append("THE PERSON ASKS:\n").append(text.take(MAX_USER_CHARS)).append("\n\n")
                     append("YOUR PREVIOUS REPLY:\n").append(priorReply.take(MAX_PRIOR_CHARS))
                     if (!reportJson.isNullOrBlank()) append("\n\nANALYSIS BEHIND IT (for your reference only, never quote scores):\n").append(reportJson.take(MAX_DIGEST_CHARS))
@@ -433,6 +459,9 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        private const val BACKGROUND_ENTRIES = 3
+        private const val BACKGROUND_TOPICS = 3
+        private const val BACKGROUND_LINE_CHARS = 300
         // BLUEPRINT-QUESTION: 900 was sized for Groq's 8,000 tokens/minute cap (LEAN PROFILE). On DeepSeek it cut the sketch JSON mid-array,
         // so every substantive first message failed with "Couldn't reach the coach" (found by the emulator E2E run). 3,000 fits a full sketch.
         private const val EXTRACTION_MAX_TOKENS = 3_000

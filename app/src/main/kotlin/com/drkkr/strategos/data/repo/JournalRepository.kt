@@ -49,6 +49,10 @@ class JournalRepository(
     fun observeEntries(scenarioId: String? = null): Flow<List<JournalEntryView>> =
         dao.observeEntries(scenarioId).map { rows -> rows.map(::view) }
 
+    /** The newest entries linked to a project, for the coach's background. Empty when nothing is linked. */
+    suspend fun linkedEntries(scenarioId: String, limit: Int): List<JournalEntryView> =
+        dao.allEntries().asSequence().filter { it.linkedScenarioId == scenarioId }.take(limit).map(::view).filter { it.text.isNotBlank() }.toList()
+
     suspend fun entry(id: String): JournalEntryView? = dao.getEntry(id)?.let(::view)
 
     suspend fun pendingScreens(limit: Int = MAX_RETRIES): List<JournalEntryView> = dao.pendingScreenEntries().take(limit).map(::view)
