@@ -67,6 +67,13 @@ fun TalkRoute(
         }
     }
 
+    // A project started from the Projects composer or onboarding sends its first message once the coach is ready.
+    LaunchedEffect(projectId, app.activeScenario?.id, counselUi.conversationId, counselUi.aiReady, counselUi.running) {
+        if (app.activeScenario?.id == projectId && counselUi.conversationId != null && counselUi.aiReady && !counselUi.running) {
+            PendingFirstMessage.take(projectId)?.let { counsel?.send(it) }
+        }
+    }
+
     val lastError = counselUi.items.lastOrNull() as? ChatItem.Error
     val problem = when {
         counselUi.keyInvalid -> TalkProblem.KEY_REJECTED

@@ -46,16 +46,21 @@ import kotlinx.coroutines.launch
 fun CalmApp() {
     val nav = rememberCalmNav()
     BackHandler(enabled = nav.canBack) { nav.back() }
+    val prefs = LocalContext.current.getSharedPreferences("calm_ui", android.content.Context.MODE_PRIVATE)
+    var onboardedFlag by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(prefs.getBoolean("onboarded", false)) }
+    val projectsVm: ProjectsViewModel = viewModel()
+    val projectsUi by projectsVm.state.collectAsState()
+    val onboarding = !onboardedFlag && projectsUi.isFirstRun && nav.current is CalmRoute.Projects
     val c = Calm.colors
     // The ground is painted once, behind everything including the system bars (edge-to-edge).
     Box(Modifier.fillMaxSize().background(c.groundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
-            bottomBar = { if (nav.current !is CalmRoute.Talk) StrategosDock(nav.tab) { nav.selectTab(it) } }
+            bottomBar = { if (nav.current !is CalmRoute.Talk && !onboarding) StrategosDock(nav.tab) { nav.selectTab(it) } }
         ) { pad ->
             Box(Modifier.fillMaxSize().padding(pad)) {
                 when (val route = nav.current) {
-                    CalmRoute.Projects -> ProjectsRoute(nav)
+                    CalmRoute.Projects -> if (onboarding) OnboardingRoute(nav, projectsVm) { prefs.edit().putBoolean("onboarded", true).apply(); onboardedFlag = true } else ProjectsRoute(nav)
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
                     is CalmRoute.Talk -> TalkRoutePane(nav, route.projectId)
                     CalmRoute.Journal -> com.drkkr.strategos.ui.calm.journal.JournalRoute(onOpenProject = { nav.go(CalmRoute.Overview(it)) })
@@ -96,7 +101,7 @@ private fun ProjectsRoute(nav: CalmNav) {
     }
     ProjectsScreen(ui, ProjectsActions(
         onDraft = vm::setDraft,
-        onSend = { scope.launch { vm.createProject()?.let { nav.go(CalmRoute.Talk(it)) } } },
+        onSend = { scope.launch { val text = ui.draft.trim(); vm.createProject()?.let { id -> com.drkkr.strategos.ui.calm.talk.PendingFirstMessage.set(id, text); nav.go(CalmRoute.Talk(id)) } } },
         onPickExample = vm::setDraft,
         onOpenProject = { nav.go(CalmRoute.Overview(it)) },
         onRename = { renaming = it },
@@ -200,4 +205,19 @@ private fun LegacyTalkRoute(nav: CalmNav, projectId: String) {
 private object OldTheme {
     @Composable operator fun invoke(content: @Composable () -> Unit) = com.drkkr.strategos.ui.theme.StrategosTheme(content = content)
     @Composable fun surface() = androidx.compose.material3.MaterialTheme.colorScheme.background
+}
+
+@Composable
+private fun OnboardingRoute(nav: CalmNav, vm: ProjectsViewModel, onDone: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    com.drkkr.strategos.ui.calm.onboarding.OnboardingScreen(onSend = { text ->
+        scope.launch {
+            vm.setDraft(text)
+            vm.createProject()?.let { id ->
+                com.drkkr.strategos.ui.calm.talk.PendingFirstMessage.set(id, text)
+                onDone()
+                nav.go(CalmRoute.Talk(id))
+            }
+        }
+    })
 }
