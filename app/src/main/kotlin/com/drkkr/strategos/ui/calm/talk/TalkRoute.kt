@@ -117,15 +117,18 @@ fun TalkRoute(
     ))
 }
 
+/** Treats an unreadable network state as online, so a missing permission can never take the screen down. */
+private fun hasNetwork(cm: ConnectivityManager): Boolean = runCatching { cm.activeNetwork != null }.getOrDefault(true)
+
 @Composable
 private fun rememberOnline(): Boolean {
     val ctx = LocalContext.current
     val cm = remember { ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
-    var online by remember { mutableStateOf(cm.activeNetwork != null) }
+    var online by remember { mutableStateOf(hasNetwork(cm)) }
     DisposableEffect(cm) {
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { online = true }
-            override fun onLost(network: Network) { online = cm.activeNetwork != null }
+            override fun onLost(network: Network) { online = hasNetwork(cm) }
         }
         runCatching { cm.registerDefaultNetworkCallback(cb) }
         onDispose { runCatching { cm.unregisterNetworkCallback(cb) } }
