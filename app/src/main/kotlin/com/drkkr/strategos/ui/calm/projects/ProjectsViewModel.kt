@@ -32,11 +32,14 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
     private val conversations = container.database?.let { ConversationRepository(it) }
 
     private val draft = MutableStateFlow("")
+
+    /** The composer text, kept out of the slow list pipeline so typing never waits on database reads. */
+    val draftText: StateFlow<String> = draft
     private var hasKey = true
 
     val state: StateFlow<ProjectsUiState> =
-        combine(scenarios.scenarios, draft) { list, d -> list to d }
-            .mapLatest { (list, d) -> build(list, d) }
+        scenarios.scenarios
+            .mapLatest { list -> build(list, "") }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProjectsUiState())
 
     /** Archived projects (id, short name), newest first. */

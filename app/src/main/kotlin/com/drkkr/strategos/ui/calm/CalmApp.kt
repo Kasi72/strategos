@@ -75,7 +75,9 @@ fun CalmApp() {
 @Composable
 private fun ProjectsRoute(nav: CalmNav) {
     val vm: ProjectsViewModel = viewModel()
-    val ui by vm.state.collectAsState()
+    val listUi by vm.state.collectAsState()
+    val draftText by vm.draftText.collectAsState()
+    val ui = listUi.copy(draft = draftText)
     val scope = rememberCoroutineScope()
     var renaming by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     var deleting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
