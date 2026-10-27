@@ -65,6 +65,16 @@ class ScenarioRepository(
         refresh(database)
     }
 
+    /** Settings ▸ Delete everything: every project, topic, memory and journal entry. The key and settings stay. */
+    suspend fun deleteEverything() = withContext(Dispatchers.IO) {
+        val database = db ?: return@withContext
+        database.runInTransaction {
+            val sql = database.openHelper.writableDatabase
+            USER_TABLES.forEach { sql.execSQL("DELETE FROM $it") }
+        }
+        refresh(database)
+    }
+
     suspend fun saveSnapshot(snapshot: AnalysisSnapshot) = withContext(Dispatchers.IO) {
         val database = db ?: return@withContext
         try {
@@ -99,5 +109,12 @@ class ScenarioRepository(
             .map { RecoverableRecord(it.id, it.rawJson, it.error) }
         _scenarios.value = good.sortedByDescending { it.updatedAt }
         _recoverableRecords.value = bad + stored.filter { s -> bad.none { it.id == s.id } }
+    }
+
+    private companion object {
+        val USER_TABLES = listOf(
+            "message", "change_set", "conversation", "what_if_run", "memory_item", "analysis_snapshot",
+            "recoverable_record", "journal_post_note", "journal_entry", "trajectory_point", "quick_check_feedback", "scenario"
+        )
     }
 }

@@ -155,6 +155,14 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Settings ▸ Delete everything. Clears the working scenario too so nothing stale stays on screen. */
+    fun deleteEverything() {
+        viewModelScope.launch {
+            repo.deleteEverything()
+            _state.update { it.copy(activeScenario = null) }
+        }
+    }
+
     /** Null when secure storage is unavailable (Counsel needs the database). */
     val counsel: CounselController? = container.counselDeps?.let { CounselController(viewModelScope, it, gatewayImpl) }
     val counselState: StateFlow<CounselUiState> = counsel?.state ?: MutableStateFlow(CounselUiState()).asStateFlow()
