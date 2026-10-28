@@ -178,7 +178,11 @@ private fun MomentumChart(chart: ChartUi, eventCount: Int) {
     val c = Calm.colors
     Canvas(Modifier.fillMaxWidth().height(140.dp).semantics { contentDescription = "Trust and tension over time" }) {
         val h = size.height; val w = size.width
-        fun y(v: Float) = h - (v / 100f) * h
+        val (lo, hi) = com.drkkr.strategos.ui.calm.theme.TrendScale.window(
+            chart.trustPast, chart.tensionPast, chart.trustHold, chart.tensionHold, chart.trustRevert, chart.tensionRevert
+        )
+        val inset = 6f
+        fun y(v: Float) = h - inset - ((v - lo) / (hi - lo)) * (h - 2 * inset)
         fun pts(series: List<Float>, startX: Float, endX: Float): List<Offset> {
             if (series.isEmpty()) return emptyList()
             val dx = if (series.size == 1) 0f else (endX - startX) / (series.size - 1)

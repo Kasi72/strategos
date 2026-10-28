@@ -205,7 +205,7 @@ private fun StatusWord(status: MomentumStatus) {
     Text(status.word, style = Calm.type.caption, color = color)
 }
 
-/** 64×24dp trust (solid, heavier) + tension (dashed, lighter) spark. Each series is scaled to its own range. */
+/** 64×24dp trust (solid, heavier) + tension (dashed, lighter) spark. Both lines share one scale with the project's chart. */
 @Composable
 private fun MomentumSpark(trust: List<Float>, tension: List<Float>, status: MomentumStatus) {
     val c = Calm.colors
@@ -213,14 +213,13 @@ private fun MomentumSpark(trust: List<Float>, tension: List<Float>, status: Mome
         Modifier.width(64.dp).height(24.dp).semantics { contentDescription = "Momentum: ${status.word}" }
     ) {
         val pad = 3f
+        val (lo, hi) = com.drkkr.strategos.ui.calm.theme.TrendScale.window(trust, tension)
         fun line(series: List<Float>): androidx.compose.ui.graphics.Path {
             val path = androidx.compose.ui.graphics.Path()
             if (series.size < 2) { path.moveTo(0f, size.height / 2); path.lineTo(size.width, size.height / 2); return path }
-            val min = series.min(); val max = series.max()
-            val span = (max - min).takeIf { it > 1f } ?: 1f           // a flat series stays flat, never exaggerated
             val dx = size.width / (series.size - 1)
             series.forEachIndexed { i, v ->
-                val y = if (max - min <= 1f) size.height / 2 else size.height - pad - ((v - min) / span) * (size.height - 2 * pad)
+                val y = size.height - pad - ((v - lo) / (hi - lo)) * (size.height - 2 * pad)
                 if (i == 0) path.moveTo(0f, y) else path.lineTo(i * dx, y)
             }
             return path
