@@ -1,6 +1,8 @@
 package com.drkkr.strategos.ui.calm.onboarding
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,10 +74,12 @@ private fun Welcome(onNext: () -> Unit, modifier: Modifier) {
     val c = Calm.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp), verticalArrangement = Arrangement.SpaceBetween) {
         Column(verticalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(top = 48.dp)) {
-            Canvas(Modifier.size(width = 96.dp, height = 64.dp)) {
-                drawCircle(c.coach, radius = 28.dp.toPx(), center = Offset(34.dp.toPx(), 32.dp.toPx()))
-                drawCircle(c.yoursBg, radius = 28.dp.toPx(), center = Offset(62.dp.toPx(), 32.dp.toPx()), alpha = 0.9f)
-                drawCircle(c.rigorGraphic, radius = 6.dp.toPx(), center = Offset(48.dp.toPx(), 32.dp.toPx()), alpha = 0.9f)
+            // The brand mark. The drawable has built-in margin for the launcher's safe zone, so it is drawn larger than it looks.
+            Box(Modifier.fillMaxWidth().height(96.dp)) {
+                androidx.compose.foundation.Image(
+                    androidx.compose.ui.res.painterResource(com.drkkr.strategos.R.drawable.vector_logo), contentDescription = "Strategos",
+                    modifier = Modifier.requiredSize(150.dp).align(Alignment.CenterStart).offset(x = (-29).dp)
+                )
             }
             Text("Say it the way you’d tell a friend.", color = c.ink, fontFamily = CalmFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 40.sp, lineHeight = 46.sp)
             Text(
