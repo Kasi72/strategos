@@ -171,4 +171,38 @@ class ArgonContextTest {
         assertTrue(coach, coach.contains("The money side: Who pays the first instalment?"))
         assertFalse("unlinked entries stay out", coach.contains("garden"))
     }
+
+    @Test fun TC_CTX2_05_coachSeesItsPreviousReplyAndEarlierMessages() = runBlocking {
+        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+        val llm = com.drkkr.strategos.fixtures.EngineEchoLlm(listOf(extraction, extraction))
+        val controller = controllerWith(llm)
+        controller.bindScenario("loan").join()
+        controller.send("My brother wants me to co-sign a loan.")!!.join(); controller.awaitIdle()
+        controller.send("I already told him I would not sign tonight.")!!.join(); controller.awaitIdle()
+        val coach = llm.requests.filter { it.purpose == "COACH" }.last().input.last().jsonObject.getValue("content").jsonPrimitive.content
+        assertTrue(coach, coach.contains("THIS CONVERSATION SO FAR"))
+        assertTrue(coach, coach.contains("They said recently: My brother wants me to co-sign a loan."))
+        assertTrue(coach, coach.contains("YOUR PREVIOUS REPLY TO THEM"))
+        assertTrue(coach, coach.contains("THE PERSON SAYS:\nI already told him"))
+    }
+
+    @Test fun TC_CTX2_06_aLongThreadKeepsItsMemoryAndStaysBounded() = runBlocking {
+        db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
+        val thread = conversations.createNamedThread("loan", "Long thread")
+        repeat(150) { i ->                                   // 300 messages of history, far past what fits in a request
+            conversations.append(thread.id, "t$i", MessageRole.USER, "message number $i about the loan ".repeat(8))
+            conversations.append(thread.id, "t$i", MessageRole.ASSISTANT, "What's happening underneath: x\nClear-win move: Suggested move number $i\nDo this: y")
+        }
+        conversations.saveSummary(thread.id, "EARLY FACT: his brother owes 40,000 on credit cards.", 280)
+        val llm = com.drkkr.strategos.fixtures.EngineEchoLlm(listOf(extraction))
+        val controller = controllerWith(llm)
+        controller.bindScenario("loan").join()
+        controller.selectThread(thread.id).join()
+        controller.send("Another update about the loan.")!!.join(); controller.awaitIdle()
+        val coach = llm.requests.first { it.purpose == "COACH" }.input.last().jsonObject.getValue("content").jsonPrimitive.content
+        assertTrue("the old facts survive through the summary", coach.contains("EARLY FACT: his brother owes 40,000"))
+        assertTrue("recent moves are listed so they are not repeated", coach.contains("Suggested move number 149"))
+        assertFalse("but not the whole history", coach.contains("message number 10 "))
+        assertTrue("size stays bounded (${coach.length} chars)", coach.length < 14_000)
+    }
 }

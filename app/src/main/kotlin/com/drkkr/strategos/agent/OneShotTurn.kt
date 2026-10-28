@@ -288,13 +288,38 @@ class OneShotTurn(
         }
     }
 
+    /**
+     * This thread so far: the person's last few messages and the coach's previous reply, so call 2 can build on what was
+     * already said and what the person has done since, instead of restating the same advice when the engine's pick repeats.
+     */
+    private suspend fun thread(cid: String): String {
+        val all = conversations.messages(cid).filter { it.role == MessageRole.USER.name || it.role == MessageRole.ASSISTANT.name }.dropLast(1)
+        val summary = conversations.get(cid)?.rollingSummary?.takeIf { it.isNotBlank() }
+        val said = all.filter { it.role == MessageRole.USER.name }.takeLast(THREAD_USER_MESSAGES)
+        val replies = all.filter { it.role == MessageRole.ASSISTANT.name }
+        val previous = replies.lastOrNull()?.text
+        // The moves already suggested in this thread (any age), so a long thread keeps moving forward instead of recycling advice.
+        val movesTried = replies.takeLast(THREAD_MOVES_WINDOW).mapNotNull { r ->
+            r.text.lineSequence().firstOrNull { it.startsWith("Clear-win move:") }?.removePrefix("Clear-win move:")?.trim()?.take(THREAD_MOVE_CHARS)
+        }.distinct()
+        if (summary == null && said.isEmpty() && previous == null) return ""
+        return buildString {
+            append("THIS CONVERSATION SO FAR:\n")
+            if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(summary.take(THREAD_SUMMARY_CHARS)).append('\n')
+            if (movesTried.isNotEmpty()) append("MOVES YOU ALREADY SUGGESTED (do not just repeat them):\n").append(movesTried.joinToString("\n") { "- $it" }).append('\n')
+            said.forEach { append("- They said recently: ").append(it.text.take(THREAD_USER_CHARS)).append('\n') }
+            if (previous != null) append("YOUR PREVIOUS REPLY TO THEM:\n").append(previous.take(MAX_PRIOR_CHARS)).append('\n')
+            append('\n')
+        }
+    }
+
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
     private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String): CoachReply? {
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", background(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         val request = LlmRequest(
@@ -459,6 +484,11 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        private const val THREAD_USER_MESSAGES = 3
+        private const val THREAD_MOVES_WINDOW = 8
+        private const val THREAD_MOVE_CHARS = 140
+        private const val THREAD_SUMMARY_CHARS = 1_800
+        private const val THREAD_USER_CHARS = 400
         private const val BACKGROUND_ENTRIES = 3
         private const val BACKGROUND_TOPICS = 3
         private const val BACKGROUND_LINE_CHARS = 300
