@@ -62,7 +62,7 @@ import com.drkkr.strategos.ui.calm.theme.calmCard
 fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier, journalPage: (@Composable () -> Unit)? = null) {
     var onJournal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
-        TopBar(ui.projectName, ui.subtitle, a.onBack)
+        TopBar(ui.projectName, ui.subtitle, a.onBack, a.onRename)
         if (journalPage != null) ProjectTabs(onJournal, ui.linkedJournalCount) { onJournal = it }
         Box(Modifier.fillMaxSize()) {
             if (onJournal && journalPage != null) androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().imePadding()) {
@@ -109,13 +109,13 @@ private fun ProjectTabs(onJournal: Boolean, linkedCount: Int, onPick: (Boolean) 
 }
 
 @Composable
-private fun TopBar(name: String, subtitle: String, onBack: () -> Unit) {
+private fun TopBar(name: String, subtitle: String, onBack: () -> Unit, onRename: () -> Unit) {
     val c = Calm.colors
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to projects", tint = c.ink)
         }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).clickable(onClick = onRename)) {
             Text(name, style = Calm.type.subtitle, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, style = Calm.type.caption, color = c.ink3)
         }

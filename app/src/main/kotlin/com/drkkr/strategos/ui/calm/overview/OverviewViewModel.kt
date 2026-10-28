@@ -94,6 +94,10 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
 
     init { viewModelScope.launch { scenarios.load() } }
 
+    fun rename(name: String) = viewModelScope.launch {
+        scenarios.find(projectId)?.let { s -> scenarios.save(s.copy(title = name.trim().ifEmpty { s.title })) }
+    }
+
     fun saveQuickCheck(did: String, landed: String) = viewModelScope.launch {
         trajectory?.submitQuickCheck(projectId, null, "", did, landed, "GROUNDED")
     }

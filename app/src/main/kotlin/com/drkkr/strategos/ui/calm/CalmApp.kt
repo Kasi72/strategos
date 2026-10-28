@@ -131,6 +131,16 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showReview by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showAdd by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var renaming by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    renaming?.let { start ->
+        var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(start) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renaming = null }, containerColor = Calm.colors.paper, title = { Text("Rename project", color = Calm.colors.ink) },
+            text = { androidx.compose.material3.OutlinedTextField(text, { text = it }, singleLine = true) },
+            confirmButton = { Text("Save", color = Calm.colors.action, modifier = Modifier.clickable { vm.rename(text); renaming = null }.padding(12.dp)) },
+            dismissButton = { Text("Cancel", color = Calm.colors.ink2, modifier = Modifier.clickable { renaming = null }.padding(12.dp)) }
+        )
+    }
     if (showReview) com.drkkr.strategos.ui.calm.overview.ReviewAiInputsSheet(ui.reviewItems, vm::review, vm::acceptAll) { showReview = false }
     if (showAdd) com.drkkr.strategos.ui.calm.overview.AddFactDialog(onAdd = vm::addFact, onDismiss = { showAdd = false })
     if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
@@ -147,7 +157,8 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
         onAddFact = { showAdd = true },
         onApplyJournal = { vm.review(it, apply = true) },
         onDismissJournal = { vm.review(it, apply = false) },
-        onOpenJournalTab = {}
+        onOpenJournalTab = {},
+        onRename = { renaming = ui.projectName }
     ))
 }
 

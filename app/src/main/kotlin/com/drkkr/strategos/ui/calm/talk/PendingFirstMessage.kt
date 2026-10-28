@@ -21,3 +21,9 @@ object PendingThread {
     @Synchronized fun take(project: String): String? =
         if (projectId == project) threadId.also { projectId = null; threadId = null } else null
 }
+
+/** Remembers which projects were already offered an automatic title this session, so it is asked for at most once. */
+object AutoNaming {
+    private val tried = mutableSetOf<String>()
+    @Synchronized fun begin(projectId: String): Boolean = tried.add(projectId)
+}

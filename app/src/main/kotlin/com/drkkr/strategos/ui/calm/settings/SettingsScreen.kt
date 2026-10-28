@@ -52,7 +52,6 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
     val c = Calm.colors
     var editingKey by remember { mutableStateOf(false) }
     var keyHelp by remember { mutableStateOf(false) }
-    var modelOpen by remember { mutableStateOf(false) }
     var privacy by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
@@ -90,14 +89,6 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                     Text("Change", color = c.link, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 }
 
-                Divider()
-                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = ui.keyStatus != KeyStatus.MISSING) { modelOpen = true }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Model", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        Text(ui.modelMessage ?: ui.model, color = c.ink3, fontSize = 14.sp)
-                    }
-                    Text("›", color = c.ink3, fontSize = 20.sp)
-                }
             }
 
             Header("Reveal the math")
@@ -128,7 +119,6 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
         }
     }
 
-    if (modelOpen) ModelDialog(ui, actions, onDismiss = { modelOpen = false })
     if (confirmRemove) AlertDialog(
         onDismissRequest = { confirmRemove = false },
         title = { Text("Remove your key?") },
@@ -237,29 +227,6 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
     }
 }
 
-@Composable private fun ModelDialog(ui: SettingsUiState, actions: SettingsActions, onDismiss: () -> Unit) {
-    val c = Calm.colors
-    AlertDialog(
-        onDismissRequest = onDismiss, containerColor = c.paper,
-        title = { Text("Model", color = c.ink) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                ui.models.forEach { m ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { actions.onPickModel(m.id); onDismiss() }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(m.id + if (m.recommended) " · Recommended" else "", color = c.ink, fontSize = 15.sp, fontWeight = if (m.current) FontWeight.SemiBold else FontWeight.Normal)
-                            Text(m.priceLabel, color = c.ink3, fontSize = 13.sp)
-                        }
-                        if (m.current) Text("✓", color = c.trust, fontSize = 16.sp)
-                    }
-                }
-                if (ui.models.isEmpty()) Text(ui.model, color = c.ink2)
-            }
-        },
-        confirmButton = { TextButton(onClick = { actions.onRefreshModels() }) { Text("Refresh list", color = c.link) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = c.ink2) } }
-    )
-}
 
 @Composable private fun DeleteDialog(onKeep: () -> Unit, onDelete: () -> Unit) {
     val c = Calm.colors

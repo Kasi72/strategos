@@ -118,11 +118,7 @@ private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit) {
         Box(Modifier.size(44.dp).clip(CircleShape).background(Calm.colors.card.copy(alpha = 0.94f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to overview", tint = Calm.colors.ink)
         }
-        Box(Modifier.padding(horizontal = 8.dp).weight(1f), contentAlignment = Alignment.CenterStart) {
-            Box(Modifier.clip(RoundedCornerShape(22.dp)).background(Calm.colors.card.copy(alpha = 0.94f)).padding(horizontal = 16.dp, vertical = 10.dp)) {
-                Text(name, style = Calm.type.subtitle, color = Calm.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+        Spacer(Modifier.weight(1f))
         Chip("+ Topic", onNewTopic, dashed = true)
     }
 }

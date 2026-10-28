@@ -69,7 +69,8 @@ data class OverviewActions(
     val onAddFact: () -> Unit = {},
     val onApplyJournal: (String) -> Unit = {},
     val onDismissJournal: (String) -> Unit = {},
-    val onOpenJournalTab: () -> Unit = {}
+    val onOpenJournalTab: () -> Unit = {},
+    val onRename: () -> Unit = {}
 )
 
 /** Pure chart helpers (no LLM, no android): project each series a few steps for the dashed lines. */

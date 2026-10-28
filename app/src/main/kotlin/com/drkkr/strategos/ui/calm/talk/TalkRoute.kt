@@ -78,6 +78,17 @@ fun TalkRoute(
         }
     }
 
+    // ChatGPT-style: once the first reply is in, a project still carrying its placeholder name gets a short title. Renaming later is always the user's.
+    val container = remember { (ctx.applicationContext as StrategosApplication).container }
+    LaunchedEffect(projectId, counselUi.running, counselUi.items.size) {
+        if (counselUi.running || counselUi.items.none { it is ChatItem.AssistantText }) return@LaunchedEffect
+        val s = container.scenarioRepository.find(projectId) ?: return@LaunchedEffect
+        if (s.description.isBlank() || s.title != ProjectsUi.displayName(s.description) || !AutoNaming.begin(projectId)) return@LaunchedEffect
+        counsel?.suggestProjectTitle(s.description)?.let { name ->
+            container.scenarioRepository.find(projectId)?.takeIf { it.title == s.title }?.let { container.scenarioRepository.save(it.copy(title = name)) }
+        }
+    }
+
     val lastError = counselUi.items.lastOrNull() as? ChatItem.Error
     val problem = when {
         !counselUi.statusLoaded -> TalkProblem.NONE          // still reading the key: say nothing rather than flash "no key"

@@ -75,6 +75,8 @@ class AiSettingsController(
     fun load(): Job = scope.launch { reload(); loadModels(force = false) }
 
     private suspend fun reload() {
+        // One model only (DeepSeek Flash): there is no picker, so a model chosen in an older build is reset.
+        if (settings.model() != AgentConfig.DEFAULT_MODEL) settings.setModel(AgentConfig.DEFAULT_MODEL)
         val has = vault.has()
         val consented = settings.consentVersion() == AgentConfig.CONSENT_VERSION
         _state.update {

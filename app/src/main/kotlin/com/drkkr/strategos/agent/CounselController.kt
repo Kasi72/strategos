@@ -30,6 +30,7 @@ import com.drkkr.strategos.domain.analysis.ProvenanceStats
 import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.llm.LlmClient
+import com.drkkr.strategos.llm.assistantText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -45,6 +46,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.put
 import kotlin.math.roundToInt
 
 /** The scenario side the controller needs. Implemented by StrategosViewModel (§10.5). */
@@ -215,6 +217,24 @@ class CounselController(
         _state.update { it.copy(journalAck = result.ack) }
         deps.journalScreener?.screenAsync(result.entryId)
         return result
+    }
+
+    /**
+     * A 2-4 word chat-style title for a new project, from its first message. One small request (about 150 tokens in, 16 out).
+     * Null on any failure or an unusable answer, so the placeholder name simply stays.
+     */
+    suspend fun suggestProjectTitle(firstMessage: String): String? {
+        val input = kotlinx.serialization.json.buildJsonArray {
+            add(kotlinx.serialization.json.buildJsonObject {
+                put("role", "system")
+                put("content", "Write a title of 2 to 4 words for this situation, like a chat app's conversation title. Plain words, no quotes, no trailing punctuation, no names unless essential. Reply with the title only.")
+            })
+            add(kotlinx.serialization.json.buildJsonObject { put("role", "user"); put("content", firstMessage.take(500)) })
+        }
+        val r = deps.llm.create(com.drkkr.strategos.llm.LlmRequest(deps.settings.model(), input, tools = null, maxOutputTokens = 16, temperature = 0.3, purpose = "TITLE")) as? com.drkkr.strategos.llm.LlmResult.Ok ?: return null
+        val title = r.output.assistantText()
+        return title.trim().lineSequence().firstOrNull().orEmpty().trim().trim('"', '\'', '“', '”', '.', ' ')
+            .takeIf { it.isNotBlank() && it.length <= 40 && it.split(' ').size in 1..6 }
     }
 
     fun clearJournalAck() = _state.update { it.copy(journalAck = null) }
