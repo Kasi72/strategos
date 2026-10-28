@@ -34,6 +34,7 @@ import com.drkkr.strategos.llm.LlmRequest
 import com.drkkr.strategos.llm.LlmResult
 import com.drkkr.strategos.llm.ModelListResult
 import com.drkkr.strategos.llm.assistantText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -256,7 +257,7 @@ class OneShotTurn(
 
     /** A warm, specific answer to what the person just said, written from the engine's facts. Null if the model can't deliver one. */
     private suspend fun reflect(cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult, text: String): String? =
-        coachReply(cid, turnId, s, pr, text)
+        coachReply(cid, turnId, s, pr, text) ?: run { delay(RETRY_PAUSE_MS); coachReply(cid, turnId, s, pr, text) }
 
     private fun pillFor(d: EngineDirective): String = listOfNotNull(
         d.moveToImplement?.takeIf { it.isNotBlank() },
@@ -329,7 +330,13 @@ class OneShotTurn(
         // A reply with a [bracketed placeholder] gets one retry; if it still has one, the brackets are stripped here so they never show.
         var usable: CoachReply? = null
         repeat(2) { attempt ->
-            val r = llm.create(request) as? LlmResult.Ok ?: return usable?.stripped()
+            val result = llm.create(request)
+            if (result !is LlmResult.Ok) {
+                // A dropped connection or a busy provider is not a bad reply: wait a moment and ask once more before using the plain text.
+                if (attempt == 0) { delay(RETRY_PAUSE_MS); return@repeat }
+                return usable?.stripped()
+            }
+            val r = result
             val reply = CoachReply.parse(r.output.assistantText())
             if (reply != null && reply.implements(directive.moveToImplement)) {
                 if (!reply.hasPlaceholder()) return reply
@@ -484,6 +491,7 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        private const val RETRY_PAUSE_MS = 1_500L
         private const val THREAD_USER_MESSAGES = 2
         private const val THREAD_PREVIOUS_CHARS = 420
         private const val THREAD_MOVES_WINDOW = 6

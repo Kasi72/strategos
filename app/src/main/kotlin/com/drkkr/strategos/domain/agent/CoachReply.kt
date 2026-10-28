@@ -28,15 +28,18 @@ data class CoachReply(
     )
 
     /**
-     * True when the reply says it implements [move]: case, spacing and hyphen style ignored, and a long move may be
-     * lightly reworded (at least 4 words, 80% of the words shared). A different move never passes.
+     * True when the reply carries out [move]. A short move must be echoed exactly (case, spacing and hyphen style ignored).
+     * A long move (4+ meaningful words) passes when most of its words appear in the echo, the clear-win line or the exact
+     * words, so a clause dropped or reworded by the model does not discard a good reply. A different move never passes.
      */
     fun implements(move: String?): Boolean {
         if (move == null || engineMove == null) return false
-        val a = norm(engineMove); val b = norm(move)
-        if (a == b) return true
-        val x = a.split(' ').filter { it.isNotBlank() }.toSet(); val y = b.split(' ').filter { it.isNotBlank() }.toSet()
-        return x.size >= 4 && y.size >= 4 && x.intersect(y).size.toDouble() / x.union(y).size >= 0.8
+        val wanted = norm(move)
+        if (norm(engineMove) == wanted) return true
+        val key = wanted.split(' ').filter { it.length > 3 }.toSet()
+        if (key.size < 4) return false
+        val said = norm("$engineMove $clearWinMove $exactWords").split(' ').toSet()
+        return key.count { it in said }.toDouble() / key.size >= 0.6
     }
 
     companion object {
