@@ -54,10 +54,11 @@ import com.drkkr.strategos.ui.components.rememberVoiceInput
  * coach question; here the real coach asks its own, so sending hands the text to Talk instead.
  */
 @Composable
-fun OnboardingScreen(onSend: (String) -> Unit, modifier: Modifier = Modifier) {
+/** [beforeStart] runs when the person taps the first button; it calls `proceed` to continue, or sends them elsewhere (e.g. to set a key first). */
+fun OnboardingScreen(onSend: (String) -> Unit, modifier: Modifier = Modifier, beforeStart: (proceed: () -> Unit) -> Unit = { it() }) {
     var step by remember { mutableStateOf(1) }
     var draft by remember { mutableStateOf("") }
-    if (step == 1) Welcome(onNext = { step = 2 }, modifier)
+    if (step == 1) Welcome(onNext = { beforeStart { step = 2 } }, modifier)
     else Describe(draft, { draft = it }, onBack = { step = 1 }, onSend = { onSend(draft.trim()) }, modifier)
 }
 

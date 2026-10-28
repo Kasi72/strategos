@@ -48,7 +48,7 @@ import com.drkkr.strategos.ui.settings.AiConsentText
 
 /** Settings (board 12): coach, reveal the math, privacy. Stateless. */
 @Composable
-fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modifier = Modifier) {
+fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modifier = Modifier, nudge: Boolean = false) {
     val c = Calm.colors
     var editingKey by remember { mutableStateOf(false) }
     var keyHelp by remember { mutableStateOf(false) }
@@ -58,6 +58,11 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
 
     Column(modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Text("Settings", style = Calm.type.display.copy(fontSize = 28.sp, lineHeight = 34.sp), color = c.ink, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp))
+        if (nudge && ui.keyStatus != KeyStatus.CONNECTED) Text(
+            "Add your AI key to get started. Your coach can't answer until it's set, and nothing you write is sent before then.",
+            color = c.ink, fontSize = 15.sp, lineHeight = 22.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.selected).padding(14.dp)
+        )
         if (!ui.available) {
             Text("Secure storage isn't available on this phone, so the coach can't be set up.", color = c.ink2, fontSize = 15.sp, modifier = Modifier.padding(16.dp))
         } else if (ui.loaded) {

@@ -60,6 +60,9 @@ class ProjectsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setDraft(text: String) { draft.value = text }
 
+    /** Reads the vault now (not the value cached at start), so a key just saved in Settings counts. */
+    suspend fun keyReady(): Boolean = runCatching { container.keyVault?.has() ?: false }.getOrDefault(false).also { hasKey = it }
+
     /** Creates a project from the draft, named from the first line, and returns its id (or null if blank). */
     suspend fun createProject(): String? {
         val text = draft.value.trim().ifEmpty { return null }

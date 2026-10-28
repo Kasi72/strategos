@@ -106,7 +106,9 @@ private fun ProjectsRoute(nav: CalmNav) {
     }
     ProjectsScreen(ui, ProjectsActions(
         onDraft = vm::setDraft,
-        onSend = { scope.launch { val text = ui.draft.trim(); vm.createProject()?.let { id -> com.drkkr.strategos.ui.calm.talk.PendingFirstMessage.set(id, text); nav.go(CalmRoute.Talk(id)) } } },
+        onSend = { scope.launch {
+            if (!vm.keyReady()) { com.drkkr.strategos.ui.calm.settings.SettingsNudge.on = true; nav.selectTab(DockTab.SETTINGS); return@launch }   // the draft stays in the box
+            val text = ui.draft.trim(); vm.createProject()?.let { id -> com.drkkr.strategos.ui.calm.talk.PendingFirstMessage.set(id, text); nav.go(CalmRoute.Talk(id)) } } },
         onPickExample = vm::setDraft,
         onOpenProject = { nav.go(CalmRoute.Overview(it)) },
         onRename = { renaming = it },
@@ -226,7 +228,12 @@ private object OldTheme {
 @Composable
 private fun OnboardingRoute(nav: CalmNav, vm: ProjectsViewModel, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
-    com.drkkr.strategos.ui.calm.onboarding.OnboardingScreen(onSend = { text ->
+    com.drkkr.strategos.ui.calm.onboarding.OnboardingScreen(beforeStart = { proceed ->
+        scope.launch {
+            if (vm.keyReady()) proceed()
+            else { com.drkkr.strategos.ui.calm.settings.SettingsNudge.on = true; onDone(); nav.selectTab(DockTab.SETTINGS) }   // no key yet: set it first
+        }
+    }, onSend = { text ->
         scope.launch {
             vm.setDraft(text)
             vm.createProject()?.let { id ->
