@@ -161,8 +161,8 @@ private val Type = CalmType(
     body = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
     caption = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp),
     pill = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp),
-    coachLead = TextStyle(fontFamily = CalmFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 19.sp, lineHeight = 26.sp),
-    coachBody = TextStyle(fontFamily = CalmFonts.Serif, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 27.sp)
+    coachLead = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 25.sp),
+    coachBody = TextStyle(fontFamily = CalmFonts.Sans, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp)
 )
 
 private val LocalCalmType = staticCompositionLocalOf { Type }

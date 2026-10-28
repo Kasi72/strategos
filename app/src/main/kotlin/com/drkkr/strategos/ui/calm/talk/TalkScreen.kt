@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -85,13 +88,20 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     var newTopic by remember { mutableStateOf(false) }
     var allTopics by remember { mutableStateOf(false) }
 
-    Column(modifier.fillMaxSize().imePadding()) {
-        TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true })
-        if (ui.offline) OfflineBanner()
-        // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
-        if (ui.topics.size > 1) TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true })
-        Conversation(ui, actions, Modifier.weight(1f), onExplain = { explaining = it })
-        Composer(ui, actions)
+    // The conversation fills the whole screen; the header and the composer float over it and the text scrolls underneath.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var headerPx by remember { mutableStateOf(0) }
+    var footerPx by remember { mutableStateOf(0) }
+    Box(modifier.fillMaxSize().imePadding()) {
+        Conversation(ui, actions, Modifier.fillMaxSize(), onExplain = { explaining = it },
+            topPad = with(density) { headerPx.toDp() }, bottomPad = with(density) { footerPx.toDp() })
+        Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }) {
+            TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true })
+            if (ui.offline) OfflineBanner()
+            // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
+            if (ui.topics.size > 1) TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true })
+        }
+        Box(Modifier.align(Alignment.BottomCenter).onSizeChanged { footerPx = it.height }) { Composer(ui, actions) }
     }
 
     explaining?.let { tag -> PillExplainer(tag, onXRay = { explaining = null; actions.onOpenXRay() }, onClose = { explaining = null }) }
@@ -102,10 +112,14 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
 @Composable
 private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(Calm.colors.card.copy(alpha = 0.94f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to overview", tint = Calm.colors.ink)
         }
-        Text(name, style = Calm.type.subtitle, color = Calm.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Box(Modifier.padding(horizontal = 8.dp).weight(1f), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.clip(RoundedCornerShape(22.dp)).background(Calm.colors.card.copy(alpha = 0.94f)).padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Text(name, style = Calm.type.subtitle, color = Calm.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         Chip("+ Topic", onNewTopic, dashed = true)
     }
 }
@@ -151,21 +165,21 @@ private fun Chip(label: String, onClick: () -> Unit, dashed: Boolean = false) {
     val c = Calm.colors
     val shape = RoundedCornerShape(16.dp)
     Box(
-        Modifier.height(32.dp).clip(shape).background(if (dashed) Color.Transparent else c.paper2)
+        Modifier.height(32.dp).clip(shape).background(if (dashed) c.card.copy(alpha = 0.94f) else c.paper2)
             .border(1.dp, c.line, shape).clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) { Text(label, color = c.ink2, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1) }
 }
 
 @Composable
-private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifier, onExplain: (EngineTagUi) -> Unit) {
+private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifier, onExplain: (EngineTagUi) -> Unit, topPad: androidx.compose.ui.unit.Dp = 0.dp, bottomPad: androidx.compose.ui.unit.Dp = 0.dp) {
     val c = Calm.colors
     val state = rememberLazyListState()
     val lastKey = ui.turns.size + (if (ui.thinking) 1 else 0) + (if (ui.problem != TalkProblem.NONE) 1 else 0)
     LaunchedEffect(lastKey) { if (lastKey > 0) state.animateScrollToItem((lastKey - 1).coerceAtLeast(0)) }
     LazyColumn(
         modifier.fillMaxWidth(), state = state,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = topPad + 8.dp, bottom = bottomPad + 8.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         if (ui.turns.isEmpty() && !ui.thinking && !ui.loading) item("empty") {
@@ -207,6 +221,9 @@ private fun UserBubble(t: TalkTurn.User) {
     }
 }
 
+private val SAY_LABEL = Regex("^\\*\\*What to say:\\*\\*\\s*")
+private val PLAIN_LABEL = Regex("^\\*\\*(What's happening underneath|Clear-win move):\\*\\*\\s*")
+
 /** Light inline emphasis: **word** renders bold; nothing else is interpreted. */
 internal fun emphasis(text: String): AnnotatedString = buildAnnotatedString {
     val parts = text.split("**")
@@ -219,7 +236,16 @@ private fun CoachCard(t: CoachText, tag: EngineTagUi?, reveal: RevealMath, onXRa
     // The reply flows straight onto the page, like a chat: no filled card, no folding, the whole width.
     CopyMenu(t.plain()) { longPress -> Column(Modifier.fillMaxWidth().then(longPress), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (t.lead.isNotEmpty()) Text(emphasis(t.lead), style = Calm.type.coachLead, color = c.ink)
-        if (t.body.isNotEmpty()) Text(emphasis(t.body), style = Calm.type.coachBody, color = c.ink)
+        if (t.body.isNotEmpty()) t.body.split("\n\n").filter { it.isNotBlank() }.forEach { para ->
+            val say = SAY_LABEL.find(para)
+            if (say != null) {
+                // The words to say are set off as a quote, without the label.
+                Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.width(3.dp).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(c.action))
+                    Text(emphasis(para.removeRange(say.range)), style = Calm.type.coachBody.copy(fontWeight = FontWeight.Medium), color = c.ink)
+                }
+            } else Text(emphasis(para.replace(PLAIN_LABEL, "")), style = Calm.type.coachBody, color = c.ink)
+        }
         t.bullets.forEach { b ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("•", style = Calm.type.coachBody, color = c.ink)
