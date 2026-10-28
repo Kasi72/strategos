@@ -195,12 +195,19 @@ class ContextAssembler(
 
     private fun toInput(m: MessageEntity): JsonObject? = when (m.role) {
         MessageRole.USER.name -> message("user", m.text)
-        MessageRole.ASSISTANT.name -> message("assistant", m.text)
+        // The saved scenario, trajectory and summary carry the state; an old reply only needs its headline, not every bullet.
+        MessageRole.ASSISTANT.name -> message("assistant", gist(m.text))
         MessageRole.EVENT.name -> message("user", EVENT_PREFIX + m.text)
         // LEAN PROFILE: a turn that ends on a card has no assistant text, so the agent's own question or recap goes
         // into history; otherwise it can't see what it already asked.
         MessageRole.TOOL_CALL.name -> askedText(m.payloadJson)?.let { message("assistant", it) }
         else -> null    // TOOL_RESULT and ERROR: the live context carries current state
+    }
+
+    private fun gist(text: String): String {
+        if (text.length <= ASSISTANT_GIST_CHARS) return text
+        val head = text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.take(2).joinToString(" ")
+        return head.take(ASSISTANT_GIST_CHARS)
     }
 
     private fun askedText(argsJson: String?): String? {
@@ -221,6 +228,7 @@ class ContextAssembler(
         const val MAX_MEMORY = 5
         const val RECENT_MESSAGES = 6        // last 3 user/assistant turns
         const val MAX_POST_NOTES = 2
+        const val ASSISTANT_GIST_CHARS = 240
         const val MAX_SIBLINGS = 3
         const val SIBLING_CHARS = 140
     }

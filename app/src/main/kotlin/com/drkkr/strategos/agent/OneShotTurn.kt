@@ -308,7 +308,7 @@ class OneShotTurn(
             if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(summary.take(THREAD_SUMMARY_CHARS)).append('\n')
             if (movesTried.isNotEmpty()) append("MOVES YOU ALREADY SUGGESTED (do not just repeat them):\n").append(movesTried.joinToString("\n") { "- $it" }).append('\n')
             said.forEach { append("- They said recently: ").append(it.text.take(THREAD_USER_CHARS)).append('\n') }
-            if (previous != null) append("YOUR PREVIOUS REPLY TO THEM:\n").append(previous.take(MAX_PRIOR_CHARS)).append('\n')
+            if (previous != null) append("YOUR PREVIOUS REPLY TO THEM (opening only):\n").append(previous.take(THREAD_PREVIOUS_CHARS)).append('\n')
             append('\n')
         }
     }
@@ -484,14 +484,15 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
-        private const val THREAD_USER_MESSAGES = 3
-        private const val THREAD_MOVES_WINDOW = 8
+        private const val THREAD_USER_MESSAGES = 2
+        private const val THREAD_PREVIOUS_CHARS = 420
+        private const val THREAD_MOVES_WINDOW = 6
         private const val THREAD_MOVE_CHARS = 140
-        private const val THREAD_SUMMARY_CHARS = 1_800
-        private const val THREAD_USER_CHARS = 400
-        private const val BACKGROUND_ENTRIES = 3
-        private const val BACKGROUND_TOPICS = 3
-        private const val BACKGROUND_LINE_CHARS = 300
+        private const val THREAD_SUMMARY_CHARS = 1_200
+        private const val THREAD_USER_CHARS = 300
+        private const val BACKGROUND_ENTRIES = 2
+        private const val BACKGROUND_TOPICS = 2
+        private const val BACKGROUND_LINE_CHARS = 200
         // BLUEPRINT-QUESTION: 900 was sized for Groq's 8,000 tokens/minute cap (LEAN PROFILE). On DeepSeek it cut the sketch JSON mid-array,
         // so every substantive first message failed with "Couldn't reach the coach" (found by the emulator E2E run). 3,000 fits a full sketch.
         private const val EXTRACTION_MAX_TOKENS = 3_000
