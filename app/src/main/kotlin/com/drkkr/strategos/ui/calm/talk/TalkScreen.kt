@@ -86,9 +86,10 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     var allTopics by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize().imePadding()) {
-        TopBar(ui.projectName, actions.onBack)
+        TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true })
         if (ui.offline) OfflineBanner()
-        TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true }, onNew = { newTopic = true })
+        // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
+        if (ui.topics.size > 1) TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true })
         Conversation(ui, actions, Modifier.weight(1f), onExplain = { explaining = it })
         Composer(ui, actions)
     }
@@ -99,12 +100,13 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
 }
 
 @Composable
-private fun TopBar(name: String, onBack: () -> Unit) {
+private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to overview", tint = Calm.colors.ink)
         }
         Text(name, style = Calm.type.subtitle, color = Calm.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Chip("+ Topic", onNewTopic, dashed = true)
     }
 }
 
@@ -122,7 +124,7 @@ private fun OfflineBanner() {
 }
 
 @Composable
-private fun TopicRow(ui: TalkUiState, onSelect: (String) -> Unit, onAll: () -> Unit, onNew: () -> Unit) {
+private fun TopicRow(ui: TalkUiState, onSelect: (String) -> Unit, onAll: () -> Unit) {
     val c = Calm.colors
     Row(
         Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
@@ -141,7 +143,6 @@ private fun TopicRow(ui: TalkUiState, onSelect: (String) -> Unit, onAll: () -> U
             }
         }
         if (ui.topics.size > 3) Chip("All (${ui.topics.size})", onAll)
-        Chip("+ Topic", onNew, dashed = true)
     }
 }
 
@@ -165,7 +166,7 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
     LazyColumn(
         modifier.fillMaxWidth(), state = state,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         if (ui.turns.isEmpty() && !ui.thinking && !ui.loading) item("empty") {
             Text("Tell me what’s going on with ${ui.projectName.lowercase()}. A few sentences is plenty.", color = c.ink3, fontSize = 14.sp, lineHeight = 21.sp,
@@ -215,30 +216,19 @@ internal fun emphasis(text: String): AnnotatedString = buildAnnotatedString {
 @Composable
 private fun CoachCard(t: CoachText, tag: EngineTagUi?, reveal: RevealMath, onXRay: () -> Unit, onExplain: (EngineTagUi) -> Unit) {
     val c = Calm.colors
-    var folded by remember(t.body) { mutableStateOf(t.body.length > 600) }
-    CopyMenu(t.plain()) { longPress -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.coach).then(longPress).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (t.lead.isNotEmpty()) Text(emphasis(t.lead), style = Calm.type.coachLead, color = c.coachInk)
-        if (folded) {
-            Box(Modifier.heightIn(max = 92.dp)) {
-                Text(emphasis(t.body), style = Calm.type.coachBody, color = c.coachInk, maxLines = 3, overflow = TextOverflow.Clip)
-                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(48.dp).background(Brush.verticalGradient(listOf(Color.Transparent, c.coach))))
-            }
-            Row(Modifier.height(48.dp).clickable { folded = false }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Show the rest", color = c.onAction, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Icon(Icons.Default.KeyboardArrowDown, null, tint = c.onAction, modifier = Modifier.size(16.dp))
-            }
-        } else {
-            if (t.body.isNotEmpty()) Text(emphasis(t.body), style = Calm.type.coachBody, color = c.coachInk)
-            t.bullets.forEach { b ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("•", style = Calm.type.coachBody, color = c.coachInk)
-                    Text(emphasis(b), style = Calm.type.coachBody, color = c.coachInk)
-                }
+    // The reply flows straight onto the page, like a chat: no filled card, no folding, the whole width.
+    CopyMenu(t.plain()) { longPress -> Column(Modifier.fillMaxWidth().then(longPress), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (t.lead.isNotEmpty()) Text(emphasis(t.lead), style = Calm.type.coachLead, color = c.ink)
+        if (t.body.isNotEmpty()) Text(emphasis(t.body), style = Calm.type.coachBody, color = c.ink)
+        t.bullets.forEach { b ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("•", style = Calm.type.coachBody, color = c.ink)
+                Text(emphasis(b), style = Calm.type.coachBody, color = c.ink)
             }
         }
         if (t.hasQuickRead) QuickRead(t)
-        if (t.closing.isNotEmpty() && (!folded || t.hasQuickRead)) Text(emphasis(t.closing), style = Calm.type.coachBody, color = c.coachInk, modifier = Modifier.padding(top = 4.dp))
-        if (tag != null && reveal != RevealMath.NEVER) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        if (t.closing.isNotEmpty()) Text(emphasis(t.closing), style = Calm.type.coachBody, color = c.ink)
+        if (tag != null && reveal != RevealMath.NEVER) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             EnginePill(tag, onXRay, onExplain)
         }
     } }

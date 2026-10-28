@@ -372,38 +372,23 @@ private fun FactRow(label: String?, text: String, provenance: Provenance) {
 private fun InfluenceSection(graph: InfluenceGraph) {
     val c = Calm.colors
     SectionHeader("Who pulls on whom")
-    Column(Modifier.padding(horizontal = Calm.dimens.gutter).calmCard(c).padding(Calm.dimens.cardPadding)) {
-        InfluenceMap(graph)
-        Spacer(Modifier.height(8.dp))
-        Text("Thicker line, more sway · Dashed, inferred", style = Calm.type.pill, color = c.ink2)
-    }
-}
-
-@Composable
-private fun InfluenceMap(graph: InfluenceGraph) {
-    val c = Calm.colors
-    val desc = "Influence map of " + graph.nodes.joinToString(", ") { it.name }
-    Canvas(Modifier.fillMaxWidth().aspectRatio(1.5f).semantics { contentDescription = desc }) {
-        val selfIdx = graph.nodes.indexOfFirst { it.isSelf }.coerceAtLeast(0)
-        val center = Offset(size.width / 2, size.height / 2)
-        val r = size.minDimension * 0.36f
-        val others = graph.nodes.filterIndexed { i, _ -> i != selfIdx }
-        val pos = HashMap<String, Offset>()
-        pos[graph.nodes[selfIdx].id] = center
-        others.forEachIndexed { i, n ->
-            val ang = (2 * Math.PI * i / others.size.coerceAtLeast(1)) - Math.PI / 2
-            pos[n.id] = Offset(center.x + (r * Math.cos(ang)).toFloat(), center.y + (r * Math.sin(ang)).toFloat())
-        }
-        val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
-        graph.edges.forEach { e ->
-            val from = pos[e.fromId]; val to = pos[e.toId]
-            if (from != null && to != null)
-                drawLine(c.ink3, from, to, strokeWidth = (2f + e.weight.toFloat() * 6f), cap = StrokeCap.Round, pathEffect = if (e.inferred) dash else null)
-        }
-        graph.nodes.forEach { n ->
-            val p = pos[n.id] ?: return@forEach
-            drawCircle(if (n.isSelf) c.ink else c.ground, radius = 26f, center = p)
-            drawCircle(c.ink3, radius = 26f, center = p, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f, pathEffect = if (n.inferred) dash else null))
+    val names = graph.nodes.associate { it.id to (if (it.isSelf) "You" else it.name) }
+    Column(Modifier.padding(horizontal = Calm.dimens.gutter).calmCard(c).padding(Calm.dimens.cardPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("How much each person can sway the others, as far as I can tell.", style = Calm.type.caption, color = c.ink3)
+        val edges = graph.edges.filter { names[it.fromId] != null && names[it.toId] != null }
+        if (edges.isEmpty()) Text("Nothing recorded yet. Tell me who has a say in this and I'll show it here.", style = Calm.type.body, color = c.ink2)
+        edges.forEach { e ->
+            val strength = when { e.weight < 0.3 -> "a little"; e.weight < 0.6 -> "some"; else -> "a lot" }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${names[e.fromId]} pulls on ${names[e.toId]?.let { if (it == "You") "you" else it }}: $strength", style = Calm.type.body, color = c.ink, modifier = Modifier.weight(1f))
+                    if (e.inferred) Text("my guess", style = Calm.type.pill, color = Color(0xFF7A4F0C),
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFFF6E6BC)).padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.ground)) {
+                    Box(Modifier.fillMaxWidth(e.weight.toFloat().coerceIn(0.08f, 1f)).height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.action))
+                }
+            }
         }
     }
 }
