@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
@@ -95,7 +98,7 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     Box(modifier.fillMaxSize().imePadding()) {
         Conversation(ui, actions, Modifier.fillMaxSize(), onExplain = { explaining = it },
             topPad = with(density) { headerPx.toDp() }, bottomPad = with(density) { footerPx.toDp() })
-        Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }) {
+        Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }.statusBarsPadding()) {
             TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true })
             if (ui.offline) OfflineBanner()
             // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
@@ -177,8 +180,20 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
     val state = rememberLazyListState()
     val lastKey = ui.turns.size + (if (ui.thinking) 1 else 0) + (if (ui.problem != TalkProblem.NONE) 1 else 0)
     LaunchedEffect(lastKey) { if (lastKey > 0) state.animateScrollToItem((lastKey - 1).coerceAtLeast(0)) }
+    // The text dissolves into the status bar and header at the top and into the composer at the bottom, instead of ending on a hard edge.
+    val fade = Modifier.graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
+        drawContent()
+        val h = size.height.coerceAtLeast(1f)
+        val top = (topPad.toPx() / h).coerceIn(0f, 0.45f)
+        val bottomStart = (1f - bottomPad.toPx() * 0.9f / h).coerceIn(0.55f, 1f)
+        val bottomEnd = (1f - bottomPad.toPx() * 0.4f / h).coerceIn(bottomStart, 1f)
+        drawRect(
+            Brush.verticalGradient(colorStops = arrayOf(0f to Color.Transparent, top to Color.Black, bottomStart to Color.Black, bottomEnd to Color.Transparent, 1f to Color.Transparent)),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+        )
+    }
     LazyColumn(
-        modifier.fillMaxWidth(), state = state,
+        modifier.fillMaxWidth().then(fade), state = state,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = topPad + 8.dp, bottom = bottomPad + 8.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {

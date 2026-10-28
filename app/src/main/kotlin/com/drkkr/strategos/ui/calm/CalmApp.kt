@@ -58,7 +58,9 @@ fun CalmApp() {
             containerColor = Color.Transparent,
             bottomBar = { if (nav.current !is CalmRoute.Talk && !onboarding) StrategosDock(nav.tab) { nav.selectTab(it) } }
         ) { pad ->
-            Box(Modifier.fillMaxSize().padding(pad)) {
+            // Talk draws edge to edge (its text fades into the status bar); every other screen keeps the system padding.
+            val inTalk = nav.current is CalmRoute.Talk
+            Box(Modifier.fillMaxSize().padding(if (inTalk) androidx.compose.foundation.layout.PaddingValues() else pad)) {
                 when (val route = nav.current) {
                     CalmRoute.Projects -> if (onboarding) OnboardingRoute(nav, projectsVm) { prefs.edit().putBoolean("onboarded", true).apply(); onboardedFlag = true } else ProjectsRoute(nav)
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
