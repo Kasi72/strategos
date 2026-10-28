@@ -27,8 +27,17 @@ data class CoachReply(
         doThis = doThis.map(Placeholders::strip).filter { it.isNotBlank() }, dontDoThis = dontDoThis.map(Placeholders::strip).filter { it.isNotBlank() }
     )
 
-    /** True when the reply says it implements [move] (case, spacing and hyphen style ignored). */
-    fun implements(move: String?): Boolean = move != null && engineMove != null && norm(engineMove) == norm(move)
+    /**
+     * True when the reply says it implements [move]: case, spacing and hyphen style ignored, and a long move may be
+     * lightly reworded (at least 4 words, 80% of the words shared). A different move never passes.
+     */
+    fun implements(move: String?): Boolean {
+        if (move == null || engineMove == null) return false
+        val a = norm(engineMove); val b = norm(move)
+        if (a == b) return true
+        val x = a.split(' ').filter { it.isNotBlank() }.toSet(); val y = b.split(' ').filter { it.isNotBlank() }.toSet()
+        return x.size >= 4 && y.size >= 4 && x.intersect(y).size.toDouble() / x.union(y).size >= 0.8
+    }
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
