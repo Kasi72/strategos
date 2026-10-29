@@ -27,6 +27,18 @@ fun ScenarioListTab(vm: StrategosViewModel, onOpenScenario: (Scenario) -> Unit) 
     var showNewDialog by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
+    var showKeyDialog by remember { mutableStateOf(false) }
+    var parseRequested by remember { mutableStateOf(false) }
+
+    // When a parse completes (sync heuristic or async LLM), open the new scenario.
+    LaunchedEffect(state.isParsing, state.activeScenario) {
+        if (parseRequested && !state.isParsing) {
+            parseRequested = false
+            showNewDialog = false
+            inputText = ""
+            state.activeScenario?.let(onOpenScenario)
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -201,30 +213,110 @@ fun ScenarioListTab(vm: StrategosViewModel, onOpenScenario: (Scenario) -> Unit) 
                         label = { Text("Situation (Tamil or English)") },
                         modifier = Modifier.fillMaxWidth().height(120.dp),
                         maxLines = 5,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        enabled = !state.isParsing
                     )
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (state.hasApiKey) Icons.Default.AutoAwesome else Icons.Default.Memory,
+                            null, modifier = Modifier.size(16.dp),
+                            tint = if (state.hasApiKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (state.hasApiKey) "AI extraction on" else "On-device parsing",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { showKeyDialog = true }) {
+                            Text(if (state.hasApiKey) "Change key" else "Add AI key", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    if (state.isParsing) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Extracting scenario with AI…", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (inputText.isNotBlank()) {
+                            parseRequested = true
                             vm.parseAndCreateScenario(inputText)
-                            showNewDialog = false
-                            inputText = ""
-                            vm.state.value.activeScenario?.let(onOpenScenario)
                         }
                     },
+                    enabled = inputText.isNotBlank() && !state.isParsing,
                     shape = RoundedCornerShape(16.dp)
-                ) { Text("Analyse") }
+                ) { Text(if (state.hasApiKey) "Extract" else "Analyse") }
             },
             dismissButton = {
                 TextButton(
+                    enabled = !state.isParsing,
                     onClick = { vm.newBlankScenario(); showNewDialog = false; inputText = "" }
                 ) { Text("Blank") }
             }
         )
     }
+
+    if (showKeyDialog) {
+        ApiKeyDialog(
+            hasKey = state.hasApiKey,
+            onSave = { vm.setApiKey(it); showKeyDialog = false },
+            onClear = { vm.clearApiKey(); showKeyDialog = false },
+            onDismiss = { showKeyDialog = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ApiKeyDialog(
+    hasKey: Boolean,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var key by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text("Anthropic API key", style = MaterialTheme.typography.titleMedium) },
+        text = {
+            Column {
+                Text(
+                    "Paste your Anthropic API key to enable AI scenario extraction. " +
+                        "It is stored only in this device's encrypted storage and sent " +
+                        "directly to the Anthropic API.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = key, onValueChange = { key = it },
+                    label = { Text("sk-ant-…") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { if (key.isNotBlank()) onSave(key) }, enabled = key.isNotBlank(), shape = RoundedCornerShape(12.dp)) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            if (hasKey) TextButton(onClick = onClear) { Text("Remove key") }
+            else TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

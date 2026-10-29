@@ -103,7 +103,7 @@ object ImplementationGate {
         // 5. Implementation owner
         val hasOwner = plan?.owner?.isNotBlank() == true
         gates += gate("Named implementation owner", hasOwner, !hasOwner,
-            if (!hasOwner) "No owner assigned" else plan!!.owner)
+            if (!hasOwner) "No owner assigned" else plan?.owner.orEmpty())
         if (!hasOwner) blockers += "No implementation owner assigned"
 
         // 6. Milestones
@@ -111,7 +111,7 @@ object ImplementationGate {
         gates += GateCheck(
             "Implementation milestones",
             if (hasMilestones) GateStatus.PASS else GateStatus.AMBER,
-            if (!hasMilestones) "No milestones defined" else "${plan!!.milestones.size} milestone(s)"
+            if (!hasMilestones) "No milestones defined" else "${plan?.milestones?.size ?: 0} milestone(s)"
         )
 
         // 7. Preconditions
@@ -119,7 +119,7 @@ object ImplementationGate {
         gates += GateCheck(
             "Preconditions defined",
             if (hasPreconditions) GateStatus.PASS else GateStatus.AMBER,
-            if (!hasPreconditions) "No preconditions listed" else "${plan!!.preconditions.size} precondition(s)"
+            if (!hasPreconditions) "No preconditions listed" else "${plan?.preconditions?.size ?: 0} precondition(s)"
         )
 
         // 8. Resources / budget
@@ -127,13 +127,13 @@ object ImplementationGate {
         gates += GateCheck(
             "Resources / budget confirmed",
             if (hasResources) GateStatus.PASS else GateStatus.AMBER,
-            if (!hasResources) "No budget estimate" else "Budget: ${plan!!.budget}"
+            if (!hasResources) "No budget estimate" else "Budget: ${plan?.budget ?: 0.0}"
         )
 
         // 9. Monitoring indicators
         val hasMonitoring = plan?.earlyWarningIndicators?.isNotEmpty() == true
         gates += gate("Monitoring indicators defined", hasMonitoring, !hasMonitoring,
-            if (!hasMonitoring) "No early warning indicators" else "${plan!!.earlyWarningIndicators.size} indicator(s)")
+            if (!hasMonitoring) "No early warning indicators" else "${plan?.earlyWarningIndicators?.size ?: 0} indicator(s)")
         if (!hasMonitoring) blockers += "No monitoring indicators defined"
 
         // 10. Stop condition and reversal plan

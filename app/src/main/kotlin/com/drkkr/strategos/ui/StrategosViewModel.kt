@@ -74,6 +74,7 @@ import com.drkkr.strategos.framework.nash.PureNashModule
 import com.drkkr.strategos.framework.pareto.ParetoModule
 import com.drkkr.strategos.framework.sensitivity.SensitivityModule
 import com.drkkr.strategos.framework.tree.BackwardInductionModule
+import com.drkkr.strategos.nlp.LlmScenarioExtractor
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
@@ -106,7 +107,11 @@ data class UiState(
     // Phase 4: governance
     val snapshotHistory: List<AnalysisSnapshot> = emptyList(),
     val lifecycleTransitionError: String? = null,
-    val pendingNavigationTarget: NavigationTarget? = null
+    val pendingNavigationTarget: NavigationTarget? = null,
+    // Phase 5: LLM-backed parsing
+    val hasApiKey: Boolean = false,
+    val isParsing: Boolean = false,
+    val parseSource: String? = null   // "llm" | "heuristic" | null
 )
 
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
@@ -168,15 +173,123 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
     val counselState: StateFlow<CounselUiState> = counsel?.state ?: MutableStateFlow(CounselUiState()).asStateFlow()
 
     init {
-        _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError) }
+        repo.keyVault = container.keyVault
+        _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError, hasApiKey = repo.hasApiKey()) }
         viewModelScope.launch { container.prepareStorage(); repo.load() }
         viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
     }
 
     fun parseAndCreateScenario(rawText: String) {
+        val key = repo.apiKey()
+        if (key.isNullOrBlank()) {
+            applyHeuristicParse(rawText, reason = null)
+            return
+        }
+        _state.update { it.copy(isParsing = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result = LlmScenarioExtractor.extract(rawText, key)
+            val scenario = result.scenario
+            if (scenario != null) {
+                _state.update {
+                    it.copy(
+                        activeScenario = scenario,
+                        clarificationQuestions = listOf(
+                            "Review the ${scenario.stakeholders.size} extracted stakeholder(s) and ${scenario.actions.size} action(s).",
+                            "Add payoffs for each outcome and record evidence sources before analysis."
+                        ),
+                        isParsing = false,
+                        parseSource = "llm",
+                        errorMessage = null
+                    )
+                }
+            } else {
+                // Graceful fallback to the heuristic parser.
+                applyHeuristicParse(rawText, reason = result.error)
+            }
+        }
+    }
+
+    private fun applyHeuristicParse(rawText: String, reason: String?) {
         val parsed = ScenarioParser.parse(rawText)
-        _state.update { it.copy(activeScenario = parsed.draft, clarificationQuestions = parsed.clarificationQuestions) }
+        _state.update {
+            it.copy(
+                activeScenario = parsed.draft,
+                clarificationQuestions = parsed.clarificationQuestions,
+                isParsing = false,
+                parseSource = "heuristic",
+                errorMessage = reason?.let { r -> "AI extraction unavailable ($r) — used on-device parsing." }
+            )
+        }
+    }
+
+    /**
+     * Extract stakeholders/actions/constraints/beliefs from the ACTIVE scenario's
+     * description and merge them into it (preserving id/title/owner and anything
+     * already entered). LLM-first when a key is set, heuristic otherwise.
+     */
+    fun extractIntoActiveScenario() {
+        val scenario = _state.value.activeScenario ?: return
+        val text = scenario.description
+        if (text.isBlank()) {
+            _state.update { it.copy(errorMessage = "Add a description first, then extract.") }
+            return
+        }
+        val key = repo.apiKey()
+        _state.update { it.copy(isParsing = true, errorMessage = null) }
+        viewModelScope.launch {
+            val extracted = if (!key.isNullOrBlank()) LlmScenarioExtractor.extract(text, key).scenario else null
+            val draft = extracted ?: ScenarioParser.parse(text).draft
+            val merged = mergeExtraction(scenario, draft)
+            _state.update {
+                it.copy(
+                    activeScenario = merged,
+                    isParsing = false,
+                    parseSource = if (extracted != null) "llm" else "heuristic"
+                )
+            }
+            repo.save(merged)
+        }
+    }
+
+    private fun mergeExtraction(base: Scenario, draft: Scenario): Scenario {
+        val existingShNames = base.stakeholders.map { it.name.lowercase() }.toSet()
+        val newStakeholders = draft.stakeholders.filter { it.name.lowercase() !in existingShNames }
+        val stakeholders = base.stakeholders + newStakeholders
+        val nameToId = stakeholders.associateBy({ it.name.lowercase() }, { it.id })
+        val draftIdToName = draft.stakeholders.associateBy({ it.id }, { it.name.lowercase() })
+
+        val existingActions = base.actions.map { it.label.lowercase() }.toSet()
+        val newActions = draft.actions
+            .filter { it.label.lowercase() !in existingActions }
+            .map { a ->
+                val ownerName = draftIdToName[a.stakeholderId]
+                a.copy(stakeholderId = ownerName?.let { nameToId[it] } ?: "")
+            }
+
+        val existingConstraints = base.constraints.map { it.label.lowercase() }.toSet()
+        val newConstraints = draft.constraints.filter { it.label.lowercase() !in existingConstraints }
+        val existingBeliefs = base.beliefs.map { it.label.lowercase() }.toSet()
+        val newBeliefs = draft.beliefs.filter { it.label.lowercase() !in existingBeliefs }
+
+        val keepTitle = base.title.isNotBlank() && base.title != "New scenario"
+        return base.copy(
+            title = if (keepTitle) base.title else draft.title.ifBlank { base.title },
+            stakeholders = stakeholders,
+            actions = base.actions + newActions,
+            constraints = base.constraints + newConstraints,
+            beliefs = base.beliefs + newBeliefs
+        )
+    }
+
+    fun setApiKey(key: String) {
+        repo.setApiKey(key.trim())
+        _state.update { it.copy(hasApiKey = repo.hasApiKey()) }
+    }
+
+    fun clearApiKey() {
+        repo.clearApiKey()
+        _state.update { it.copy(hasApiKey = false) }
     }
 
     fun loadTemplate() {
@@ -476,7 +589,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                 impact = "Incomplete stakeholder models reduce policy legitimacy.",
                 currentState = "$noGoals of ${scenario.stakeholders.size} stakeholders have no goals.",
                 fixLabel = "Describe stakeholder goals",
-                target = NavigationTarget.FRAME
+                target = NavigationTarget.MODEL_STAKEHOLDERS
             )
         }
 

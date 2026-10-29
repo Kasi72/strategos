@@ -85,6 +85,7 @@ fun FrameTab(vm: StrategosViewModel) {
     var ownerText by remember(scenario.id) { mutableStateOf(scenario.decisionOwner) }
 
     var showExpandEditor by remember { mutableStateOf(false) }
+    var showKeyDialog by remember { mutableStateOf(false) }
     var showPasteSheet by remember { mutableStateOf(false) }
     var pendingPasteText by remember { mutableStateOf("") }
     var showImportSheet by remember { mutableStateOf(false) }
@@ -219,10 +220,23 @@ fun FrameTab(vm: StrategosViewModel) {
                             audioPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    onDeleteAttachment = { vm.deleteAttachment(it) }
+                    onDeleteAttachment = { vm.deleteAttachment(it) },
+                    hasApiKey = state.hasApiKey,
+                    isParsing = state.isParsing,
+                    onManageKey = { showKeyDialog = true },
+                    onExtract = { vm.extractIntoActiveScenario() }
                 )
             }
         }
+    }
+
+    if (showKeyDialog) {
+        com.drkkr.strategos.ui.components.AiKeyDialog(
+            hasKey = state.hasApiKey,
+            onSave = { vm.setApiKey(it); showKeyDialog = false },
+            onClear = { vm.clearApiKey(); showKeyDialog = false },
+            onDismiss = { showKeyDialog = false }
+        )
     }
 
     // ── Expand editor dialog ─────────────────────────────────────────────
@@ -287,7 +301,11 @@ private fun ScenarioCard(
     onImportFile: () -> Unit,
     onAddImage: () -> Unit,
     onDictate: () -> Unit,
-    onDeleteAttachment: (String) -> Unit
+    onDeleteAttachment: (String) -> Unit,
+    hasApiKey: Boolean,
+    isParsing: Boolean,
+    onManageKey: () -> Unit,
+    onExtract: () -> Unit
 ) {
     StratCard {
         Column(Modifier.padding(CP)) {
@@ -346,6 +364,49 @@ private fun ScenarioCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (warn) Color(0xFFFF9500) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // ── AI extraction row ───────────────────────────────────────────
+            Spacer(Modifier.height(SG))
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    if (hasApiKey) Icons.Default.AutoAwesome else Icons.Default.Memory,
+                    null, Modifier.size(16.dp),
+                    tint = if (hasApiKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (hasApiKey) "AI extraction on" else "On-device parsing",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = onManageKey,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.heightIn(min = 28.dp)
+                ) {
+                    Text(if (hasApiKey) "Change key" else "Add AI key", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Button(
+                onClick = onExtract,
+                enabled = !isParsing,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                shape = RoundedCornerShape(IR)
+            ) {
+                if (isParsing) {
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Extracting…")
+                } else {
+                    Icon(Icons.Default.AutoFixHigh, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (hasApiKey) "Extract with AI" else "Auto-fill from description")
+                }
             }
 
             // Dictation status line

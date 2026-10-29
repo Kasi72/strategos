@@ -12,6 +12,7 @@ import com.drkkr.strategos.domain.model.Scenario
 private const val PREF_FILE = "strategos_scenarios"
 private const val KEY_PREFIX = "scenario_"
 private const val KEY_IDS = "ids"
+private const val KEY_API = "anthropic_api_key"
 private const val SNAP_PREFIX = "snap_"
 private const val SNAP_IDS_PREFIX = "snap_ids_"
 
@@ -31,9 +32,11 @@ data class LoadResult(
 
 class ScenarioStorage(context: Context) {
 
-    private val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-
     private val prefs: SharedPreferences = try {
+        // Master-key creation must be inside the guard: on a device whose
+        // keystore is unavailable it throws KeyStoreException, which callers
+        // expect to arrive wrapped as StorageUnavailableException (not raw).
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
         EncryptedSharedPreferences.create(
             PREF_FILE, masterKeyAlias, context,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
@@ -45,6 +48,11 @@ class ScenarioStorage(context: Context) {
     }
 
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
+
+    // Anthropic API key — stored only in the encrypted prefs, never in plaintext.
+    fun saveApiKey(key: String) { prefs.edit().putString(KEY_API, key).apply() }
+    fun loadApiKey(): String? = prefs.getString(KEY_API, null)?.takeIf { it.isNotBlank() }
+    fun clearApiKey() { prefs.edit().remove(KEY_API).apply() }
 
     fun save(scenario: Scenario) {
         val ids = loadIds().toMutableSet().also { it.add(scenario.id) }

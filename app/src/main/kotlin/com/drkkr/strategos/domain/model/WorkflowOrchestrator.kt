@@ -4,6 +4,7 @@ package com.drkkr.strategos.domain.model
 
 enum class NavigationTarget(val tabId: String, val section: String = "") {
     FRAME("model", "frame"),
+    MODEL_STAKEHOLDERS("model", "stakeholders"),
     MODEL_ACTIONS("model", "actions"),
     MODEL_CONSTRAINTS("model", "constraints"),
     MODEL_EVIDENCE("model", "evidence"),

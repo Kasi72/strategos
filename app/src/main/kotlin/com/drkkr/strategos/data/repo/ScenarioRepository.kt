@@ -117,4 +117,11 @@ class ScenarioRepository(
             "recoverable_record", "journal_post_note", "journal_entry", "trajectory_point", "quick_check_feedback", "scenario"
         )
     }
+
+    // ── AI key for the legacy editor screens (same Keystore-backed vault the Settings tab uses) ──
+    var keyVault: com.drkkr.strategos.agent.KeyVault? = null
+    fun apiKey(): String? = runCatching { keyVault?.let { v -> kotlinx.coroutines.runBlocking { v.get() } } }.getOrNull()?.takeIf { it.isNotBlank() }
+    fun hasApiKey(): Boolean = !apiKey().isNullOrBlank()
+    fun setApiKey(key: String) { keyVault?.let { v -> kotlinx.coroutines.runBlocking { v.put(key) } } }
+    fun clearApiKey() { keyVault?.let { v -> kotlinx.coroutines.runBlocking { v.clear() } } }
 }

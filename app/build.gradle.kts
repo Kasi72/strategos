@@ -8,6 +8,13 @@ plugins {
     // NOTE: kotlin.plugin.compose is Kotlin 2.0+; Kotlin 1.9 uses composeOptions block below
 }
 
+// Release signing credentials are read from keystore.properties (gitignored).
+// Falls back to null so debug builds and CI without the file still work.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.drkkr.strategos"
     compileSdk = 34
@@ -61,6 +68,16 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs
+            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
+            .forEach { output ->
+                output.outputFileName =
+                    "STRATEGOS-v${variant.versionName}-${variant.buildType.name}.apk"
+            }
+    }
 }
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
@@ -94,10 +111,14 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-    testImplementation("org.robolectric:robolectric:4.13")
-    testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.room:room-testing:2.6.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // JVM-runnable Compose UI tests (Robolectric) — no device/emulator required.
+    testImplementation(composeBom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("androidx.compose.ui:ui-test-manifest")
+    testImplementation("org.robolectric:robolectric:4.13")
+    testImplementation("androidx.test:core:1.6.1")
 
     // BLUEPRINT-QUESTION: instrumented tests (TC_SECRET_01 and the on-device migration/SQLCipher checks) need the AndroidX test runner; not in the 4.2 list.
     androidTestImplementation("androidx.test:runner:1.6.2")
