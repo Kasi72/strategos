@@ -54,10 +54,10 @@ private fun DockEntry(label: String, icon: ImageVector, on: Boolean, modifier: M
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
-            Modifier.size(width = 56.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
+            Modifier.size(width = 58.dp, height = 32.dp).clip(com.drkkr.strategos.ui.calm.theme.SquircleShape(14.dp))
                 .background(if (on) c.selected else Color.Transparent),
             contentAlignment = Alignment.Center
         ) { Icon(icon, contentDescription = label, tint = if (on) c.onAction else c.ink3, modifier = Modifier.size(24.dp)) }
-        Text(label, style = Calm.type.pill, color = if (on) c.ink else c.ink3)
+        Text(label, style = Calm.type.pill, color = if (on) c.onAction else c.ink3)
     }
 }

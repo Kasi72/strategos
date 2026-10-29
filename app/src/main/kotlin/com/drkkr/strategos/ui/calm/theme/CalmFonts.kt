@@ -20,7 +20,7 @@ object CalmFonts {
         }
     )
 
-    val Sans: FontFamily = variable(R.font.figtree, 400, 500, 600, 700)
+    val Sans: FontFamily = variable(R.font.inter, 400, 500, 600, 700)
     val Serif: FontFamily = variable(R.font.sourceserif4, 400, 600)
     val Mono: FontFamily = FontFamily(
         Font(R.font.plexmono_regular, FontWeight.Normal),
