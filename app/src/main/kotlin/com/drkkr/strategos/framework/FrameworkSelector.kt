@@ -69,8 +69,8 @@ object FrameworkSelector {
         val hasPayoffs = scenario.payoffs.isNotEmpty()
         val hasTree = scenario.gameTree != null
         val hasBeliefs = scenario.beliefs.isNotEmpty()
-        val hasTwoPlayers = scenario.stakeholders.size == 2
-        val hasMultiPlayers = scenario.stakeholders.size >= 3
+        val hasTwoPlayers = scenario.players().size == 2
+        val hasMultiPlayers = scenario.players().size >= 3
         val text = "${scenario.title} ${scenario.description}".lowercase()
 
         for (module in modules) {

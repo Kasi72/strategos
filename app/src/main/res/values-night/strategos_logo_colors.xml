@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="splash_background">#090A0F</color>
+    <color name="strategos_primary">#E5E9EA</color>
+    <color name="strategos_accent">#CAA06A</color>
+    <color name="strategos_orbit">#B99772</color>
+    <color name="strategos_guide">#69747B</color>
+</resources>

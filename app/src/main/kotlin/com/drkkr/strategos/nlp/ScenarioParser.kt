@@ -1,5 +1,6 @@
 package com.drkkr.strategos.nlp
 
+import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.domain.model.*
 
 /**
@@ -58,7 +59,7 @@ object ScenarioParser {
     private val leadingNoise = setOf("the", "a", "an", "our", "their", "its", "his", "her", "my", "your", "this", "that")
 
     fun parse(rawText: String, existingId: String? = null): ParseResult {
-        val language = detectLanguage(rawText)
+        val language = LanguageDetector.detect(rawText)
         val title = extractTitle(rawText)
 
         val stakeholders = extractStakeholders(rawText)

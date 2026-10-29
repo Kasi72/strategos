@@ -1,0 +1,9 @@
+name: propose_changes
+description: Change the model (8 ops max per call). Guided mode applies at once and shows `ask` as your next question, ending your turn. Expert mode waits for the user's review.
+input_schema:
+  type: object
+  properties:
+    summary: { type: string }
+    ops: { type: array, items: "@change_op" }
+    ask: { type: object, properties: { text: { type: string }, options: { type: array, items: { type: string } } } }
+  required: []

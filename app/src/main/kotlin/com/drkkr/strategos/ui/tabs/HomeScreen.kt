@@ -47,7 +47,9 @@ fun HomeScreen(
     vm: StrategosViewModel,
     onNewScenario: () -> Unit,
     onOpenScenario: (Scenario) -> Unit,
-    onNavigateModel: () -> Unit
+    onNavigateModel: () -> Unit,
+    onStartCounsel: (toCounsel: Boolean) -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
     val state by vm.state.collectAsState()
     val isDark = isSystemInDarkTheme()
@@ -78,6 +80,13 @@ fun HomeScreen(
                 raised = raised,
                 borderColor = borderColor,
                 onNewScenario = onNewScenario
+            )
+        }
+
+        item {
+            com.drkkr.strategos.ui.counsel.HomeComposer(
+                vm, expert = true, onStarted = onStartCounsel, onOpenSettings = onOpenSettings,
+                modifier = Modifier.padding(horizontal = StratTokens.screenPad, vertical = StratTokens.itemGap)
             )
         }
 

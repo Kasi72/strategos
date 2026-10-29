@@ -1,0 +1,85 @@
+package com.drkkr.strategos
+
+import com.drkkr.strategos.agent.ChatItem
+import com.drkkr.strategos.agent.QuestionUi
+import com.drkkr.strategos.ui.calm.talk.TalkTurn
+import com.drkkr.strategos.ui.calm.talk.TalkUi
+import com.drkkr.strategos.ui.calm.talk.plain
+import org.junit.Assert.*
+import org.junit.Test
+
+class TalkUiTest {
+    @Test fun TC_TALK_01_tagParsesThreePartPill() {
+        val t = TalkUi.tag("Wait · Mutual trust needed · Robust")!!
+        assertEquals("Wait", t.move); assertEquals("Mutual trust needed", t.archetype); assertTrue(t.robust)
+        assertFalse(TalkUi.tag("Co-sign · Chicken · Fragile")!!.robust)
+        assertNull(TalkUi.tag("  "))
+    }
+
+    @Test fun TC_TALK_02_splitFindsLeadBodyAndClosing() {
+        val c = TalkUi.split("Let him ask.\n\nKeep your answer the same and give it a day.\n\nWhat would help him feel respected?")
+        assertEquals("Let him ask.", c.lead); assertEquals("Keep your answer the same and give it a day.", c.body)
+        assertEquals("What would help him feel respected?", c.closing)
+    }
+
+    @Test fun TC_TALK_03_splitCollectsBullets() {
+        val c = TalkUi.split("Here is what I'd do.\n\n- Say it once\n- Give a day")
+        assertEquals(listOf("Say it once", "Give a day"), c.bullets)
+        assertEquals("Here is what I'd do.", c.lead.ifEmpty { c.body })
+    }
+
+    @Test fun TC_TALK_04_splitNeverLosesWords() {
+        val raw = "One short reply."
+        val c = TalkUi.split(raw)
+        assertEquals(raw, listOf(c.lead, c.body).filter { it.isNotEmpty() }.joinToString(" "))
+    }
+
+    @Test fun TC_TALK_05_turnsMapItemsAndAppendQueuedLast() {
+        val items = listOf(
+            ChatItem.UserText("u1", "hi"),
+            ChatItem.AssistantText("a1", "Wait.", pill = "Wait · Chicken · Robust"),
+            ChatItem.Questions("q1", listOf(QuestionUi("x", "Who?", listOf("Mum", "Dad"), true)), answered = false)
+        )
+        val t = TalkUi.turns(items, queued = listOf("later"))
+        assertEquals(4, t.size)
+        assertTrue(t[1] is TalkTurn.Coach && (t[1] as TalkTurn.Coach).tag != null)
+        assertTrue((t[2] as TalkTurn.Ask).options.size == 2)
+        assertTrue((t[3] as TalkTurn.User).queued)
+    }
+
+    @Test fun TC_TALK_06_whenLabelBuckets() {
+        val now = 10_000_000_000L
+        assertEquals("now", TalkUi.whenLabel(now, now))
+        assertEquals("5m", TalkUi.whenLabel(now - 5 * 60_000, now))
+        assertEquals("2h", TalkUi.whenLabel(now - 2 * 3_600_000, now))
+        assertEquals("1d", TalkUi.whenLabel(now - 26 * 3_600_000, now))
+    }
+
+    @Test fun TC_TALK_07_introLineBeforeBulletsInOneParagraphStaysProse() {
+        val t = TalkUi.split("Before I call it, let me get this right —\n- What is this about?\n\n- Who else is involved?")
+        assertEquals(listOf("What is this about?", "Who else is involved?"), t.bullets)
+        assertTrue((t.lead + t.body).contains("Before I call it"))
+        assertFalse((t.lead + t.body).contains("What is this about"))
+    }
+
+    @Test fun TC_TALK_08_plainTextForCopyKeepsEveryWordAndDropsEmphasis() {
+        val t = com.drkkr.strategos.ui.calm.talk.CoachText("Take a breath.", "Say **no** once.", listOf("Be kind", "Be brief"), "What matters most?")
+        assertEquals("Take a breath.\n\nSay no once.\n\n• Be kind\n• Be brief\n\nWhat matters most?", t.plain())
+    }
+
+    @Test fun TC_TALK_09_doAndDontListsBecomeAQuickReadAndKeepTheirBullets() {
+        val raw = "What's happening underneath: He feels cornered.\nClear-win move: Wait a day.\nWhat to say: \"Let's co-draft.\"\n" +
+            "Do this:\n• Wait a day\n• Ask Alex to co-draft\nDon't do this:\n• Push now\n• Decide alone\nTry the line once he's cooled off."
+        val t = TalkUi.split(raw)
+        assertEquals(listOf("Wait a day", "Ask Alex to co-draft"), t.dos)
+        assertEquals(listOf("Push now", "Decide alone"), t.donts)
+        assertEquals("Try the line once he's cooled off.", t.closing)
+        assertTrue(t.body.contains("**Clear-win move:** Wait a day."))
+        assertFalse(t.body.contains("Do this"))
+        assertTrue(t.plain().contains("Do this:\n• Wait a day"))
+    }
+
+    @Test fun TC_TALK_10_aReplyWithoutDoDontHeadingsIsUnchanged() {
+        assertFalse(TalkUi.split("Just a thought.\n\nAnother one.").hasQuickRead)
+    }
+}

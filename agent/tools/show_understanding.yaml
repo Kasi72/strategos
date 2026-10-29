@@ -1,0 +1,7 @@
+name: show_understanding
+description: Show a plain recap (2-8 short bullets) with Looks right / Fix buttons. Ends your turn.
+input_schema:
+  type: object
+  properties:
+    bullets: { type: array, items: { type: string } }
+  required: [bullets]

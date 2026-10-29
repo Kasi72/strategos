@@ -1,0 +1,8 @@
+name: what_if
+description: Simulate changes on a copy and compare results. Changes nothing.
+input_schema:
+  type: object
+  properties:
+    label: { type: string }
+    ops: { type: array, items: "@change_op" }
+  required: [label, ops]

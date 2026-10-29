@@ -68,6 +68,9 @@ data class BehavioralAssumption(
 )
 
 @Serializable
+enum class GameRole { PLAYER, INFLUENCER }
+
+@Serializable
 data class Stakeholder(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
@@ -89,9 +92,19 @@ data class Stakeholder(
     val approvalRole: String = "",                     // e.g. "Final sign-off", "Recommender"
     val fears: List<String> = emptyList(),             // losses / risks they want to avoid
     val trustRelationships: List<String> = emptyList(),// stakeholder ids they trust
+    // BLUEPRINT-QUESTION: §7.2 wants a numeric trust baseline on the counterpart but the model only has the id list above. 0.0..1.0, null = never measured.
+    val trustBaseline: Double? = null,
+    // Phase F.6: Bayesian responsiveness priors, learned turn by turn from what the user reports (BayesianUpdater),
+    // never written by the model directly. 0.10..0.90 range, null = not yet learned (the engine uses its own defaults).
+    val probSoftensOnRepair: Double? = null,
+    val probRespectsBoundary: Double? = null,
+    val probEscalatesOnReactive: Double? = null,
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
-    val notes: String = ""
+    val notes: String = "",
+    val gameRole: GameRole = GameRole.PLAYER,
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
@@ -107,7 +120,9 @@ data class Action(
     val publicVisibility: Boolean = true,
     val implementationDifficulty: Int = 3,  // 1–5
     val preconditions: List<String> = emptyList(),
-    val likelyReactions: Map<String, String> = emptyMap()  // stakeholderId -> reaction
+    val likelyReactions: Map<String, String> = emptyMap(),  // stakeholderId -> reaction
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
@@ -126,7 +141,9 @@ data class Constraint(
     val id: String = UUID.randomUUID().toString(),
     val label: String,
     val kind: Kind,
-    val description: String = ""
+    val description: String = "",
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 ) {
     @Serializable enum class Kind { LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL, RESOURCE, USER_HARD }
 }
@@ -143,7 +160,9 @@ data class Belief(
 data class PayoffEntry(
     val stakeholderId: String,
     val actionProfile: Map<String, String>, // stakeholderId -> actionId
-    val payoff: MultiPayoff
+    val payoff: MultiPayoff,
+    val factStatus: FactStatus = FactStatus.USER_ESTIMATE,
+    val provenanceNote: String = ""      // AI rationale or source quote
 )
 
 @Serializable
@@ -197,6 +216,9 @@ data class Scenario(
     val attachments: List<ScenarioAttachment> = emptyList()
 ) {
     fun actionsFor(sid: String) = actions.filter { it.stakeholderId == sid }
+
+    /** Stakeholders who choose actions and appear in the payoff matrix. */
+    fun players(): List<Stakeholder> = stakeholders.filter { it.gameRole == GameRole.PLAYER }
 
     /** 0–100 model completeness score used by health card */
     fun completenessScore(): Int {

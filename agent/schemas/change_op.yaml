@@ -1,0 +1,24 @@
+type: object
+properties:
+  type: { type: string, enum: [set_scenario_fields, add_stakeholder, update_stakeholder, remove_stakeholder, add_action, update_action, remove_action, set_payoff, add_constraint, add_belief, add_assumption] }
+  ref: { type: string }
+  target_id: { type: string }
+  stakeholder: { type: string }
+  name: { type: string }
+  game_role: { type: string, enum: [PLAYER, INFLUENCER] }
+  authority: { type: integer }
+  influence: { type: integer }
+  can_veto: { type: boolean }
+  can_delay: { type: boolean }
+  goals: { type: array, items: { type: string } }
+  fears: { type: array, items: { type: string } }
+  label: { type: string }
+  profile: { type: array, items: { type: object, properties: { stakeholder: { type: string }, action: { type: string } } } }
+  values: { type: array, items: { type: object, properties: { dimension: { type: string, enum: [SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE] }, value: { type: number } } } }
+  constraint_kind: { type: string, enum: [LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL, RESOURCE] }
+  probability: { type: number }
+  scenario_fields: { type: object, properties: { title: { type: string }, description: { type: string }, decision_owner: { type: string }, stakes: { type: string } } }
+  rationale: { type: string }
+  source: { type: string, enum: [ai_inferred, user_stated] }
+  quote: { type: string }
+required: [type]

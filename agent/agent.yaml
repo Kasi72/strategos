@@ -1,0 +1,9 @@
+spec_version: "0.1.0"          # VERIFY against `opengap validate`; fix only what it reports
+name: strategos-counsel
+version: 2.0.0
+description: Strategy adviser that builds a game-theory decision model with the user and explains the on-device engine's results.
+author: Dr KKR
+license: proprietary
+tags: [decision-support, game-theory]
+# BLUEPRINT-QUESTION: `tools:` list removed (user decision at CP2). OpenGAP requires ^[a-z][a-z0-9-]*$ there, the tool names are snake_case; build.mjs reads tools/*.yaml directly.
+# LEAN PROFILE: no skills. Skill sections duplicated RULES and the model tried to call them as tools (seen live on Groq).

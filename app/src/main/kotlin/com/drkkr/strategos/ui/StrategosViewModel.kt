@@ -3,8 +3,13 @@ package com.drkkr.strategos.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.drkkr.strategos.agent.AiSettingsController
+import com.drkkr.strategos.agent.CounselController
+import com.drkkr.strategos.agent.CounselGateway
+import com.drkkr.strategos.agent.CounselUiState
 import com.drkkr.strategos.data.repo.SaveResult
-import com.drkkr.strategos.data.repo.ScenarioRepository
+import com.drkkr.strategos.data.repo.UiMode
+import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.data.storage.RecoverableRecord
 import com.drkkr.strategos.domain.framework.AnalysisResult
 import com.drkkr.strategos.domain.framework.DecisionReadinessResult
@@ -72,7 +77,12 @@ import com.drkkr.strategos.framework.tree.BackwardInductionModule
 import com.drkkr.strategos.nlp.LlmScenarioExtractor
 import com.drkkr.strategos.nlp.ScenarioParser
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
+import com.drkkr.strategos.domain.analysis.AnalysisPipeline
+import com.drkkr.strategos.domain.analysis.PipelineResult
+import com.drkkr.strategos.domain.analysis.ProvenanceReconciler
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 data class UiState(
@@ -106,61 +116,70 @@ data class UiState(
 
 class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = ScenarioRepository(app)
-    private val registry = buildRegistry()
-    private val engine = RecommendationEngine()
+    private val container = (app as com.drkkr.strategos.StrategosApplication).container
+    private val repo = container.scenarioRepository
+    private val pipeline = AnalysisPipeline()
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private val snapshotJson = Json { ignoreUnknownKeys = true }
 
+    // ── Counsel (§10.5) ───────────────────────────────────────────────────────
+    private val gatewayImpl = object : CounselGateway {
+        override fun activeScenario() = _state.value.activeScenario
+        override suspend fun analyzeAndPublish() = analyzeAndAwait()
+        override fun lastResults() = _state.value.analysisResults
+        override suspend fun commitAgentChange(updated: Scenario): SaveResult = this@StrategosViewModel.commitAgentChange(updated)
+    }
+
+    /** AI key, consent and model settings (null when secure storage is unavailable). */
+    val aiSettings: AiSettingsController? = container.settingsRepository?.let { s ->
+        container.keyVault?.let { vault -> AiSettingsController(viewModelScope, s, vault, container.llmClient) }
+    }
+
+    /** Guided (default) or Expert, from the `ui.mode` setting; changes show up at once. */
+    val uiMode: StateFlow<UiMode> = (container.settingsRepository?.observeUiMode() ?: flowOf(null))
+        .map { v -> runCatching { UiMode.valueOf(v.orEmpty()) }.getOrDefault(UiMode.GUIDED) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiMode.GUIDED)
+
+    /** Settings ▸ Reveal the math (Always | On tap | Never); On tap is the default. */
+    val revealMath: StateFlow<com.drkkr.strategos.data.repo.RevealMath> = (container.settingsRepository?.observeRevealMath() ?: flowOf(null))
+        .map { v -> runCatching { com.drkkr.strategos.data.repo.RevealMath.valueOf(v.orEmpty()) }.getOrDefault(com.drkkr.strategos.data.repo.RevealMath.ON_TAP) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, com.drkkr.strategos.data.repo.RevealMath.ON_TAP)
+
+    fun setRevealMath(m: com.drkkr.strategos.data.repo.RevealMath) { viewModelScope.launch { container.settingsRepository?.setRevealMath(m) } }
+
+    fun setUiMode(mode: UiMode) { viewModelScope.launch { container.settingsRepository?.setUiMode(mode) } }
+
+    /** Deletes every conversation (messages, summaries, change sets). Scenarios stay. */
+    fun deleteAllConversations() {
+        viewModelScope.launch {
+            container.counselDeps?.conversations?.deleteAll()
+            _state.value.activeScenario?.let { counsel?.bindScenario(it.id) }
+        }
+    }
+
+    /** Settings ▸ Delete everything. Clears the working scenario too so nothing stale stays on screen. */
+    fun deleteEverything() {
+        viewModelScope.launch {
+            repo.deleteEverything()
+            _state.update { it.copy(activeScenario = null) }
+        }
+    }
+
+    /** Null when secure storage is unavailable (Counsel needs the database). */
+    val counsel: CounselController? = container.counselDeps?.let { CounselController(viewModelScope, it, gatewayImpl) }
+    val counselState: StateFlow<CounselUiState> = counsel?.state ?: MutableStateFlow(CounselUiState()).asStateFlow()
+
     init {
+        repo.keyVault = container.keyVault
         _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError, hasApiKey = repo.hasApiKey()) }
-        viewModelScope.launch { repo.load() }
+        viewModelScope.launch { container.prepareStorage(); repo.load() }
         viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
     }
 
-    private fun buildRegistry() = FrameworkRegistry()
-        .register(DominantStrategyModule())
-        .register(PureNashModule())
-        .register(MixedNash2x2Module())
-        .register(ExpectedUtilityModule())
-        .register(MinimaxModule())
-        .register(BackwardInductionModule())
-        .register(ParetoModule())
-        .register(SensitivityModule())
-        .register(PrisonersDilemmaModule())
-        .register(StagHuntModule())
-        .register(VirtualBargainingModule())
-        .register(UltimatumModule())
-        .register(TrustGameModule())
-        .register(PublicGoodsModule())
-        .register(LevelKModule())
-        .register(IteratedDominanceModule())
-        .register(AuctionModule())
-        .register(ChickenGameModule())
-        .register(PrincipalAgentModule())
-        .register(CommonPoolResourceModule())
-        .register(RedTeamModule())
-        .register(RobustDecisionFrontierModule())
-        .register(ValueOfInformationModule())
-        .register(BehavioralResponseModule())
-        .register(CoalitionAnalysisModule())
-        .register(SignallingModule())
-        .register(StackelbergModule())
-        .register(ScenarioEnsembleModule())
-        .register(BayesianUpdatingModule())
-        .register(DynamicSimulationModule())
-        .register(StakeholderTrustDynamicsModule())
-        .register(com.drkkr.strategos.framework.behavioral.RelationalRepairModule())
-
-    /**
-     * Build a scenario draft from free text. Uses the Anthropic LLM extractor
-     * when an API key is configured, and always falls back to the deterministic
-     * heuristic parser on no-key / network / parse failure.
-     */
     fun parseAndCreateScenario(rawText: String) {
         val key = repo.apiKey()
         if (key.isNullOrBlank()) {
@@ -295,19 +314,26 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setActiveScenario(s: Scenario) {
         _state.update { it.copy(activeScenario = s, analysisResults = emptyList(), moduleRunResults = emptyList(), report = null, decisionReadiness = null, snapshotInvalidated = false) }
+        counsel?.bindScenario(s.id)
     }
 
     fun updateActiveScenario(s: Scenario) {
         val hadSnapshot = _state.value.snapshot != null
-        _state.update { it.copy(activeScenario = s, snapshotInvalidated = hadSnapshot) }
+        val current = _state.value.activeScenario
+        val reconciled = if (current != null) ProvenanceReconciler.onManualEdit(current, s) else s
+        _state.update { it.copy(activeScenario = reconciled, snapshotInvalidated = hadSnapshot) }
     }
 
     fun analyze() {
-        val scenario = _state.value.activeScenario ?: return
+        viewModelScope.launch { analyzeAndAwait() }
+    }
+
+    suspend fun analyzeAndAwait(): PipelineResult? {
+        val scenario = _state.value.activeScenario ?: return null
         val validity = ModelValidator.validate(scenario)
         if (validity.blocksAnalysis) {
             _state.update { it.copy(modelValidityReport = validity, errorMessage = validity.issues.first().message) }
-            return
+            return null
         }
         _state.update { it.copy(
             isAnalyzing = true, errorMessage = null, analysisPlan = null,
@@ -315,133 +341,133 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
             debugEntries = emptyList(), modelValidityReport = validity,
             snapshot = null, snapshotInvalidated = false
         ) }
-        viewModelScope.launch {
-            try {
-                val allModules = registry.modules()
-                val plan = FrameworkSelector.classify(scenario, allModules)
-                _state.update { it.copy(analysisPlan = plan) }
+        return try {
+            val pr = withContext(Dispatchers.Default) { pipeline.run(scenario) }
+            val plan = pr.plan!!
+            val selectedIds = plan.selected().map { it.moduleId }.toSet()
+            val moduleRuns = pr.moduleRuns
 
-                val selectedIds = plan.selected().map { it.moduleId }.toSet()
-                val moduleRuns = registry.runAll(scenario, selectedIds)
-
-                // Build debug entries from FAILED modules only — no raw stack traces in state
-                val debugEntries = moduleRuns
-                    .filter { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
-                    .map { run ->
-                        DebugEntry(
-                            source = run.moduleId,
-                            level = DebugEntry.Level.ERROR,
-                            message = run.userMessage ?: "${run.moduleName} could not run.",
-                            detail = buildString {
-                                appendLine("Diagnostic ID: ${run.diagnosticId ?: "n/a"}")
-                                appendLine("Module: ${run.moduleName}")
-                                run.result?.calculations?.let { calc ->
-                                    appendLine("Class: ${calc["errorClass"] ?: "unknown"}")
-                                    appendLine("Message: ${calc["errorMessage"] ?: "unknown"}")
-                                }
+            // Build debug entries from FAILED modules only — no raw stack traces in state
+            val debugEntries = moduleRuns
+                .filter { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
+                .map { run ->
+                    DebugEntry(
+                        source = run.moduleId,
+                        level = DebugEntry.Level.ERROR,
+                        message = run.userMessage ?: "${run.moduleName} could not run.",
+                        detail = buildString {
+                            appendLine("Diagnostic ID: ${run.diagnosticId ?: "n/a"}")
+                            appendLine("Module: ${run.moduleName}")
+                            run.result?.calculations?.let { calc ->
+                                appendLine("Class: ${calc["errorClass"] ?: "unknown"}")
+                                appendLine("Message: ${calc["errorMessage"] ?: "unknown"}")
                             }
-                        )
-                    }
-
-                val analysisResults = registry.analysisResultsFrom(moduleRuns)
-                val report = engine.combine(scenario, analysisResults).copy(analysisPlan = plan)
-
-                // Determine run status from ModuleRunStatus — never string matching
-                val requiredFailed = moduleRuns.any {
-                    it.status == ModuleRunStatus.FAILED_RECOVERABLY && it.isRequired()
-                }
-                val requiredSkipped = moduleRuns.any {
-                    it.status == ModuleRunStatus.SKIPPED_INSUFFICIENT_INPUT && it.isRequired()
-                }
-                val anyFailed = moduleRuns.any { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
-
-                val runStatus = when {
-                    requiredFailed || requiredSkipped -> AnalysisRunStatus.FAILED
-                    anyFailed -> AnalysisRunStatus.PARTIAL
-                    else -> AnalysisRunStatus.COMPLETE
-                }
-
-                // Lifecycle gate: structured status, not string matching
-                val targetStage = when (runStatus) {
-                    AnalysisRunStatus.FAILED -> scenario.lifecycleStage  // keep current, don't advance
-                    AnalysisRunStatus.PARTIAL -> LifecycleStage.ANALYSED // partial allowed
-                    AnalysisRunStatus.COMPLETE -> LifecycleStage.ANALYSED
-                    AnalysisRunStatus.NOT_RUN -> scenario.lifecycleStage
-                }
-
-                // Only persist a new snapshot for PARTIAL or COMPLETE runs
-                val snapshot = if (runStatus != AnalysisRunStatus.FAILED) {
-                    val scenarioJson = try { snapshotJson.encodeToString(scenario) } catch (e: Exception) { scenario.id }
-                    val fullPayload = buildString {
-                        append(scenarioJson)
-                        append("|policy=").append(scenario.selectedPolicyOption?.actionId ?: "none")
-                        append("|exec=").append(report.executiveStatus.name)
-                        append("|conf=").append(report.overallConfidence)
-                        append("|modules=").append(selectedIds.toList().sorted().joinToString(","))
-                        append("|constraints=").append(scenario.constraints.size)
-                        append("|runStatus=").append(runStatus.name)
-                    }
-                    AnalysisSnapshot(
-                        scenarioId = scenario.id,
-                        scenarioVersion = scenario.version,
-                        scenarioHash = AnalysisSnapshot.hashString(fullPayload),
-                        selectedModuleIds = selectedIds.toList().sorted(),
-                        executiveStatus = report.executiveStatus.name,
-                        candidateCount = report.candidates.size,
-                        overallConfidence = report.overallConfidence,
-                        reportHash = AnalysisSnapshot.hashString(fullPayload),
-                        scenarioJson = scenarioJson
-                    ).also { repo.saveSnapshot(it) }
-                } else {
-                    _state.value.snapshot // preserve last valid snapshot on failure
-                }
-
-                val analysedScenario = scenario.copy(
-                    lifecycleStage = targetStage,
-                    snapshotId = snapshot?.snapshotId ?: scenario.snapshotId
-                )
-                repo.save(analysedScenario)
-
-                val readiness = buildDecisionReadiness(
-                    scenario = analysedScenario,
-                    report = report,
-                    moduleRuns = moduleRuns,
-                    runStatus = runStatus,
-                    snapshot = snapshot
-                )
-
-                _state.update { st ->
-                    st.copy(
-                        isAnalyzing = false,
-                        analysisResults = analysisResults,
-                        moduleRunResults = moduleRuns,
-                        decisionReadiness = readiness,
-                        report = report,
-                        analysisPlan = plan,
-                        debugEntries = debugEntries,
-                        snapshot = snapshot,
-                        activeScenario = analysedScenario,
-                        scenarios = st.scenarios.map { if (it.id == analysedScenario.id) analysedScenario else it }
+                        }
                     )
                 }
-            } catch (e: Exception) {
-                val fatalEntry = DebugEntry(
-                    source = "analysis-pipeline",
-                    level = DebugEntry.Level.ERROR,
-                    message = "Analysis pipeline error. Please try again.",
-                    detail = buildString {
-                        appendLine("Pipeline exception")
-                        appendLine(e.stackTraceToString().take(4000))
-                    }
-                )
-                _state.update {
-                    it.copy(
-                        isAnalyzing = false,
-                        errorMessage = "Analysis could not complete. Please try again.",
-                        debugEntries = listOf(fatalEntry)
-                    )
-                }
+
+            val analysisResults = pr.results
+            val report = pr.report!!
+
+            // Determine run status from ModuleRunStatus — never string matching
+            val requiredFailed = moduleRuns.any {
+                it.status == ModuleRunStatus.FAILED_RECOVERABLY && it.isRequired()
             }
+            val requiredSkipped = moduleRuns.any {
+                it.status == ModuleRunStatus.SKIPPED_INSUFFICIENT_INPUT && it.isRequired()
+            }
+            val anyFailed = moduleRuns.any { it.status == ModuleRunStatus.FAILED_RECOVERABLY }
+
+            val runStatus = when {
+                requiredFailed || requiredSkipped -> AnalysisRunStatus.FAILED
+                anyFailed -> AnalysisRunStatus.PARTIAL
+                else -> AnalysisRunStatus.COMPLETE
+            }
+
+            // Lifecycle gate: structured status, not string matching
+            val targetStage = when (runStatus) {
+                AnalysisRunStatus.FAILED -> scenario.lifecycleStage  // keep current, don't advance
+                AnalysisRunStatus.PARTIAL -> LifecycleStage.ANALYSED // partial allowed
+                AnalysisRunStatus.COMPLETE -> LifecycleStage.ANALYSED
+                AnalysisRunStatus.NOT_RUN -> scenario.lifecycleStage
+            }
+
+            // Only persist a new snapshot for PARTIAL or COMPLETE runs
+            val snapshot = if (runStatus != AnalysisRunStatus.FAILED) {
+                val scenarioJson = try { snapshotJson.encodeToString(scenario) } catch (e: Exception) { scenario.id }
+                val fullPayload = buildString {
+                    append(scenarioJson)
+                    append("|policy=").append(scenario.selectedPolicyOption?.actionId ?: "none")
+                    append("|exec=").append(report.executiveStatus.name)
+                    append("|conf=").append(report.overallConfidence)
+                    append("|modules=").append(selectedIds.toList().sorted().joinToString(","))
+                    append("|constraints=").append(scenario.constraints.size)
+                    append("|runStatus=").append(runStatus.name)
+                }
+                AnalysisSnapshot(
+                    scenarioId = scenario.id,
+                    scenarioVersion = scenario.version,
+                    engineVersion = com.drkkr.strategos.agent.AgentConfig.ENGINE_VERSION,
+                    scenarioHash = AnalysisSnapshot.hashString(fullPayload),
+                    selectedModuleIds = selectedIds.toList().sorted(),
+                    executiveStatus = report.executiveStatus.name,
+                    candidateCount = report.candidates.size,
+                    overallConfidence = report.overallConfidence,
+                    reportHash = AnalysisSnapshot.hashString(fullPayload),
+                    scenarioJson = scenarioJson
+                ).also { repo.saveSnapshot(it) }
+            } else {
+                _state.value.snapshot // preserve last valid snapshot on failure
+            }
+
+            val analysedScenario = scenario.copy(
+                lifecycleStage = targetStage,
+                snapshotId = snapshot?.snapshotId ?: scenario.snapshotId
+            )
+            // repo.save bumps the version; keep the stored copy active so the next save doesn't see a conflict.
+            val savedScenario = (repo.save(analysedScenario) as? SaveResult.Success)?.saved ?: analysedScenario
+
+            val readiness = buildDecisionReadiness(
+                scenario = savedScenario,
+                report = report,
+                moduleRuns = moduleRuns,
+                runStatus = runStatus,
+                snapshot = snapshot
+            )
+
+            _state.update { st ->
+                st.copy(
+                    isAnalyzing = false,
+                    analysisResults = analysisResults,
+                    moduleRunResults = moduleRuns,
+                    decisionReadiness = readiness,
+                    report = report,
+                    analysisPlan = plan,
+                    debugEntries = debugEntries,
+                    snapshot = snapshot,
+                    activeScenario = savedScenario,
+                    scenarios = st.scenarios.map { if (it.id == savedScenario.id) savedScenario else it }
+                )
+            }
+            pr
+        } catch (e: Exception) {
+            val fatalEntry = DebugEntry(
+                source = "analysis-pipeline",
+                level = DebugEntry.Level.ERROR,
+                message = "Analysis pipeline error. Please try again.",
+                detail = buildString {
+                    appendLine("Pipeline exception")
+                    appendLine(e.stackTraceToString().take(4000))
+                }
+            )
+            _state.update {
+                it.copy(
+                    isAnalyzing = false,
+                    errorMessage = "Analysis could not complete. Please try again.",
+                    debugEntries = listOf(fatalEntry)
+                )
+            }
+            null
         }
     }
 
@@ -582,8 +608,14 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveScenario() {
-        var s = _state.value.activeScenario ?: return
-        viewModelScope.launch {
+        val s = _state.value.activeScenario ?: return
+        viewModelScope.launch { saveScenarioInternal(s) }
+    }
+
+    /** Saves [s0] with material-change detection; updates the active scenario or the error message. */
+    suspend fun saveScenarioInternal(s0: Scenario): SaveResult {
+        var s = s0
+        run {
             // Material change detection: if scenario is APPROVED+, check for changes that
             // invalidate approval (actions, constraints, payoffs, selected policy option)
             val stored = _state.value.scenarios.find { it.id == s.id }
@@ -612,15 +644,52 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(activeScenario = s) }
                 }
             }
-            when (val result = repo.save(s)) {
-                is SaveResult.Success -> _state.update { it.copy(activeScenario = result.saved) }
-                is SaveResult.Conflict -> _state.update {
-                    it.copy(errorMessage = "Save conflict: stored version is newer (v${result.stored.version}). Your changes were not saved. Reload the scenario to see the current version.")
-                }
-                is SaveResult.StorageUnavailable -> _state.update {
-                    it.copy(errorMessage = "Storage unavailable — scenario cannot be saved")
-                }
+        }
+        val result = repo.save(s)
+        when (result) {
+            is SaveResult.Success -> _state.update { it.copy(activeScenario = result.saved) }
+            is SaveResult.Conflict -> _state.update {
+                it.copy(errorMessage = "Save conflict: stored version is newer (v${result.stored.version}). Your changes were not saved. Reload the scenario to see the current version.")
             }
+            is SaveResult.StorageUnavailable -> _state.update {
+                it.copy(errorMessage = "Storage unavailable — scenario cannot be saved")
+            }
+        }
+        return result
+    }
+
+    /** The only way agent changes reach the scenario (I2): an applied change set, saved like a manual save. */
+    suspend fun commitAgentChange(updated: Scenario): SaveResult {
+        val hadSnapshot = _state.value.snapshot != null
+        val result = saveScenarioInternal(updated)
+        if (result is SaveResult.Success && hadSnapshot) _state.update { it.copy(snapshotInvalidated = true) }
+        return result
+    }
+
+    /**
+     * Home composer entry point. With AI not ready this is the 1.x parser path (I7, no network).
+     * Otherwise it saves a new scenario from the text, binds Counsel to it and sends the text as the first message.
+     */
+    fun startCounselFromText(text: String, onNavigate: (toCounsel: Boolean) -> Unit) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            val controller = counsel
+            val ready = controller != null && container.settingsRepository?.aiReady() == true
+            if (!ready) {
+                parseAndCreateScenario(text)
+                onNavigate(false)
+                return@launch
+            }
+            val draft = Scenario(
+                title = text.trim().lineSequence().first().take(60),
+                description = text.trim(),
+                language = LanguageDetector.detect(text)
+            )
+            val saved = (saveScenarioInternal(draft) as? SaveResult.Success)?.saved ?: return@launch
+            setActiveScenario(saved)
+            controller!!.bindScenario(saved.id).join()
+            controller.send(text)
+            onNavigate(true)
         }
     }
 
@@ -710,6 +779,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
             analysisResults = emptyList(), moduleRunResults = emptyList(),
             report = null, decisionReadiness = null, snapshot = null, snapshotInvalidated = false
         ) }
+        _state.value.activeScenario?.let { counsel?.bindScenario(it.id) }
     }
 
     fun dismissError() { _state.update { it.copy(errorMessage = null) } }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strategos: resolution-independent transparent brand glyph.
+     All palette references are overridden automatically in values-night/colors.xml.
+     Centered within the Android adaptive-icon safe circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M54,24 C70.57,24 84,37.43 84,54 C84,70.57 70.57,84 54,84 C37.43,84 24,70.57 24,54 C24,37.43 37.43,24 54,24 Z" android:fillColor="@android:color/transparent" android:strokeColor="@color/strategos_orbit" android:strokeWidth="0.72" />
+    <path android:pathData="M24,54 L84,54 M54,24 L54,84" android:fillColor="@android:color/transparent" android:strokeColor="@color/strategos_guide" android:strokeWidth="0.65" />
+    <path android:pathData="M54,39 L54,32 C66.5,34.2 77,43.3 84,54" android:fillColor="@android:color/transparent" android:strokeColor="@color/strategos_orbit" android:strokeWidth="0.68" />
+    <path android:pathData="M24,54 C33,62.1 44.7,68 54,69.4 L54,84" android:fillColor="@android:color/transparent" android:strokeColor="@color/strategos_orbit" android:strokeWidth="0.68" />
+    <path android:pathData="M44,26 C33,30.3 31.2,40 41.7,49.1 C48.2,54.8 60.2,57.1 66.3,65 C72.4,72.9 66.2,80.3 55.3,82.7 C69,82.1 75.7,71.5 69.4,61.5 C64.8,53.8 54.1,49 46.3,43.6 C39.4,38.9 39.4,31.3 44,26 Z" android:fillColor="@color/strategos_primary" />
+    <path android:pathData="M61,56.3 C63.1,58 64.9,60 66.3,62.7 C71,71.2 66.3,79 55.3,82.7 C69,82.1 75.7,71.5 69.4,61.5 C67.7,58.8 65.1,56.2 61,53.8 Z" android:fillColor="@color/strategos_accent" />
+    <path android:pathData="M24,51.8 C25.215026449626,51.8 26.2,52.784973550374 26.2,54 C26.2,55.215026449626 25.215026449626,56.2 24,56.2 C22.784973550374,56.2 21.8,55.215026449626 21.8,54 C21.8,52.784973550374 22.784973550374,51.8 24,51.8 Z" android:fillColor="@color/strategos_primary" />
+    <path android:pathData="M84,51.8 C85.215026449626,51.8 86.2,52.784973550374 86.2,54 C86.2,55.215026449626 85.215026449626,56.2 84,56.2 C82.784973550374,56.2 81.8,55.215026449626 81.8,54 C81.8,52.784973550374 82.784973550374,51.8 84,51.8 Z" android:fillColor="@color/strategos_primary" />
+    <path android:pathData="M54,21.8 C55.215026449626,21.8 56.2,22.784973550374 56.2,24 C56.2,25.215026449626 55.215026449626,26.2 54,26.2 C52.784973550374,26.2 51.8,25.215026449626 51.8,24 C51.8,22.784973550374 52.784973550374,21.8 54,21.8 Z" android:fillColor="@color/strategos_accent" />
+    <path android:pathData="M54,81.8 C55.215026449626,81.8 56.2,82.784973550374 56.2,84 C56.2,85.215026449626 55.215026449626,86.2 54,86.2 C52.784973550374,86.2 51.8,85.215026449626 51.8,84 C51.8,82.784973550374 52.784973550374,81.8 54,81.8 Z" android:fillColor="@color/strategos_accent" />
+</vector>

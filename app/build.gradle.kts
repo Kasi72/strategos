@@ -4,6 +4,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
     // NOTE: kotlin.plugin.compose is Kotlin 2.0+; Kotlin 1.9 uses composeOptions block below
 }
 
@@ -22,21 +23,27 @@ android {
         applicationId = "com.drkkr.strategos"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    val hasReleaseKeystore = keystoreProps.getProperty("storeFile") != null &&
-        file(keystoreProps.getProperty("storeFile")).exists()
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun signingValue(key: String, env: String): String? =
+        (keystoreProps.getProperty(key) ?: System.getenv(env))?.takeIf { it.isNotBlank() }
+    val releaseStoreFile = signingValue("storeFile", "STRATEGOS_STORE_FILE")
+        ?.let { rootProject.file(it) }?.takeIf { it.exists() }
 
     signingConfigs {
-        if (hasReleaseKeystore) {
+        if (releaseStoreFile != null) {
             create("release") {
-                storeFile = file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
+                storeFile = releaseStoreFile
+                storePassword = signingValue("storePassword", "STRATEGOS_STORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "STRATEGOS_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "STRATEGOS_KEY_PASSWORD")
             }
         }
     }
@@ -45,9 +52,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Use release signing when creds are present; otherwise leave unsigned
-            // (assembleRelease still builds; debug builds are unaffected).
-            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else null
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -59,11 +64,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].kotlin.srcDirs("src/main/kotlin")
     sourceSets["test"].kotlin.srcDirs("src/test/kotlin")
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true // enables Robolectric to run Compose on the JVM
-        }
-    }
+    testOptions { unitTests.isIncludeAndroidResources = true }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -78,6 +79,8 @@ android {
             }
     }
 }
+
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
@@ -96,17 +99,33 @@ dependencies {
 
     implementation("androidx.security:security-crypto:1.0.0")
 
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
+    implementation("net.zetetic:sqlcipher-android:4.6.1@aar")
+    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("androidx.room:room-testing:2.6.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     // JVM-runnable Compose UI tests (Robolectric) — no device/emulator required.
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("androidx.compose.ui:ui-test-manifest")
-    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
+
+    // BLUEPRINT-QUESTION: instrumented tests (TC_SECRET_01 and the on-device migration/SQLCipher checks) need the AndroidX test runner; not in the 4.2 list.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    // BLUEPRINT-QUESTION: Compose UI tests drive the real screens on the emulator; the BOM pins the version.
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

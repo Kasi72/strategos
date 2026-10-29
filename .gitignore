@@ -21,3 +21,18 @@ keystore.properties
 
 # Windows reserved-name file (cannot be tracked on Windows)
 nul
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Agent build tooling
+scripts/agent-build/node_modules/
+
+# Local-only material (not part of the shipped code)
+Design/
+docs/
+screenshots/
+screenshots.zip
+app/src/main.zip

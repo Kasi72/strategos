@@ -1,0 +1,6 @@
+name: stress_test_inferred
+description: Check whether AI-estimated outcomes could flip the recommendation.
+input_schema:
+  type: object
+  properties: { perturbation: { type: number } }
+  required: []

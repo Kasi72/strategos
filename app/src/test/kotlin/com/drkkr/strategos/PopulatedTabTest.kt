@@ -65,7 +65,7 @@ class PopulatedTabTest {
     @Test
     fun reportTab_afterAnalyze_rendersReportNotEmptyState() {
         val vm = seededVm()
-        vm.analyze() // runs on the test dispatcher; populates state.report
+        kotlinx.coroutines.runBlocking { vm.analyzeAndAwait() } // 2.0 analysis runs off the main dispatcher; wait for it
         compose.setContent { MaterialTheme { ReportTab(vm) } }
         // A report was generated, so the Executive view renders instead of the
         // "No report yet" placeholder.

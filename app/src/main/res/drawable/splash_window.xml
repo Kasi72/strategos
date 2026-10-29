@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The window shown while the app starts (and the only splash before Android 12): the logo centred on the brand background. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item android:drawable="@drawable/vector_logo" android:gravity="center" android:width="240dp" android:height="240dp" />
+</layer-list>

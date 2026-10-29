@@ -1,0 +1,6 @@
+name: show_support
+description: Show the support and crisis card. Use whenever someone's safety may be at risk.
+input_schema:
+  type: object
+  properties: { reason: { type: string, enum: [self_harm, harm_to_others, abuse, immediate_danger, distress] } }
+  required: [reason]

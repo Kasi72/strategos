@@ -1,0 +1,3 @@
+name: get_scenario
+description: Full model digest. The app context already has a short one.
+input_schema: { type: object, properties: {}, required: [] }
