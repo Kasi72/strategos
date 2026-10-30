@@ -18,6 +18,7 @@ import com.drkkr.strategos.ui.tabs.LensCard
 import com.drkkr.strategos.ui.tabs.PathwayCard
 import com.drkkr.strategos.ui.tabs.RiskRegisterCard
 import com.drkkr.strategos.ui.tabs.VoiCard
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +36,11 @@ class ReportCardsUiTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @After
+    fun drainAnimations() {
+        runCatching { compose.mainClock.advanceTimeBy(5_000L) }
+    }
 
     @Test
     fun recommendedPathway_autoExpands_andShowsRationale() {

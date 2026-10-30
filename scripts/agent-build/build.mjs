@@ -10,7 +10,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "..", "..");
 const agentDir = join(repo, "agent");
 const outDir = join(repo, "app", "src", "main", "assets", "agent");
-const opengap = join(here, "node_modules", ".bin", "opengap");
+const opengapBase = join(here, "node_modules", ".bin", "opengap");
+const opengap = process.platform === "win32" ? opengapBase + ".cmd" : opengapBase;
 
 function fail(message) {
   console.error(`export-agent: ${message}`);
@@ -19,7 +20,7 @@ function fail(message) {
 
 // 1. Validate.
 try {
-  execFileSync(opengap, ["validate"], { cwd: agentDir, stdio: "inherit" });
+  execFileSync(opengap, ["validate"], { cwd: agentDir, stdio: "inherit", shell: process.platform === "win32" });
 } catch {
   fail("opengap validate failed");
 }
@@ -27,7 +28,7 @@ try {
 // 2. Export the system prompt.
 mkdirSync(outDir, { recursive: true });
 const promptPath = join(outDir, "system_prompt.md");
-execFileSync(opengap, ["export", "-f", "system-prompt", "-d", agentDir, "-o", promptPath], { stdio: "inherit" });
+execFileSync(opengap, ["export", "-f", "system-prompt", "-d", agentDir, "-o", promptPath], { stdio: "inherit", shell: process.platform === "win32" });
 
 // 3. One "## Skill: " heading per skill directory.
 const prompt = readFileSync(promptPath, "utf8");
