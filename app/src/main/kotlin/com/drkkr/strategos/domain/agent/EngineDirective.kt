@@ -2,6 +2,7 @@ package com.drkkr.strategos.domain.agent
 
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
 import com.drkkr.strategos.domain.analysis.PipelineResult
+import com.drkkr.strategos.domain.game.AnalysisIntegrity
 import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.Scenario
@@ -49,7 +50,14 @@ data class EngineDirective(
     /** Phase F.6: the strongest pattern [BayesianUpdater] has learned about the counterpart's track record, or null if nothing has moved off the defaults yet. */
     val bayesianLearningNote: String? = null,
     /** The top behavioral module id (e.g. "prisoners-dilemma"), so the Overview can look it up in [PatternCatalog]. Null when no single pattern dominates. */
-    val dynamicArchetype: String? = null
+    val dynamicArchetype: String? = null,
+    /** Integrity of the game-theoretic analysis that produced this directive. */
+    val analysisIntegrity: AnalysisIntegrity = AnalysisIntegrity.COMPLETE,
+    /**
+     * Non-null when payoff data is missing; carries the single highest-value question to ask next.
+     * Populated by [EvsiClarifier] so call 2 can surface a targeted clarification instead of generic advice.
+     */
+    val clarification: Clarification? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -68,6 +76,9 @@ data class EngineDirective(
         putJsonArray("known_stakeholder_facts") { knownFacts.forEach { add(JsonPrimitive(it)) } }
         put("bayesian_learning_note", bayesianLearningNote)
         put("dynamic_archetype", dynamicArchetype)
+        // analysis_integrity is kept as a Kotlin field for certificate/UI use; intentionally excluded
+        // from the LLM request JSON to stay within the lean token budget.
+        clarification?.let { put("clarification_question", it.question) }
     }
 
     /**
@@ -120,15 +131,16 @@ object EngineDirectiveBuilder {
         })
     }
 
-    fun build(s: Scenario, pr: PipelineResult, stress: StressResult?, previousMove: String? = null): EngineDirective {
+    fun build(s: Scenario, pr: PipelineResult, stress: StressResult?, previousMove: String? = null, analysisIntegrity: AnalysisIntegrity = AnalysisIntegrity.COMPLETE): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
         val ownerActions = owner?.let { s.actionsFor(it.id) }.orEmpty()
         val byId = ownerActions.associateBy { it.id }
         val pathways = report?.pathways.orEmpty().filter { it.actionId == null || ownerActions.isEmpty() || it.actionId in byId }
         val cov = PayoffCoverage.of(s)
+        val clarification = if (cov.missingProfiles.isNotEmpty()) EvsiClarifier.clarify(s) else null
         val rankedPick = pathways.firstOrNull { it.label == RECOMMENDED && !it.excluded }
-        if (report == null || owner == null || cov.filled == 0 || rankedPick == null) return notReady(s)
+        if (report == null || owner == null || cov.filled == 0 || rankedPick == null) return notReady(s, clarification)
 
         fun posture(a: Action?) = a?.let { Postures.of(it) }
         fun reactive(a: Action?) = posture(a) == Postures.REACTIVE
@@ -200,7 +212,9 @@ object EngineDirectiveBuilder {
             moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
             knownFacts = knownFacts(s, previousMove, recommended.label),
             bayesianLearningNote = BayesianUpdater.learningNote(s),
-            dynamicArchetype = dynamicArchetype
+            dynamicArchetype = dynamicArchetype,
+            analysisIntegrity = analysisIntegrity,
+            clarification = clarification
         )
     }
 
@@ -222,9 +236,14 @@ object EngineDirectiveBuilder {
             ?.get("action")?.let { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
     }
 
-    private fun notReady(s: Scenario) = EngineDirective(
-        false, null, "", emptyList(), null, null, emptyList(), emptyList(), null,
-        s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.take(MAX_INFLUENCERS), "ROBUST", null, null
+    private fun notReady(s: Scenario, clarification: Clarification? = null) = EngineDirective(
+        ready = false, recommendedMove = null, recommendedWhy = "", supportingFrameworks = emptyList(),
+        safeFallbackMove = null, complementaryMove = null, blockedOrDominatedMoves = emptyList(),
+        dominantDynamic = emptyList(), dynamicLabel = null,
+        influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.take(MAX_INFLUENCERS),
+        stressVerdict = "ROBUST", stressFlip = null, moveToImplement = null,
+        analysisIntegrity = AnalysisIntegrity.BLOCKED,
+        clarification = clarification
     )
 
     // ── Behavioral patterns ───────────────────────────────────────────────────

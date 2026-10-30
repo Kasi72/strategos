@@ -33,11 +33,29 @@ object DbFactory {
         override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_1_2_SQL.forEach { db.execSQL(it) } }
     }
 
+    /** Statements for 2 -> 3. Adds game_model, evidence_record, decision_certificate. Mirrors schemas/.../3.json. */
+    val MIGRATION_2_3_SQL: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `game_model` (`id` TEXT NOT NULL, `scenario_id` TEXT NOT NULL, `scenario_version` INTEGER NOT NULL, `game_class` TEXT NOT NULL, `player_ids_json` TEXT NOT NULL, `strategy_counts_json` TEXT NOT NULL, `utility_json` TEXT NOT NULL, `coverage_pct` INTEGER NOT NULL, `decision_state` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scenario_id`) REFERENCES `scenario`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE INDEX IF NOT EXISTS `index_game_model_scenario_id` ON `game_model` (`scenario_id`)",
+        "CREATE INDEX IF NOT EXISTS `index_game_model_created_at` ON `game_model` (`created_at`)",
+        "CREATE TABLE IF NOT EXISTS `evidence_record` (`id` TEXT NOT NULL, `scenario_id` TEXT NOT NULL, `game_model_id` TEXT, `kind` TEXT NOT NULL, `text` TEXT NOT NULL, `confidence` REAL NOT NULL, `source` TEXT, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scenario_id`) REFERENCES `scenario`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`game_model_id`) REFERENCES `game_model`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "CREATE INDEX IF NOT EXISTS `index_evidence_record_scenario_id` ON `evidence_record` (`scenario_id`)",
+        "CREATE INDEX IF NOT EXISTS `index_evidence_record_game_model_id` ON `evidence_record` (`game_model_id`)",
+        "CREATE TABLE IF NOT EXISTS `decision_certificate` (`id` TEXT NOT NULL, `scenario_id` TEXT NOT NULL, `game_model_id` TEXT NOT NULL, `equilibrium_type` TEXT NOT NULL, `recommended_action_json` TEXT NOT NULL, `deviation_gain_residual` REAL NOT NULL, `integrity` TEXT NOT NULL, `rationale` TEXT NOT NULL, `created_at` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scenario_id`) REFERENCES `scenario`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`game_model_id`) REFERENCES `game_model`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE INDEX IF NOT EXISTS `index_decision_certificate_scenario_id` ON `decision_certificate` (`scenario_id`)",
+        "CREATE INDEX IF NOT EXISTS `index_decision_certificate_game_model_id` ON `decision_certificate` (`game_model_id`)",
+        "CREATE INDEX IF NOT EXISTS `index_decision_certificate_created_at` ON `decision_certificate` (`created_at`)"
+    )
+
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_2_3_SQL.forEach { db.execSQL(it) } }
+    }
+
     fun open(context: Context, passphrase: ByteArray): StrategosDatabase {
         System.loadLibrary("sqlcipher")
         return Room.databaseBuilder(context, StrategosDatabase::class.java, "strategos.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
     }
 

@@ -16,6 +16,7 @@ import com.drkkr.strategos.domain.agent.EngineDirective
 import com.drkkr.strategos.domain.agent.EngineDirectiveBuilder
 import com.drkkr.strategos.domain.agent.InferredStressTest
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
+import com.drkkr.strategos.domain.game.GameModelService
 import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,7 +73,8 @@ class XRayViewModel(app: Application, private val projectId: String) : AndroidVi
         val pipeline = AnalysisPipeline()
         val result = pipeline.run(view)
         val stress = runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull()
-        EngineDirectiveBuilder.build(view, result, stress, null)
+        val gameResult = GameModelService.analyze(view)
+        EngineDirectiveBuilder.build(view, result, stress, null, gameResult.integrity)
     }.getOrNull()?.takeIf { it.ready }
 
     val state: StateFlow<XRayUiState> = combine(scenarios.scenarios, dragged, engine) { all, d, directive ->

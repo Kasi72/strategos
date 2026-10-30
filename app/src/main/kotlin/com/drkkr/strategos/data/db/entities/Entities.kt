@@ -226,3 +226,64 @@ data class QuickCheckFeedbackEntity(
     @ColumnInfo(name = "tension_delta") val tensionDelta: Double,
     @ColumnInfo(name = "created_at") val createdAt: Long
 )
+
+/** R1c: compiled game model (GameIR) persisted for a scenario version. decision_state = DecisionState name. */
+@Entity(
+    tableName = "game_model",
+    foreignKeys = [ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("scenario_id"), Index("created_at")]
+)
+data class GameModelEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "scenario_version") val scenarioVersion: Int,
+    @ColumnInfo(name = "game_class") val gameClass: String,
+    @ColumnInfo(name = "player_ids_json") val playerIdsJson: String,
+    @ColumnInfo(name = "strategy_counts_json") val strategyCountsJson: String,
+    @ColumnInfo(name = "utility_json") val utilityJson: String,
+    @ColumnInfo(name = "coverage_pct") val coveragePct: Int,
+    @ColumnInfo(name = "decision_state") val decisionState: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
+/** R1c: evidence item supporting a game model (payoff estimate, player attribute, assumption). */
+@Entity(
+    tableName = "evidence_record",
+    foreignKeys = [
+        ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = GameModelEntity::class, parentColumns = ["id"], childColumns = ["game_model_id"], onDelete = ForeignKey.SET_NULL)
+    ],
+    indices = [Index("scenario_id"), Index("game_model_id")]
+)
+data class EvidenceRecordEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "game_model_id") val gameModelId: String? = null,
+    val kind: String,                                           // PAYOFF_ESTIMATE | PLAYER_ATTRIBUTE | EXTERNAL_FACT | ASSUMPTION
+    val text: String,
+    val confidence: Double,                                     // 0.0–1.0
+    val source: String? = null,
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)
+
+/** R1c: certified equilibrium result — written only when DecisionState reaches VERIFIED. integrity = AnalysisIntegrity name. */
+@Entity(
+    tableName = "decision_certificate",
+    foreignKeys = [
+        ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = GameModelEntity::class, parentColumns = ["id"], childColumns = ["game_model_id"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("scenario_id"), Index("game_model_id"), Index("created_at")]
+)
+data class DecisionCertificateEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "game_model_id") val gameModelId: String,
+    @ColumnInfo(name = "equilibrium_type") val equilibriumType: String,     // PURE_NASH | MIXED_NASH | CORRELATED
+    @ColumnInfo(name = "recommended_action_json") val recommendedActionJson: String,  // Map<playerId, actionId>
+    @ColumnInfo(name = "deviation_gain_residual") val deviationGainResidual: Double,  // ε from EquilibriumVerifier
+    val integrity: String,                                                   // AnalysisIntegrity name
+    val rationale: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long
+)

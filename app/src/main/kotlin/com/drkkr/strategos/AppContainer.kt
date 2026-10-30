@@ -9,6 +9,7 @@ import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.migration.LegacySource
 import com.drkkr.strategos.data.migration.LegacyStorageMigrator
+import com.drkkr.strategos.data.repo.CertificateRepository
 import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.GuidanceRepository
@@ -101,6 +102,10 @@ class AppContainer(
     /** X-ray what-if priors and their "Keep as my estimate" / Reset persistence. */
     val xRayRepository: XRayRepository by lazy { XRayRepository(scenarioRepository) }
 
+    val certificateRepository: CertificateRepository? by lazy {
+        database?.let { CertificateRepository(it.gameModelDao(), it.decisionCertificateDao()) }
+    }
+
     private val journalCipher: TextCipher by lazy { journalCipherOverride ?: KeystoreTextCipher() }
 
     val journalRepository: JournalRepository? by lazy {
@@ -136,7 +141,8 @@ class AppContainer(
             hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null },
             oneShot = true,     // SIMPLE PROFILE
             coach = true,       // COMPANION REPLY
-            trajectory = trajectoryRepository, journal = journalRepository, journalScreener = journalScreener
+            trajectory = trajectoryRepository, journal = journalRepository, journalScreener = journalScreener,
+            certificates = certificateRepository
         )
     }
 

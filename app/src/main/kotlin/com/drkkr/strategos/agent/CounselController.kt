@@ -1,6 +1,7 @@
 package com.drkkr.strategos.agent
 
 import com.drkkr.strategos.data.db.dao.WhatIfDao
+import com.drkkr.strategos.data.repo.CertificateRepository
 import kotlinx.coroutines.flow.first
 import com.drkkr.strategos.domain.model.ChangeRecord
 import com.drkkr.strategos.domain.agent.SafetyKeywordScreen
@@ -75,7 +76,8 @@ class CounselDeps(
     /** Argon: with a [trajectory] repository the one-shot flow uses the coach prompt, the 4-layer context and records trajectory points. */
     val trajectory: TrajectoryRepository? = null,
     val journal: JournalRepository? = null,
-    val journalScreener: JournalScreenerService? = null
+    val journalScreener: JournalScreenerService? = null,
+    val certificates: CertificateRepository? = null
 )
 
 /**
@@ -112,7 +114,8 @@ class CounselController(
     private val oneShotTurn = OneShotTurn(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
         onSupport = { showModelSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
-        argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!, deps.journal) }
+        argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!, deps.journal) },
+        certificates = deps.certificates
     )
 
     init {

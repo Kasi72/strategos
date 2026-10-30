@@ -10,9 +10,10 @@ import com.drkkr.strategos.data.db.entities.*
         ScenarioEntity::class, SnapshotEntity::class, RecoverableRecordEntity::class,
         ConversationEntity::class, MessageEntity::class, ChangeSetEntity::class,
         MemoryItemEntity::class, WhatIfEntity::class, LlmCallEntity::class, SettingEntity::class,
-        JournalEntryEntity::class, JournalInsightPostNoteEntity::class, TrajectoryPointEntity::class, QuickCheckFeedbackEntity::class
+        JournalEntryEntity::class, JournalInsightPostNoteEntity::class, TrajectoryPointEntity::class, QuickCheckFeedbackEntity::class,
+        GameModelEntity::class, EvidenceRecordEntity::class, DecisionCertificateEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class StrategosDatabase : RoomDatabase() {
@@ -29,4 +30,7 @@ abstract class StrategosDatabase : RoomDatabase() {
     abstract fun journalDao(): JournalDao
     abstract fun trajectoryDao(): TrajectoryDao
     abstract fun quickCheckDao(): QuickCheckDao
+    abstract fun gameModelDao(): GameModelDao
+    abstract fun evidenceDao(): EvidenceDao
+    abstract fun decisionCertificateDao(): DecisionCertificateDao
 }

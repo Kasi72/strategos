@@ -1,6 +1,7 @@
 package com.drkkr.strategos.agent
 
 import com.drkkr.strategos.agent.tools.Args
+import com.drkkr.strategos.data.repo.CertificateRepository
 import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MessageRole
@@ -68,7 +69,9 @@ class OneShotTurn(
     /** COMPANION REPLY: after the engine runs, one more model call writes a warm answer from the engine's result. */
     private val coach: Boolean = false,
     /** Argon: prefix-cached request, JSON mode, coach guide in the answer, and one trajectory point per turn. Null keeps the v2.0 flow. */
-    private val argon: ArgonTurn? = null
+    private val argon: ArgonTurn? = null,
+    /** R4: writes a GameModelEntity + DecisionCertificateEntity when the solver reaches VERIFIED integrity. */
+    private val certificates: CertificateRepository? = null
 ) {
     class ArgonTurn(val assembler: ContextAssembler, val trajectory: TrajectoryRepository, val journal: com.drkkr.strategos.data.repo.JournalRepository? = null)
 
@@ -225,12 +228,19 @@ class OneShotTurn(
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
         val snap = argon?.trajectory?.current(sid)
         val view = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
-        val (viewResult, stress) = withContext(Dispatchers.Default) {
+        val (viewResult, stress, gameResult) = withContext(Dispatchers.Default) {
             val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
-            pipeline.run(view) to runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull()
+            Triple(
+                pipeline.run(view),
+                runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull(),
+                com.drkkr.strategos.domain.game.GameModelService.analyze(view)
+            )
         }
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
-        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove)
+        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity)
+        if (gameResult is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved) {
+            certificates?.persist(s.id, s.version, gameResult, directive)
+        }
         DebugLog.d { "DIRECTIVE ${directive.toJson()}" }
         // Phase G.4: the static "Engine: <move> · <pattern> · Robust" badge is no longer appended to the chat reply --
         // it read as boilerplate noise. The move still leads the coach text, and the coach conveys any fragility in

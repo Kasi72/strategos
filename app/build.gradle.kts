@@ -112,6 +112,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     // JVM-runnable Compose UI tests (Robolectric) — no device/emulator required.
     testImplementation(composeBom)

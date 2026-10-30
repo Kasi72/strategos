@@ -120,3 +120,24 @@ import kotlinx.coroutines.flow.Flow
     @Insert suspend fun insert(item: QuickCheckFeedbackEntity)
     @Query("SELECT * FROM quick_check_feedback WHERE scenario_id = :scenarioId ORDER BY created_at ASC") suspend fun forScenario(scenarioId: String): List<QuickCheckFeedbackEntity>
 }
+
+@Dao interface GameModelDao {
+    @Upsert suspend fun upsert(e: GameModelEntity)
+    @Query("SELECT * FROM game_model WHERE scenario_id = :scenarioId ORDER BY created_at DESC LIMIT 1") suspend fun latestForScenario(scenarioId: String): GameModelEntity?
+    @Query("SELECT * FROM game_model WHERE id = :id") suspend fun get(id: String): GameModelEntity?
+    @Query("UPDATE game_model SET decision_state = :state, updated_at = :updatedAt WHERE id = :id") suspend fun updateDecisionState(id: String, state: String, updatedAt: Long)
+    @Query("DELETE FROM game_model WHERE id = :id") suspend fun delete(id: String)
+}
+
+@Dao interface EvidenceDao {
+    @Insert suspend fun insert(e: EvidenceRecordEntity)
+    @Query("SELECT * FROM evidence_record WHERE scenario_id = :scenarioId ORDER BY created_at ASC") suspend fun forScenario(scenarioId: String): List<EvidenceRecordEntity>
+    @Query("SELECT * FROM evidence_record WHERE game_model_id = :gameModelId ORDER BY created_at ASC") suspend fun forGameModel(gameModelId: String): List<EvidenceRecordEntity>
+    @Query("DELETE FROM evidence_record WHERE id = :id") suspend fun delete(id: String)
+}
+
+@Dao interface DecisionCertificateDao {
+    @Insert suspend fun insert(e: DecisionCertificateEntity)
+    @Query("SELECT * FROM decision_certificate WHERE scenario_id = :scenarioId ORDER BY created_at DESC") suspend fun forScenario(scenarioId: String): List<DecisionCertificateEntity>
+    @Query("SELECT * FROM decision_certificate WHERE game_model_id = :gameModelId ORDER BY created_at DESC LIMIT 1") suspend fun latestForGameModel(gameModelId: String): DecisionCertificateEntity?
+}
