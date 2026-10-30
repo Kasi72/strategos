@@ -1,0 +1,26 @@
+{
+  "name": "Battle of the Sexes",
+  "description": "Coordination game with two pure NE and one mixed NE. Tests multiple-equilibria case.",
+  "source": "Luce & Raiffa (1957). Games and Decisions, pp. 90-94.",
+  "players": 2,
+  "strategyCounts": [2, 2],
+  "strategyLabels": [["Opera", "Ballet"], ["Opera", "Ballet"]],
+  "utilities": [
+    [2.0, 0.0, 0.0, 1.0],
+    [1.0, 0.0, 0.0, 2.0]
+  ],
+  "profileIndexing": "row-major: profile[0]*strategyCounts[1] + profile[1]",
+  "pureNashProfiles": [[0, 0], [1, 1]],
+  "pureNashLabels": [["Opera", "Opera"], ["Ballet", "Ballet"]],
+  "mixedNashProfiles": [
+    {
+      "profile": [[0.6666666666666666, 0.3333333333333333], [0.3333333333333333, 0.6666666666666666]],
+      "derivation": "P2 indifferent: p*1 = (1-p)*2 → p = 2/3. P1 indifferent: q*2 = (1-q)*1 → q = 1/3. Mixed NE: P1 plays Opera with prob 2/3; P2 plays Opera with prob 1/3."
+    }
+  ],
+  "notes": [
+    "Payoffs: (O,O)=(2,1), (O,B)=(0,0), (B,O)=(0,0), (B,B)=(1,2).",
+    "P1 prefers Opera; P2 prefers Ballet; both prefer coordination.",
+    "Mixed NE expected payoffs: both get 2/3, which is less than either pure NE."
+  ]
+}

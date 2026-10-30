@@ -1,0 +1,25 @@
+{
+  "name": "Matching Pennies",
+  "description": "2-player, 2-strategy zero-sum game. No pure NE; unique mixed NE at (1/2, 1/2).",
+  "source": "Osborne & Rubinstein (1994). A Course in Game Theory, pp. 17-18.",
+  "players": 2,
+  "strategyCounts": [2, 2],
+  "strategyLabels": [["Heads", "Tails"], ["Heads", "Tails"]],
+  "utilities": [
+    [ 1.0, -1.0, -1.0,  1.0],
+    [-1.0,  1.0,  1.0, -1.0]
+  ],
+  "profileIndexing": "row-major: profile[0]*strategyCounts[1] + profile[1]",
+  "pureNashProfiles": [],
+  "mixedNashProfiles": [
+    {
+      "profile": [[0.5, 0.5], [0.5, 0.5]],
+      "derivation": "Indifference: P2 mixes so P1 is indifferent: 1*q + (-1)*(1-q) = (-1)*q + 1*(1-q) → 2q-1 = 1-2q → q=0.5. Symmetric for p."
+    }
+  ],
+  "notes": [
+    "Zero-sum: utilities[0] + utilities[1] = 0 at every profile.",
+    "Equilibrium-in-beliefs interpretation applies (Aumann 1974).",
+    "Win-Stay Lose-Shift converges to (0.5, 0.5) in repeated play (Camerer 2003)."
+  ]
+}

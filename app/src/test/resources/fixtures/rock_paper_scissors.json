@@ -1,0 +1,29 @@
+{
+  "name": "Rock-Paper-Scissors",
+  "description": "2-player, 3-strategy zero-sum game. No pure NE; unique mixed NE at (1/3, 1/3, 1/3).",
+  "source": "Osborne & Rubinstein (1994). A Course in Game Theory, p. 34.",
+  "players": 2,
+  "strategyCounts": [3, 3],
+  "strategyLabels": [["Rock", "Paper", "Scissors"], ["Rock", "Paper", "Scissors"]],
+  "utilities": [
+    [ 0.0, -1.0,  1.0,  1.0,  0.0, -1.0, -1.0,  1.0,  0.0],
+    [ 0.0,  1.0, -1.0, -1.0,  0.0,  1.0,  1.0, -1.0,  0.0]
+  ],
+  "profileIndexing": "row-major: profile[0]*strategyCounts[1] + profile[1]",
+  "pureNashProfiles": [],
+  "mixedNashProfiles": [
+    {
+      "profile": [
+        [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        [0.3333333333333333, 0.3333333333333333, 0.3333333333333333]
+      ],
+      "derivation": "By symmetry and zero-sum, each player must mix uniformly to keep the opponent indifferent across all strategies."
+    }
+  ],
+  "notes": [
+    "Zero-sum: utilities[0][i] + utilities[1][i] = 0 for every profile i.",
+    "MixedNash2x2Module cannot handle this game (requires exactly 2 strategies per player).",
+    "PureNashModule should return 0 pure NE.",
+    "Profile indexing: (R,R)=0,(R,P)=1,(R,S)=2,(P,R)=3,(P,P)=4,(P,S)=5,(S,R)=6,(S,P)=7,(S,S)=8."
+  ]
+}

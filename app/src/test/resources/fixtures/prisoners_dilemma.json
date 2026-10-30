@@ -1,0 +1,21 @@
+{
+  "name": "Prisoner's Dilemma",
+  "description": "2-player, 2-strategy dominant-strategy game. Unique NE at (Defect, Defect).",
+  "source": "Luce & Raiffa (1957). Games and Decisions, pp. 94-97.",
+  "players": 2,
+  "strategyCounts": [2, 2],
+  "strategyLabels": [["Cooperate", "Defect"], ["Cooperate", "Defect"]],
+  "utilities": [
+    [3.0, 0.0, 5.0, 1.0],
+    [3.0, 5.0, 0.0, 1.0]
+  ],
+  "profileIndexing": "row-major: profile[0]*strategyCounts[1] + profile[1]",
+  "pureNashProfiles": [[1, 1]],
+  "pureNashLabels": [["Defect", "Defect"]],
+  "mixedNashProfiles": null,
+  "notes": [
+    "Defect strictly dominates Cooperate for both players.",
+    "No interior mixed NE exists in a dominant-strategy game.",
+    "Payoffs: CC=(3,3), CD=(0,5), DC=(5,0), DD=(1,1)."
+  ]
+}
