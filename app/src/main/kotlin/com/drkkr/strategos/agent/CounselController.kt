@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
@@ -148,17 +149,17 @@ class CounselController(
     private fun observeProject(sid: String) {
         extrasJob?.cancel()
         extrasJob = scope.launch {
-            launch { deps.conversations.observeThreads(sid).collect { list ->
+            launch { safeCollect { deps.conversations.observeThreads(sid).collect { list ->
                 _state.update { st -> st.copy(threads = list.map { ThreadUi(it.id, it.title, it.topicTag, it.isPinned, it.updatedAt) }) }
-            } }
+            } } }
             deps.trajectory?.let { t ->
-                launch { t.observePoints(sid).collect { points ->
+                launch { safeCollect { t.observePoints(sid).collect { points ->
                     val snap = runCatching { t.current(sid) }.getOrNull()
                     _state.update { it.copy(trajectoryPoints = points, trajectory = snap) }
-                } }
+                } } }
             }
             deps.journal?.let { j ->
-                launch { j.observeActivePostNotes(sid).collect { notes -> _state.update { it.copy(postNotes = notes.filter { n -> !n.applied }) } } }
+                launch { safeCollect { j.observeActivePostNotes(sid).collect { notes -> _state.update { it.copy(postNotes = notes.filter { n -> !n.applied }) } } } }
             }
         }
     }
@@ -168,17 +169,35 @@ class CounselController(
         _state.update { it.copy(conversationId = cid) }
         observeJob?.cancel()
         observeJob = scope.launch {
-            combine(
-                deps.conversations.observeMessages(cid),
-                deps.changeSets.observe(cid),
-                deps.memory.observeOpen(sid)
-            ) { messages, sets, memory ->
-                val scenario = gateway.activeScenario()?.takeIf { it.id == sid }
-                Triple(MessageMapper.toChatItems(messages, sets, scenario), memory.map { MemoryItemUi(it.id, it.kind, it.text, it.factStatus) },
-                    scenario?.let { strip(it, sets.count { s -> s.status == ChangeSetStatus.PENDING.name }) })
-            }.collect { (items, memory, strip) ->
-                _state.update { it.copy(items = items, memory = memory, strip = strip) }
+            safeCollect {
+                combine(
+                    deps.conversations.observeMessages(cid),
+                    deps.changeSets.observe(cid),
+                    deps.memory.observeOpen(sid)
+                ) { messages, sets, memory ->
+                    val scenario = gateway.activeScenario()?.takeIf { it.id == sid }
+                    Triple(MessageMapper.toChatItems(messages, sets, scenario), memory.map { MemoryItemUi(it.id, it.kind, it.text, it.factStatus) },
+                        scenario?.let { strip(it, sets.count { s -> s.status == ChangeSetStatus.PENDING.name }) })
+                }.collect { (items, memory, strip) ->
+                    _state.update { it.copy(items = items, memory = memory, strip = strip) }
+                }
             }
+        }
+    }
+
+    /**
+     * Runs [block] (a Flow collect call), absorbing IllegalStateException when the scope
+     * is already inactive. Room's internal query coroutines use withContext(NonCancellable)
+     * so DB queries can still be in-flight after viewModelScope is cancelled; when those
+     * queries try to use a connection that was freed by db.close(), they throw
+     * IllegalStateException. Absorbing it here keeps it off the global
+     * CoroutineExceptionHandler, preventing UncaughtExceptionsBeforeTest in tests.
+     */
+    private suspend inline fun safeCollect(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: IllegalStateException) {
+            if (scope.isActive) throw e
         }
     }
 

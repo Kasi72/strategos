@@ -39,7 +39,10 @@ class ReportCardsUiTest {
 
     @After
     fun drainAnimations() {
-        runCatching { compose.mainClock.advanceTimeBy(5_000L) }
+        runCatching {
+            compose.mainClock.autoAdvance = true
+            compose.waitForIdle()
+        }
     }
 
     @Test

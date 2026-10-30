@@ -1,7 +1,7 @@
 package com.drkkr.strategos
 
 import androidx.test.core.app.ApplicationProvider
-import com.drkkr.strategos.data.db.DbFactory
+import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.ScenarioEntity
 import com.drkkr.strategos.data.repo.CertificateRepository
 import com.drkkr.strategos.domain.agent.EngineDirective
@@ -14,22 +14,24 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.ExecutorService
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CertificateRepositoryTest {
 
-    private val db by lazy {
-        DbFactory.inMemoryForTests(ApplicationProvider.getApplicationContext())
-    }
+    private lateinit var db: StrategosDatabase
+    private lateinit var roomExecutor: ExecutorService
 
     @Before
     fun setUp() = runBlocking {
+        val (d, e) = inMemoryDbForTest(ApplicationProvider.getApplicationContext())
+        db = d; roomExecutor = e
         db.scenarioDao().upsert(ScenarioEntity("s1", "Test", "DRAFT", 1, 1L, 1L, "{}"))
     }
 
     @After
-    fun tearDown() { db.close() }
+    fun tearDown() = closeDbSafely(db, roomExecutor)
 
     @Test
     fun `persist writes GameModelEntity and DecisionCertificateEntity with COMPLETE integrity`() = runBlocking {

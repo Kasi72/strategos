@@ -1,7 +1,7 @@
 package com.drkkr.strategos
 
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
-import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.repo.SettingsRepository
 import com.drkkr.strategos.fixtures.FakeLlmClient
@@ -10,8 +10,11 @@ import com.drkkr.strategos.ui.StrategosViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -24,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.ExecutorService
 
 /** I7: with AI off the app behaves like 1.x and the LLM client is never called. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -31,21 +35,28 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class AiOffTest {
     private lateinit var db: StrategosDatabase
+    private lateinit var roomExecutor: ExecutorService
     private lateinit var vm: StrategosViewModel
     private val fake = FakeLlmClient()
 
     @Before fun setUp() = runBlocking {
-        Dispatchers.setMain(Dispatchers.Default)
         val app = ApplicationProvider.getApplicationContext<StrategosApplication>()
-        db = DbFactory.inMemoryForTests(app)
+        val (d, ex) = inMemoryDbForTest(app)
+        db = d; roomExecutor = ex
+        // Use roomExecutor as Main so Room's createFlow picks up our executor as
+        // queryDispatcher. GlobalScope queries then run on our executor, so
+        // shutdown-before-close in closeDbSafely drains them before db.close().
+        Dispatchers.setMain(roomExecutor.asCoroutineDispatcher())
         app.replaceContainerForTests(AppContainer(app, openDatabase = { db }, llmOverride = fake))
         SettingsRepository(db).setAiEnabled(false)
         vm = StrategosViewModel(app)
     }
 
     @After fun tearDown() {
+        runBlocking { vm.viewModelScope.coroutineContext[Job]?.cancelAndJoin() }
         Dispatchers.resetMain()
-        db.close()
+        try { roomExecutor.submit {}.get(2, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+        closeDbSafely(db, roomExecutor)
     }
 
     @Test

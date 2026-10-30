@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
+import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.tabs.AnalysisTab
 import com.drkkr.strategos.ui.tabs.FrameTab
@@ -13,11 +14,14 @@ import com.drkkr.strategos.ui.tabs.ImplementationDashboardTab
 import com.drkkr.strategos.ui.tabs.ModelEditorTab
 import com.drkkr.strategos.ui.tabs.ReportTab
 import com.drkkr.strategos.ui.tabs.ScenarioListTab
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.ExecutorService
 
 /**
  * Tab-level smoke tests: each primary tab composes its empty/no-scenario state
@@ -30,6 +34,20 @@ class TabEmptyStateTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    private lateinit var testDb: StrategosDatabase
+    private lateinit var roomExecutor: ExecutorService
+
+    @Before fun setUp() {
+        val app = ApplicationProvider.getApplicationContext<StrategosApplication>()
+        val (db, ex) = inMemoryDbForTest(app)
+        testDb = db; roomExecutor = ex
+        app.replaceContainerForTests(AppContainer(app, openDatabase = { _ -> testDb }))
+    }
+
+    @After fun tearDown() {
+        closeDbSafely(testDb, roomExecutor)
+    }
 
     private fun vm(): StrategosViewModel =
         StrategosViewModel(ApplicationProvider.getApplicationContext<Application>())
