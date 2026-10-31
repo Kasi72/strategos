@@ -15,6 +15,13 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+
+/** Confidence in the engine's recommendation, derived from analysis integrity and archetype classification. */
+enum class ConfidenceLevel { HIGH, MEDIUM, LOW }
+
+/** Highest-stakes dimension present in the scenario's weight map. */
+enum class StakesTier { HIGH, MEDIUM, LOW }
 
 /** A move the engine ranks low or rules out, and the reaction it is expected to draw. */
 data class BlockedMove(val move: String, val reason: String, val triggers: String?)
@@ -61,7 +68,23 @@ data class EngineDirective(
     /** Named game-theory archetype detected by [GameArchetypeDetector], e.g. "Prisoner's Dilemma". Null for generic games. */
     val gameTheoreticPattern: String? = null,
     /** Strategies eliminated by IEDS, e.g. ["Alice: Cooperate (dominated)", "Bob: Cooperate (dominated)"]. */
-    val dominatedStrategies: List<String> = emptyList()
+    val dominatedStrategies: List<String> = emptyList(),
+    /** SPE action path from backward induction when a game tree exists, e.g. ["Negotiate", "Accept"]. */
+    val extensiveFormPath: List<String> = emptyList(),
+    /** One-line rationality note from [OpponentModel], e.g. "mostly rational, patient". Null when priors not yet learned. */
+    val opponentRationality: String? = null,
+    /** Strongest counterargument surfaced by the red-team call. Null when not run or nothing significant found. */
+    val redTeamChallenge: String? = null,
+    /** How confident we are in this directive, based on analysis integrity and whether a dominant-strategy archetype was detected. */
+    val confidenceLevel: ConfidenceLevel = ConfidenceLevel.MEDIUM,
+    /** Highest-stakes dimension in the scenario — used to scale response depth. */
+    val stakesTier: StakesTier = StakesTier.MEDIUM,
+    /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
+    val infoAsymmetry: String? = null,
+    /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
+    val shapleyValues: Map<String, Double>? = null,
+    /** Mechanism design hint when the user wants to design rules rather than play a move. */
+    val mechanismHint: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -85,6 +108,14 @@ data class EngineDirective(
         clarification?.let { put("clarification_question", it.question) }
         gameTheoreticPattern?.let { put("game_theoretic_pattern", it) }
         if (dominatedStrategies.isNotEmpty()) putJsonArray("dominated_strategies") { dominatedStrategies.forEach { add(JsonPrimitive(it)) } }
+        if (extensiveFormPath.isNotEmpty()) putJsonArray("extensive_form_path") { extensiveFormPath.forEach { add(JsonPrimitive(it)) } }
+        opponentRationality?.let { put("opponent_rationality", it) }
+        redTeamChallenge?.let { put("red_team_challenge", it) }
+        put("confidence_level", confidenceLevel.name)
+        put("stakes_tier", stakesTier.name)
+        infoAsymmetry?.let { put("info_asymmetry", it) }
+        shapleyValues?.let { sv -> putJsonObject("shapley_values") { sv.forEach { (k, v) -> put(k, v) } } }
+        mechanismHint?.let { put("mechanism_hint", it) }
     }
 
     /**
@@ -94,7 +125,14 @@ data class EngineDirective(
      */
     fun badge(): String =
         if (!ready || moveToImplement == null) "Engine: not enough detail to rank your options yet"
-        else "Engine: $moveToImplement · ${dynamicLabel ?: "no single dominant pattern"} · ${if (stressVerdict == "FRAGILE") "Fragile" else "Robust"}"
+        else {
+            val confidence = when (confidenceLevel) {
+                ConfidenceLevel.HIGH -> "High confidence"
+                ConfidenceLevel.MEDIUM -> "Medium confidence"
+                ConfidenceLevel.LOW -> "Limited info"
+            }
+            "Engine: $moveToImplement · ${dynamicLabel ?: "no single dominant pattern"} · ${if (stressVerdict == "FRAGILE") "Fragile" else "Robust"} · $confidence"
+        }
 }
 
 object EngineDirectiveBuilder {
@@ -105,7 +143,10 @@ object EngineDirectiveBuilder {
         "BATTLE_OF_SEXES" to "Battle of the Sexes",
         "ZERO_SUM" to "Zero-Sum",
         "PURE_COORDINATION" to "Pure Coordination",
-        "HARMONY" to "Harmony"
+        "HARMONY" to "Harmony",
+        "DEADLOCK" to "Deadlock (No-Dilemma Conflict)",
+        "LEADER" to "Leader Game",
+        "HERO" to "Hero Game (Exploited Cooperator)"
         // GENERIC intentionally absent — not surfaced to the LLM
     )
 
@@ -128,6 +169,14 @@ object EngineDirectiveBuilder {
     private const val COMPLEMENT_WITHIN = 1.0
     private const val MIN_DYNAMIC_SCORE = 0.5
     private const val MAX_KNOWN_FACTS = 8
+
+    /** Archetypes with dominant-strategy (or minimax) solutions — high analytical confidence. */
+    private val HIGH_CONFIDENCE_LABELS = setOf(
+        "Prisoner's Dilemma", "Harmony", "Deadlock (No-Dilemma Conflict)",
+        "Leader Game", "Hero Game (Exploited Cooperator)", "Zero-Sum"
+    )
+    private val HIGH_STAKES_DIMS = setOf("SAFETY", "LEGALITY", "PUBLIC_TRUST")
+    private val MEDIUM_STAKES_DIMS = setOf("COST", "REPUTATION", "ETHICS")
 
     /** Translates a [GameArchetype] enum name to a human-readable label for the Coach prompt. */
     fun archetypeLabel(archetypeName: String?): String? = archetypeName?.let { ARCHETYPE_LABEL[it] }
@@ -156,7 +205,11 @@ object EngineDirectiveBuilder {
         previousMove: String? = null,
         analysisIntegrity: AnalysisIntegrity = AnalysisIntegrity.COMPLETE,
         gameTheoreticPattern: String? = null,
-        dominatedStrategies: List<String> = emptyList()
+        dominatedStrategies: List<String> = emptyList(),
+        extensiveFormPath: List<String> = emptyList(),
+        opponentRationality: String? = null,
+        shapleyValues: Map<String, Double>? = null,
+        mechanismHint: String? = null
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -229,6 +282,35 @@ object EngineDirectiveBuilder {
             }
 
         val (dynamicTexts, dynamicLabel, dynamicArchetype) = dynamics(s, report.moduleResults.map { it.moduleId to it })
+
+        // Confidence: HIGH when analysis is complete AND the archetype has a dominant-strategy solution.
+        val confidence = when {
+            analysisIntegrity != AnalysisIntegrity.COMPLETE -> ConfidenceLevel.LOW
+            gameTheoreticPattern in HIGH_CONFIDENCE_LABELS -> ConfidenceLevel.HIGH
+            else -> ConfidenceLevel.MEDIUM
+        }
+
+        // Stakes tier: driven by the highest-priority dimension actually used in payoffs (not the default weight map, which always includes SAFETY).
+        val activeDims = s.payoffs.flatMap { it.payoff.values.keys }.distinct().toSet()
+        val tier = when {
+            activeDims.any { it.name in HIGH_STAKES_DIMS } -> StakesTier.HIGH
+            activeDims.any { it.name in MEDIUM_STAKES_DIMS } -> StakesTier.MEDIUM
+            else -> StakesTier.LOW
+        }
+
+        // Information asymmetry: flag when one side is much better understood than the other.
+        fun knownCount(p: com.drkkr.strategos.domain.model.Stakeholder) =
+            p.fears.count { it.isNotBlank() } + p.goals.count { it.isNotBlank() }
+        val ownerKnown = owner.let { knownCount(it) }
+        val otherKnown = other?.let { knownCount(it) } ?: 0
+        val asymmetry = when {
+            ownerKnown >= 2 && otherKnown == 0 ->
+                "Your perspective is well-captured, but nothing is known about the other person's fears or goals."
+            otherKnown >= 2 && ownerKnown == 0 ->
+                "More is recorded about the other person than about your own position."
+            else -> null
+        }
+
         return EngineDirective(
             ready = true, recommendedMove = recommended.label, recommendedWhy = (recommendedPathway?.rationale ?: rankedPick.rationale).take(MAX_TEXT),
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
@@ -242,7 +324,14 @@ object EngineDirectiveBuilder {
             analysisIntegrity = analysisIntegrity,
             clarification = clarification,
             gameTheoreticPattern = gameTheoreticPattern,
-            dominatedStrategies = dominatedStrategies
+            dominatedStrategies = dominatedStrategies,
+            extensiveFormPath = extensiveFormPath,
+            opponentRationality = opponentRationality,
+            confidenceLevel = confidence,
+            stakesTier = tier,
+            infoAsymmetry = asymmetry,
+            shapleyValues = shapleyValues,
+            mechanismHint = mechanismHint
         )
     }
 

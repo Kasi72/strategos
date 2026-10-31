@@ -24,7 +24,7 @@ object LiveDigest {
     private const val MAX_MISSING = 3
 
     /** [forSketch]: the one-shot flow addresses people by name, so ids are left out and options say who they belong to. */
-    fun build(s: Scenario, forSketch: Boolean = false): JsonObject = buildJsonObject {
+    fun build(s: Scenario, forSketch: Boolean = false, opponentPattern: com.drkkr.strategos.domain.flywheel.PatternSynthesizer.OpponentPattern? = null): JsonObject = buildJsonObject {
         val id = ShortIds::short
         val nameOf = s.stakeholders.associate { it.id to it.name }
         put("title", s.title.take(80))
@@ -71,6 +71,26 @@ object LiveDigest {
             }
         }
         if (s.beliefs.isNotEmpty()) put("beliefs", s.beliefs.size)
+        s.negotiationContext?.takeIf { it.hasContent() }?.let { nc ->
+            putJsonObject("negotiation") {
+                if (nc.batna.isNotBlank()) put("batna", nc.batna.take(200))
+                if (nc.reservationPoint.isNotBlank()) put("reservation", nc.reservationPoint.take(200))
+                if (nc.aspirationPoint.isNotBlank()) put("aspiration", nc.aspirationPoint.take(200))
+                if (nc.openingAnchor.isNotBlank()) put("opening_anchor", nc.openingAnchor.take(200))
+                if (nc.zopaNote.isNotBlank()) put("zopa", nc.zopaNote.take(200))
+                if (nc.counterpartBatna.isNotBlank()) put("counterpart_batna", nc.counterpartBatna.take(200))
+                if (nc.counterpartReservation.isNotBlank()) put("counterpart_reservation", nc.counterpartReservation.take(200))
+            }
+        }
+        opponentPattern?.let { p ->
+            putJsonObject("opponent_history") {
+                put("sample_size", p.sampleSize)
+                put("avg_rating", p.avgRating)
+                put("follow_rate", p.followRate)
+                p.dominantArchetype?.let { put("dominant_archetype", it) }
+                put("insight", p.insight.take(200))
+            }
+        }
         val errors = ModelValidator.validate(s).issues.filter { it.severity == ModelIssue.Severity.ERROR }
         if (errors.isNotEmpty()) putJsonArray("problems") { errors.take(3).forEach { add(it.message.take(120)) } }
     }

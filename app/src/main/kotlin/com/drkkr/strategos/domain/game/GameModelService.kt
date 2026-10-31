@@ -3,6 +3,7 @@ package com.drkkr.strategos.domain.game
 import com.drkkr.strategos.domain.model.Scenario
 
 /** Result of a full compile → solve → verify pipeline for one scenario. */
+
 sealed interface GameAnalysisResult {
     val decisionState: DecisionState
     val integrity: AnalysisIntegrity
@@ -53,7 +54,15 @@ object GameModelService {
 
     data class AnalysisContext(
         val result: GameAnalysisResult,
-        val pruneResult: IteratedDominancePruner.PruneResult?
+        val pruneResult: IteratedDominancePruner.PruneResult?,
+        /** Non-null when the scenario had a [SequenceNode] game tree; carries the SPE path and root payoffs. */
+        val biResult: BackwardInductionSolver.Result? = null,
+        /** Non-null when Bayesian priors were learned and applied to the compiled GameIR. */
+        val opponentModel: OpponentModel? = null,
+        /** Non-null for 3–8 player games; Shapley values and coalition stability. */
+        val coalitionResult: CoalitionEngine.ShapleyResult? = null,
+        /** Non-null when the scenario looks like a mechanism design problem. */
+        val mechanismHint: MechanismAdvisor.MechanismHint? = null
     )
 
     fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
@@ -77,11 +86,20 @@ object GameModelService {
             )
         }
 
-        // Step 2: IEDS — prune strictly dominated strategies
-        val pruneResult = IteratedDominancePruner.prune(rawIr)
+        // Step 2: backward induction for extensive-form games (when a game tree is present)
+        val biResult = scenario.gameTree?.let { root ->
+            BackwardInductionSolver.solve(root, scenario.weights)
+        }
+
+        // Step 2b: Bayesian payoff adjustment — re-apply latest learned priors to the compiled IR
+        val opponentModel = OpponentModelBuilder.fromScenario(scenario)
+        val adjustedIr = BayesianPayoffAdjuster.adjust(rawIr, scenario)
+
+        // Step 3: IEDS — prune strictly dominated strategies (on adjusted IR)
+        val pruneResult = IteratedDominancePruner.prune(adjustedIr)
         val ir = pruneResult.ir
 
-        // Step 3: solver selection
+        // Step 4: solver selection
         val solver: GameSolver = if (ir.playerCount == 2) MixedNashNxMSolver else PureNashSolver
 
         val outcome = solver.solve(ir, limits)
@@ -117,6 +135,8 @@ object GameModelService {
             )
         }
 
-        return AnalysisContext(analysisResult, pruneResult)
+        val coalitionResult = if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null
+        val mechanismHint = MechanismAdvisor.detect(scenario)
+        return AnalysisContext(analysisResult, pruneResult, biResult, opponentModel, coalitionResult, mechanismHint)
     }
 }

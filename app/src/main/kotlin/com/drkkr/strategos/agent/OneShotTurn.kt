@@ -99,6 +99,20 @@ class OneShotTurn(
         // Phase F.5: read before this turn's saveLastReport overwrites it, so the directive can name what it told you last time.
         val previousReportJson = conversations.get(cid)?.lastReportDigestJson
 
+        // Quick mode: skip extraction (Call 1) entirely when the model is already populated.
+        if (settings.quickMode() && loaded.actions.isNotEmpty() && argon != null) {
+            onActivity("Running the analysis on your device…")
+            val pr = gateway.analyzeAndPublish()
+            val after = gateway.activeScenario() ?: loaded
+            val body = if (pr?.report != null)
+                engineGroundedReply(cid, turnId, sid, after, pr, emptyList(), text, onActivity, previousReportJson, quickMode = true)
+            else
+                pr?.let(PlainResult::needsMore) ?: COULD_NOT_READ
+            conversations.append(cid, turnId, MessageRole.ASSISTANT, body)
+            afterTurn(cid)
+            return TurnResult.Done
+        }
+
         onActivity("Reading your situation…")
         // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
         val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
@@ -196,7 +210,7 @@ class OneShotTurn(
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson) { guide = it }
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it })
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -222,7 +236,8 @@ class OneShotTurn(
     private suspend fun engineGroundedReply(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
         understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
-        onGuide: (CoachGuideSketch) -> Unit = {}
+        onGuide: (CoachGuideSketch) -> Unit = {},
+        quickMode: Boolean = false
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -241,13 +256,22 @@ class OneShotTurn(
         val gtPattern = EngineDirectiveBuilder.archetypeLabel(
             (gameResult as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.ir?.archetype?.name
         )
-        val dominated = gameContext.pruneResult?.let { pr ->
-            pr.eliminated.flatMap { (pid, acts) ->
+        val dominated = gameContext.pruneResult?.let { pruneRes ->
+            pruneRes.eliminated.flatMap { (pid, acts) ->
                 val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
                 acts.map { act -> "$name: $act (dominated)" }
             }
         }.orEmpty()
-        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated)
+        val extensiveFormPath = gameContext.biResult?.equilibriumPath.orEmpty()
+        val opponentRationality = gameContext.opponentModel?.coachNote()
+        val shapleyValues = gameContext.coalitionResult?.values
+        val mechanismHint = gameContext.mechanismHint?.let { "${it.type.name.lowercase()}: ${it.insight}" }
+        val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint)
+        // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
+        val challenge = if (baseDirective.ready) {
+            withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
+        } else null
+        val directive = if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective
         if (gameResult is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved) {
             certificates?.persist(s.id, s.version, gameResult, directive)
         }
@@ -261,8 +285,16 @@ class OneShotTurn(
             onActivity("Writing my reply…")
             return reflect(cid, turnId, s, pr, text) ?: PlainResult.build(s, pr, understood)
         }
+        // Quick mode: skip interpret (Call 2) and return the engine badge only.
+        if (quickMode) return directive.badge()
         onActivity("Writing my reply…")
-        val reply = interpret(cid, turnId, directive, text)
+        // Scale interpret tokens by stakes tier: high-stakes decisions deserve a fuller answer.
+        val interpretTokens = when (directive.stakesTier) {
+            com.drkkr.strategos.domain.agent.StakesTier.HIGH -> 800
+            com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
+            else -> INTERPRET_MAX_TOKENS
+        }
+        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
             val g = reply.guide().copy(pill = pillFor(directive))
@@ -334,17 +366,25 @@ class OneShotTurn(
         }
     }
 
+    /** Summary from the prior negotiation round (if this thread has one), formatted for the coach. */
+    private suspend fun priorRound(cid: String): String {
+        val priorId = conversations.get(cid)?.priorRoundConversationId ?: return ""
+        val summary = conversations.get(priorId)?.rollingSummary?.takeIf { it.isNotBlank() } ?: return ""
+        return "PRIOR NEGOTIATION ROUND (context from the previous round — note how this round builds on or differs from it):\n${summary.take(THREAD_SUMMARY_CHARS)}\n\n"
+    }
+
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
-    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String): CoachReply? {
+    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS): CoachReply? {
+        val priorRoundCtx = priorRound(cid)
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", background(cid) + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + priorRoundCtx + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         val request = LlmRequest(
-            settings.model(), input, tools = null, maxOutputTokens = INTERPRET_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
+            settings.model(), input, tools = null, maxOutputTokens = maxTokens, temperature = INTERPRET_TEMPERATURE,
             purpose = "COACH", conversationId = cid, turnId = turnId, jsonObjectMode = true
         )
         // A reply with a [bracketed placeholder] gets one retry; if it still has one, the brackets are stripped here so they never show.
@@ -417,6 +457,29 @@ class OneShotTurn(
         val words = r.output.assistantText().trim()
         // Nothing, or a JSON blob, means the model answered the wrong task; fall back to the normal pipeline.
         return words.takeIf { it.length >= MIN_FOLLOWUP_CHARS && !it.startsWith("{") }
+    }
+
+    /**
+     * Red-team call: one short LLM call that plays devil's advocate against the directive's recommended move.
+     * Returns a single plain-text sentence (the strongest counterargument), or null on any failure.
+     * Budget: RED_TEAM_MAX_TOKENS tokens. The caller wraps this in withTimeoutOrNull(RED_TEAM_TIMEOUT_MS).
+     */
+    private suspend fun redTeamChallenge(cid: String, turnId: String, directive: EngineDirective): String? {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", RED_TEAM_PROMPT) })
+            add(buildJsonObject {
+                put("role", "user")
+                put("content", "ENGINE DIRECTIVE:\n${directive.toJson()}")
+            })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = RED_TEAM_MAX_TOKENS,
+            temperature = RED_TEAM_TEMPERATURE,
+            purpose = "RED_TEAM", conversationId = cid, turnId = turnId
+        )
+        val r = llm.create(request) as? LlmResult.Ok ?: return null
+        val text = r.output.assistantText().trim()
+        return text.takeIf { it.length in MIN_RED_TEAM_CHARS..MAX_RED_TEAM_CHARS && !it.startsWith("{") }
     }
 
     /** Phase G.3: the ask-first reply — a short lead the controller can also detect, then the 1-2 questions. */
@@ -513,10 +576,10 @@ class OneShotTurn(
         private const val RECENT = 3
         private const val RETRY_PAUSE_MS = 1_500L
         private const val THREAD_USER_MESSAGES = 2
-        private const val THREAD_PREVIOUS_CHARS = 420
-        private const val THREAD_MOVES_WINDOW = 6
+        private const val THREAD_PREVIOUS_CHARS = 600
+        private const val THREAD_MOVES_WINDOW = 8
         private const val THREAD_MOVE_CHARS = 140
-        private const val THREAD_SUMMARY_CHARS = 1_200
+        private const val THREAD_SUMMARY_CHARS = 1_800
         private const val THREAD_USER_CHARS = 300
         private const val BACKGROUND_ENTRIES = 2
         private const val BACKGROUND_TOPICS = 2
@@ -527,6 +590,11 @@ class OneShotTurn(
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3
+        private const val RED_TEAM_TIMEOUT_MS = 5_000L
+        private const val RED_TEAM_MAX_TOKENS = 120
+        private const val RED_TEAM_TEMPERATURE = 0.5
+        private const val MIN_RED_TEAM_CHARS = 20
+        private const val MAX_RED_TEAM_CHARS = 300
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
         private const val MAX_USER_CHARS = 1_500
         private const val MIN_COACH_CHARS = 40
@@ -551,6 +619,9 @@ If they sound overwhelmed, acknowledge it kindly and suggest leaning on their cl
         const val NOTHING_NEW = "There was nothing new in that to add to the model, so this is the same view as before. Tell me who did or said what, or what changed, and I'll update it."
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."
 
+        /** Red-team system prompt (~120 tokens). Returns ONE plain sentence — the strongest counterargument. */
+        const val RED_TEAM_PROMPT = """You are a devil's advocate. You get an ENGINE DIRECTIVE (game-theory analysis). In ONE plain sentence, state the strongest reason the recommended move could backfire or be wrong. No hedging, no restating the move, no score references. If you see no real risk, reply: none."""
+
         /** The whole prompt (~800 tokens). The reply is one JSON object; the app does everything else. */
         const val PROMPT = """You turn a person's situation into a small decision model. Reply with ONE JSON object and nothing else.
 Keys: goal, people (name, role PLAYER or INFLUENCER, veto, wants, fears), options (for, label), dims, outcomes (picks, scores), limits (label, kind), ask, support.
@@ -559,7 +630,7 @@ Rules:
 - "You" is the user, a PLAYER. Make the ONE other person whose choice matters most a PLAYER too (3 players at most). Everyone else is an INFLUENCER; set veto true if they can stop it.
 - Give EVERY PLAYER (including the other person) 2-3 options, one of them waiting or doing nothing. Influencers have no options.
 - dims: pick 3 of SAFETY, ETHICS, LEGALITY, COST, REPUTATION, RELATIONSHIPS, WELLBEING, EFFICIENCY, PUBLIC_TRUST, LONG_TERM_VALUE (COST 10 = very costly). If the app context lists dims, use exactly those.
-- outcomes: one entry for EVERY combination of the players' options. In scores, give each player 3 numbers 0-10 (one per dim, in dims order) for how that combination is for them.
+- outcomes: one entry for EVERY combination of the players' options. In scores, give each player 3 numbers 0-10 for how that combination affects them on each dim in order. Scale: 0 = catastrophic for them, 5 = neutral / status quo, 10 = ideal for them. Score from EACH player's own perspective — a player may gain where another loses. Never duplicate a row.
 - limits: things that must not happen. kind is LEGAL, ETHICAL, SAFETY, POLICY, PHYSICAL or RESOURCE.
 - Only fill wants, fears and limits when the user said them. Never invent them for people the user only mentions (a relative, a doctor, a friend). Never write placeholder text.
 - ask: leave out unless the story is far too thin to model; then ONE short question and nothing else.
