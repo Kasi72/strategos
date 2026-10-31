@@ -73,8 +73,18 @@ class XRayViewModel(app: Application, private val projectId: String) : AndroidVi
         val pipeline = AnalysisPipeline()
         val result = pipeline.run(view)
         val stress = runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull()
-        val gameResult = GameModelService.analyze(view)
-        EngineDirectiveBuilder.build(view, result, stress, null, gameResult.integrity)
+        val gameContext = GameModelService.analyzeWithContext(view)
+        val gameResult = gameContext.result
+        val gtPattern = EngineDirectiveBuilder.archetypeLabel(
+            (gameResult as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.ir?.archetype?.name
+        )
+        val dominated = gameContext.pruneResult?.let { pr ->
+            pr.eliminated.flatMap { (pid, acts) ->
+                val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
+                acts.map { act -> "$name: $act (dominated)" }
+            }
+        }.orEmpty()
+        EngineDirectiveBuilder.build(view, result, stress, null, gameResult.integrity, gtPattern, dominated)
     }.getOrNull()?.takeIf { it.ready }
 
     val state: StateFlow<XRayUiState> = combine(scenarios.scenarios, dragged, engine) { all, d, directive ->

@@ -228,16 +228,26 @@ class OneShotTurn(
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
         val snap = argon?.trajectory?.current(sid)
         val view = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
-        val (viewResult, stress, gameResult) = withContext(Dispatchers.Default) {
+        val (viewResult, stress, gameContext) = withContext(Dispatchers.Default) {
             val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
             Triple(
                 pipeline.run(view),
                 runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull(),
-                com.drkkr.strategos.domain.game.GameModelService.analyze(view)
+                com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view)
             )
         }
+        val gameResult = gameContext.result
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
-        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity)
+        val gtPattern = EngineDirectiveBuilder.archetypeLabel(
+            (gameResult as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.ir?.archetype?.name
+        )
+        val dominated = gameContext.pruneResult?.let { pr ->
+            pr.eliminated.flatMap { (pid, acts) ->
+                val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
+                acts.map { act -> "$name: $act (dominated)" }
+            }
+        }.orEmpty()
+        val directive = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated)
         if (gameResult is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved) {
             certificates?.persist(s.id, s.version, gameResult, directive)
         }

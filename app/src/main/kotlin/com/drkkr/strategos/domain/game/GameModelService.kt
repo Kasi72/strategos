@@ -30,39 +30,62 @@ sealed interface GameAnalysisResult {
 }
 
 /**
- * Orchestrates compile → solver selection → solve → state machine advancement
- * for a [Scenario], returning a [GameAnalysisResult] with a settled [AnalysisIntegrity].
+ * Orchestrates compile → IEDS pruning → solver selection → solve → state machine advancement.
  *
- * Solver selection: [MixedNash2x2Solver] when the game is 2-player 2×2;
- * [PureNashSolver] otherwise.
+ * Pipeline:
+ *  1. Compile [Scenario] → [GameIR] (includes archetype detection).
+ *  2. Run [IteratedDominancePruner] to eliminate strictly dominated strategies.
+ *  3. Select solver:
+ *       • 2-player any-size  → [MixedNashNxMSolver] (support enumeration, finds all mixed NE)
+ *       • n-player           → [PureNashSolver]
+ *  4. Solve; verify residuals; advance [DecisionStateMachine].
  *
- * Integrity assignment:
- *   SolverOutcome.Solved + all residuals ≤ threshold  → COMPLETE  (state VERIFIED)
- *   SolverOutcome.Solved + residual > threshold        → INCOMPLETE (state CONDITIONAL)
- *   SolverOutcome.Incomplete                           → outcome.integrity (INCOMPLETE or BLOCKED)
- *   SolverOutcome.Unsupported / InvalidModel           → BLOCKED
- *   CompileResult.Failure                              → BLOCKED
+ * Integrity:
+ *   SolverOutcome.Solved + residual ≤ threshold  → COMPLETE  (state VERIFIED)
+ *   SolverOutcome.Solved + residual > threshold   → INCOMPLETE (state CONDITIONAL)
+ *   SolverOutcome.Incomplete                      → INCOMPLETE or BLOCKED
+ *   SolverOutcome.Unsupported / InvalidModel      → BLOCKED
+ *   CompileResult.Failure                         → BLOCKED
  */
 object GameModelService {
 
     private const val RESIDUAL_THRESHOLD = 1e-9
 
-    fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult {
+    data class AnalysisContext(
+        val result: GameAnalysisResult,
+        val pruneResult: IteratedDominancePruner.PruneResult?
+    )
+
+    fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
+        analyzeWithContext(scenario, limits).result
+
+    fun analyzeWithContext(
+        scenario: Scenario,
+        limits: SolverLimits = SolverLimits.ON_DEVICE
+    ): AnalysisContext {
         val machine = DecisionStateMachine(DecisionState.EXPLORATORY)
 
-        val ir = when (val r = GameModelCompiler.compile(scenario, limits = limits)) {
+        val rawIr = when (val r = GameModelCompiler.compile(scenario, limits = limits)) {
             is CompileResult.Success -> r.ir
-            is CompileResult.Failure -> return GameAnalysisResult.Failed(
-                reason = "Compile failed: ${r.errors.joinToString("; ")}",
-                decisionState = machine.state,
-                integrity = AnalysisIntegrity.BLOCKED
+            is CompileResult.Failure -> return AnalysisContext(
+                GameAnalysisResult.Failed(
+                    reason = "Compile failed: ${r.errors.joinToString("; ")}",
+                    decisionState = machine.state,
+                    integrity = AnalysisIntegrity.BLOCKED
+                ),
+                null
             )
         }
 
-        val solver: GameSolver = if (ir.playerCount == 2 && ir.strategyCounts.all { it == 2 })
-            MixedNash2x2Solver else PureNashSolver
+        // Step 2: IEDS — prune strictly dominated strategies
+        val pruneResult = IteratedDominancePruner.prune(rawIr)
+        val ir = pruneResult.ir
 
-        return when (val outcome = solver.solve(ir, limits)) {
+        // Step 3: solver selection
+        val solver: GameSolver = if (ir.playerCount == 2) MixedNashNxMSolver else PureNashSolver
+
+        val outcome = solver.solve(ir, limits)
+        val analysisResult = when (outcome) {
             is SolverOutcome.Solved -> {
                 machine.transition(DecisionState.CONDITIONAL, "solver found ${outcome.equilibria.size} equilibria")
                 val maxResidual = outcome.equilibria.maxOfOrNull { eq ->
@@ -93,5 +116,7 @@ object GameModelService {
                 integrity = AnalysisIntegrity.BLOCKED
             )
         }
+
+        return AnalysisContext(analysisResult, pruneResult)
     }
 }

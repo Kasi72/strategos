@@ -79,16 +79,17 @@ object GameModelCompiler {
         val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
         val coveragePct = 100
 
+        val prelimIr = GameIR(
+            scenarioId = scenario.id,
+            playerIds = playerIds,
+            actionIds = playerIds.map { actionMap[it]!! },
+            strategyCounts = strategyCounts,
+            utility = utility.map { it },
+            gameClass = gameClass,
+            coveragePct = coveragePct
+        )
         return CompileResult.Success(
-            GameIR(
-                scenarioId = scenario.id,
-                playerIds = playerIds,
-                actionIds = playerIds.map { actionMap[it]!! },
-                strategyCounts = strategyCounts,
-                utility = utility.map { it },
-                gameClass = gameClass,
-                coveragePct = coveragePct
-            )
+            prelimIr.copy(archetype = GameArchetypeDetector.detect(prelimIr))
         )
     }
 

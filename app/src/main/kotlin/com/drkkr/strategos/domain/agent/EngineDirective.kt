@@ -57,7 +57,11 @@ data class EngineDirective(
      * Non-null when payoff data is missing; carries the single highest-value question to ask next.
      * Populated by [EvsiClarifier] so call 2 can surface a targeted clarification instead of generic advice.
      */
-    val clarification: Clarification? = null
+    val clarification: Clarification? = null,
+    /** Named game-theory archetype detected by [GameArchetypeDetector], e.g. "Prisoner's Dilemma". Null for generic games. */
+    val gameTheoreticPattern: String? = null,
+    /** Strategies eliminated by IEDS, e.g. ["Alice: Cooperate (dominated)", "Bob: Cooperate (dominated)"]. */
+    val dominatedStrategies: List<String> = emptyList()
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -79,6 +83,8 @@ data class EngineDirective(
         // analysis_integrity is kept as a Kotlin field for certificate/UI use; intentionally excluded
         // from the LLM request JSON to stay within the lean token budget.
         clarification?.let { put("clarification_question", it.question) }
+        gameTheoreticPattern?.let { put("game_theoretic_pattern", it) }
+        if (dominatedStrategies.isNotEmpty()) putJsonArray("dominated_strategies") { dominatedStrategies.forEach { add(JsonPrimitive(it)) } }
     }
 
     /**
@@ -92,6 +98,17 @@ data class EngineDirective(
 }
 
 object EngineDirectiveBuilder {
+    private val ARCHETYPE_LABEL = mapOf(
+        "PRISONERS_DILEMMA" to "Prisoner's Dilemma",
+        "CHICKEN" to "Chicken (Hawk-Dove)",
+        "STAG_HUNT" to "Stag Hunt",
+        "BATTLE_OF_SEXES" to "Battle of the Sexes",
+        "ZERO_SUM" to "Zero-Sum",
+        "PURE_COORDINATION" to "Pure Coordination",
+        "HARMONY" to "Harmony"
+        // GENERIC intentionally absent — not surfaced to the LLM
+    )
+
     /** Behavioral and strategic patterns, in plain words. Generic equilibrium is only a last resort. */
     private val PLAIN_LABEL = linkedMapOf(
         "relational-repair" to "Relationship repair",
@@ -112,6 +129,9 @@ object EngineDirectiveBuilder {
     private const val MIN_DYNAMIC_SCORE = 0.5
     private const val MAX_KNOWN_FACTS = 8
 
+    /** Translates a [GameArchetype] enum name to a human-readable label for the Coach prompt. */
+    fun archetypeLabel(archetypeName: String?): String? = archetypeName?.let { ARCHETYPE_LABEL[it] }
+
     /**
      * The model the engine analyses: the saved one, read as a relationship that continues, with trust drawn from the trajectory.
      * Trust 60+ means the two trust each other, 40 to 59 means the user trusts the other person, and high tension (70+) or
@@ -131,7 +151,13 @@ object EngineDirectiveBuilder {
         })
     }
 
-    fun build(s: Scenario, pr: PipelineResult, stress: StressResult?, previousMove: String? = null, analysisIntegrity: AnalysisIntegrity = AnalysisIntegrity.COMPLETE): EngineDirective {
+    fun build(
+        s: Scenario, pr: PipelineResult, stress: StressResult?,
+        previousMove: String? = null,
+        analysisIntegrity: AnalysisIntegrity = AnalysisIntegrity.COMPLETE,
+        gameTheoreticPattern: String? = null,
+        dominatedStrategies: List<String> = emptyList()
+    ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
         val ownerActions = owner?.let { s.actionsFor(it.id) }.orEmpty()
@@ -214,7 +240,9 @@ object EngineDirectiveBuilder {
             bayesianLearningNote = BayesianUpdater.learningNote(s),
             dynamicArchetype = dynamicArchetype,
             analysisIntegrity = analysisIntegrity,
-            clarification = clarification
+            clarification = clarification,
+            gameTheoreticPattern = gameTheoreticPattern,
+            dominatedStrategies = dominatedStrategies
         )
     }
 

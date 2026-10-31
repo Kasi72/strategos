@@ -17,7 +17,9 @@ data class GameIR(
     /** utility[playerIndex][profileIndex]; row-major, identical to MatrixSupport convention. */
     val utility: List<DoubleArray>,
     val gameClass: GameClass,
-    val coveragePct: Int
+    val coveragePct: Int,
+    /** Named archetype detected by [GameArchetypeDetector]; [GameArchetype.GENERIC] when no pattern matched. */
+    val archetype: GameArchetype = GameArchetype.GENERIC
 ) {
     val playerCount: Int get() = playerIds.size
     val profileCount: Int get() = strategyCounts.fold(1, Int::times)
