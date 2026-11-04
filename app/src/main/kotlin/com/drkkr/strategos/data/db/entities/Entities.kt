@@ -54,7 +54,8 @@ data class ConversationEntity(
     // Argon: several ACTIVE rows per scenario are named threads of one project.
     @ColumnInfo(name = "title", defaultValue = "'Main Thread'") val title: String = "Main Thread",
     @ColumnInfo(name = "topic_tag", defaultValue = "'GENERAL'") val topicTag: String = "GENERAL",
-    @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false
+    @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false,
+    @ColumnInfo(name = "prior_round_conversation_id", defaultValue = "NULL") val priorRoundConversationId: String? = null
 )
 
 @Entity(tableName = "message",

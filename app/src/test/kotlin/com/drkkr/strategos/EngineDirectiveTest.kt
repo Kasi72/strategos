@@ -21,7 +21,7 @@ class EngineDirectiveTest {
         assertEquals(pick, d.recommendedMove)
         assertEquals(pick, d.moveToImplement)                              // robust: implement the recommendation
         assertEquals("ROBUST", d.stressVerdict)
-        assertTrue(d.badge(), d.badge().startsWith("Engine: ") && d.badge().endsWith("Robust"))
+        assertTrue(d.badge(), d.badge().startsWith("Engine: ") && d.badge().contains(" · Robust · "))
         val json = d.toJson()
         assertEquals(pick, json.getValue("move_to_implement").jsonPrimitive.content)
         assertTrue(json.getValue("blocked_or_dominated_moves").jsonArray.size in 1..2)

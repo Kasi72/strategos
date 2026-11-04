@@ -13,7 +13,7 @@ import com.drkkr.strategos.data.db.entities.*
         JournalEntryEntity::class, JournalInsightPostNoteEntity::class, TrajectoryPointEntity::class, QuickCheckFeedbackEntity::class,
         GameModelEntity::class, EvidenceRecordEntity::class, DecisionCertificateEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class StrategosDatabase : RoomDatabase() {

@@ -53,7 +53,8 @@ data class AiSettingsUi(
     val keyInvalid: Boolean = false,
     val model: String = AgentConfig.DEFAULT_MODEL,
     val models: List<ModelRow> = emptyList(),
-    val modelMessage: String? = null
+    val modelMessage: String? = null,
+    val quickMode: Boolean = false
 ) {
     val ready: Boolean get() = enabled && hasKey && !needsConsent
 }
@@ -83,7 +84,8 @@ class AiSettingsController(
             it.copy(
                 loaded = true, enabled = settings.aiEnabled(), hasKey = has, keyLast4 = if (has) vault.get()?.takeLast(4) else null,
                 keyState = if (has && it.keyState == KeyState.NONE) KeyState.CONNECTED else if (!has) KeyState.NONE else it.keyState,
-                needsConsent = has && !consented && it.needsConsent, keyInvalid = settings.keyInvalid(), model = settings.model()
+                needsConsent = has && !consented && it.needsConsent, keyInvalid = settings.keyInvalid(), model = settings.model(),
+                quickMode = settings.quickMode()
             )
         }
     }
@@ -155,6 +157,11 @@ class AiSettingsController(
     }
 
     // ── Model (§11.5.2) ───────────────────────────────────────────────────────
+
+    fun setQuickMode(on: Boolean): Job = scope.launch {
+        settings.setQuickMode(on)
+        _state.update { it.copy(quickMode = on) }
+    }
 
     fun refreshModels(force: Boolean = true): Job = scope.launch { loadModels(force) }
 

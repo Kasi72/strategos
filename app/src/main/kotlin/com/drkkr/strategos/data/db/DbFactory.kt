@@ -51,11 +51,20 @@ object DbFactory {
         override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_2_3_SQL.forEach { db.execSQL(it) } }
     }
 
+    /** Statements for 3 -> 4. Adds prior_round_conversation_id to conversation for multi-round scenario threading. */
+    val MIGRATION_3_4_SQL: List<String> = listOf(
+        "ALTER TABLE `conversation` ADD COLUMN `prior_round_conversation_id` TEXT"
+    )
+
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_3_4_SQL.forEach { db.execSQL(it) } }
+    }
+
     fun open(context: Context, passphrase: ByteArray): StrategosDatabase {
         System.loadLibrary("sqlcipher")
         return Room.databaseBuilder(context, StrategosDatabase::class.java, "strategos.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
     }
 

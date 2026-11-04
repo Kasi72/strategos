@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,6 +57,23 @@ fun TalkRoute(
     var summaries by remember { mutableStateOf<List<ThreadSummary>>(emptyList()) }
     LaunchedEffect(projectId, counselUi.threads, counselUi.items.size, counselUi.conversationId) {
         summaries = convo?.threadSummaries(projectId).orEmpty()
+    }
+
+    // Negotiation wizard: shown once when the scenario looks like a negotiation and has no prep data yet.
+    var showNegotiationWizard by rememberSaveable(projectId) { mutableStateOf(false) }
+    LaunchedEffect(projectId, scenario?.description, scenario?.negotiationContext) {
+        if (scenario != null && scenario.negotiationContext == null && looksLikeNegotiation(scenario.description) && !showNegotiationWizard) {
+            showNegotiationWizard = true
+        }
+    }
+    if (showNegotiationWizard) {
+        NegotiationWizardSheet(
+            onSave = { nc ->
+                showNegotiationWizard = false
+                scope.launch { scenario?.let { vm.saveScenarioInternal(it.copy(negotiationContext = nc)) } }
+            },
+            onDismiss = { showNegotiationWizard = false }
+        )
     }
 
     val online = rememberOnline()

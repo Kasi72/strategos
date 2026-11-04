@@ -87,7 +87,7 @@ class PostureEngineTest {
         val d = dir(s, stress)
         assertEquals("FRAGILE", d.stressVerdict)
         assertNotEquals(chase, d.moveToImplement)
-        assertTrue(d.badge().endsWith("Fragile"))
+        assertTrue(d.badge().contains(" · Fragile · "))
     }
 
     @Test fun missingOutcomesMakeItFragile() {

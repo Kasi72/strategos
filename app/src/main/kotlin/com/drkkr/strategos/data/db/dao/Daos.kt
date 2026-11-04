@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.Flow
     suspend fun listThreadsForScenario(scenarioId: String): List<ConversationEntity>
     @Query("UPDATE conversation SET title = :title, topic_tag = :topicTag, updated_at = :updatedAt WHERE id = :id")
     suspend fun renameThread(id: String, title: String, topicTag: String, updatedAt: Long)
+    @Query("SELECT * FROM conversation WHERE prior_round_conversation_id = :priorId ORDER BY created_at ASC")
+    suspend fun listByPriorRound(priorId: String): List<ConversationEntity>
 }
 
 @Dao interface MessageDao {

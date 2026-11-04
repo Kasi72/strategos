@@ -176,6 +176,19 @@ data class SequenceNode(
 )
 
 @Serializable
+data class NegotiationContext(
+    val batna: String = "",                 // Best Alternative To Negotiated Agreement
+    val reservationPoint: String = "",      // Walk-away threshold (minimum acceptable outcome)
+    val aspirationPoint: String = "",       // Target / ideal outcome
+    val openingAnchor: String = "",         // Planned first offer / opening position
+    val zopaNote: String = "",              // Zone of Possible Agreement notes
+    val counterpartBatna: String = "",      // Estimated counterpart BATNA
+    val counterpartReservation: String = "" // Estimated counterpart walk-away
+) {
+    fun hasContent() = batna.isNotBlank() || aspirationPoint.isNotBlank() || openingAnchor.isNotBlank()
+}
+
+@Serializable
 data class Scenario(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
@@ -213,7 +226,9 @@ data class Scenario(
     val approvalStages: List<ApprovalStage> = emptyList(),
     val implementationPlan: ImplementationPlan? = null,
     val changeHistory: List<ChangeRecord> = emptyList(),
-    val attachments: List<ScenarioAttachment> = emptyList()
+    val attachments: List<ScenarioAttachment> = emptyList(),
+    // Stage 4: negotiation prep wizard context
+    val negotiationContext: NegotiationContext? = null
 ) {
     fun actionsFor(sid: String) = actions.filter { it.stakeholderId == sid }
 

@@ -87,6 +87,29 @@ class ConversationRepository(private val db: StrategosDatabase) {
         }
     }
 
+    /** Creates a new thread that is explicitly a follow-on round to [priorConversationId]. */
+    suspend fun createNextRound(
+        priorConversationId: String,
+        title: String,
+        topicTag: String = "NEGOTIATION",
+        modelId: String = AgentConfig.DEFAULT_MODEL,
+        agentVersion: String = AgentConfig.ENGINE_VERSION
+    ): ConversationEntity? {
+        val prior = db.conversationDao().get(priorConversationId) ?: return null
+        val now = System.currentTimeMillis()
+        return ConversationEntity(
+            id = UUID.randomUUID().toString(), scenarioId = prior.scenarioId, status = "ACTIVE",
+            modelId = modelId, agentVersion = agentVersion, createdAt = now, updatedAt = now,
+            title = title.trim().ifEmpty { "Round 2" }, topicTag = topicTag,
+            priorRoundConversationId = priorConversationId
+        ).also { db.conversationDao().upsert(it) }
+    }
+
+    /** Returns the rolling summary of the prior round conversation, or null if none. */
+    suspend fun priorRoundSummary(conversationId: String): String? =
+        db.conversationDao().get(conversationId)?.priorRoundConversationId
+            ?.let { db.conversationDao().get(it)?.rollingSummary?.takeIf { s -> s.isNotBlank() } }
+
     suspend fun deleteAll() = db.conversationDao().deleteAll()
 
     suspend fun get(id: String): ConversationEntity? = db.conversationDao().get(id)

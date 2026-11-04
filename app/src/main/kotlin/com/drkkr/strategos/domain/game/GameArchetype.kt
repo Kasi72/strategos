@@ -1,26 +1,32 @@
 package com.drkkr.strategos.domain.game
 
 /**
- * Named game-theoretic archetypes recognised in the normal-form analysis.
+ * Named game-theoretic archetypes recognised in normal-form analysis.
  *
- * Detection is limited to 2-player 2×2 games (the most common in practice).
- * All other games return [GENERIC].
+ * Detection covers all 2-player 2×2 games comprehensively (Rapoport-Guyer / Robinson-Goforth
+ * taxonomy), plus zero-sum games of any 2-player size.  All other games return [GENERIC].
  */
 enum class GameArchetype {
-    /** Classic social-dilemma: mutual defection is dominant but Pareto-inferior. */
+    /** Both dominant strategies; NE Pareto-dominated by mutual cooperation — classic social dilemma. */
     PRISONERS_DILEMMA,
-    /** Anti-coordination (Hawk-Dove): two pure NE at off-diagonal profiles. */
+    /** Anti-coordination (Hawk-Dove / Snowdrift): two pure NE at off-diagonal profiles. */
     CHICKEN,
-    /** Assurance / Stag Hunt: two pure NE on diagonal, one Pareto-dominates the other. */
+    /** Assurance game: two diagonal NE, one Pareto-dominates (players share the same preference). */
     STAG_HUNT,
-    /** Coordination with conflicting preferences (players prefer different equilibria). */
+    /** Coordination with conflicting preferences — players prefer opposite diagonal equilibria. */
     BATTLE_OF_SEXES,
     /** Pure conflict — payoffs sum to zero at every profile. */
     ZERO_SUM,
-    /** Symmetric coordination — both players prefer the same equilibrium. */
+    /** Single diagonal NE; no conflicting preferences — obvious focal point. */
     PURE_COORDINATION,
-    /** Harmony — mutual cooperation is a dominant-strategy equilibrium. */
+    /** Mutual cooperation is the dominant-strategy joint optimum for both players. */
     HARMONY,
+    /** Both players have dominant strategies; NE is NOT Pareto-inferior — no cooperation dilemma. */
+    DEADLOCK,
+    /** One player has a dominant strategy that leads to their preferred outcome; other player adapts. */
+    LEADER,
+    /** One player's dominant strategy yields to exploitation by the other (selfless cooperation). */
+    HERO,
     /** No recognised pattern. */
     GENERIC
 }
@@ -28,52 +34,102 @@ enum class GameArchetype {
 /**
  * Detects the [GameArchetype] of a compiled [GameIR].
  *
- * Only 2-player 2×2 normal-form games can be identified as a named archetype;
- * zero-sum games of any size return [GameArchetype.ZERO_SUM].
- * Everything else returns [GameArchetype.GENERIC].
+ * Coverage:
+ * - Any 2-player zero-sum game → [GameArchetype.ZERO_SUM].
+ * - 2-player 2×2 non-zero-sum games → full ordinal taxonomy (all 12 Rapoport-Guyer families
+ *   collapsed into the named archetypes above).
+ * - Everything else → [GameArchetype.GENERIC].
  */
 object GameArchetypeDetector {
 
     fun detect(ir: GameIR): GameArchetype {
         if (ir.gameClass == GameClass.ZERO_SUM_2P) return GameArchetype.ZERO_SUM
         if (ir.playerCount != 2) return GameArchetype.GENERIC
-        if (ir.strategyCounts[0] != 2 || ir.strategyCounts[1] != 2) return GameArchetype.GENERIC
-        return detect2x2(ir)
+        if (ir.strategyCounts[0] == 2 && ir.strategyCounts[1] == 2) return detect2x2(ir)
+        return GameArchetype.GENERIC
     }
 
     private fun detect2x2(ir: GameIR): GameArchetype {
         fun u1(i: Int, j: Int) = ir.utility[0][ir.profileIndex(intArrayOf(i, j))]
         fun u2(i: Int, j: Int) = ir.utility[1][ir.profileIndex(intArrayOf(i, j))]
 
-        if (isPrisonersDilemma(::u1, ::u2)) return GameArchetype.PRISONERS_DILEMMA
-        if (isHarmony(::u1, ::u2))           return GameArchetype.HARMONY
+        // Dominant-strategy index for each player (-1 = none).
+        // For P1: u(action, opponentAction) = u1(action, opponentAction)
+        // For P2: u(action, opponentAction) = u2(opponentAction, action) — columns are P2's actions
+        val dom1 = dominantAction { a, o -> u1(a, o) }
+        val dom2 = dominantAction { a, o -> u2(o, a) }
 
+        // ── Both players have dominant strategies ────────────────────────────
+        if (dom1 >= 0 && dom2 >= 0) {
+            if (isPrisonersDilemma(::u1, ::u2)) return GameArchetype.PRISONERS_DILEMMA
+            if (isHarmony(::u1, ::u2))           return GameArchetype.HARMONY
+            return GameArchetype.DEADLOCK          // both dominant, NE not Pareto-inferior
+        }
+
+        // ── Exactly one player has a dominant strategy ───────────────────────
+        if (dom1 >= 0) return detectHeroLeader(domAction = dom1, p1Dominant = true,  ::u1, ::u2)
+        if (dom2 >= 0) return detectHeroLeader(domAction = dom2, p1Dominant = false, ::u1, ::u2)
+
+        // ── No dominant strategies — classify by pure-NE structure ───────────
         val pureNEs = pure2x2NEs(ir)
 
         if (pureNEs.size == 2) {
             val profiles = pureNEs.map { it.pureProfile!! }
             val diagonal = profiles.any { it == listOf(0, 0) } && profiles.any { it == listOf(1, 1) }
-            val antiDiag  = profiles.any { it == listOf(0, 1) } && profiles.any { it == listOf(1, 0) }
-
-            if (diagonal) {
-                return if (isBattleOfSexes(::u1, ::u2)) GameArchetype.BATTLE_OF_SEXES
-                       else GameArchetype.STAG_HUNT
-            }
+            val antiDiag = profiles.any { it == listOf(0, 1) } && profiles.any { it == listOf(1, 0) }
+            if (diagonal) return if (isBattleOfSexes(::u1, ::u2)) GameArchetype.BATTLE_OF_SEXES
+                                 else GameArchetype.STAG_HUNT
             if (antiDiag) return GameArchetype.CHICKEN
         }
 
         if (pureNEs.size == 1) {
             val p = pureNEs.first().pureProfile!!
-            // Single coordination NE where both players get same payoff
-            if ((p == listOf(0, 0) || p == listOf(1, 1)) &&
-                kotlin.math.abs(u1(p[0], p[1]) - u2(p[0], p[1])) < 1e-9
-            ) return GameArchetype.PURE_COORDINATION
+            // Single diagonal NE with no dominant strategies = pure coordination focal point.
+            if (p == listOf(0, 0) || p == listOf(1, 1)) return GameArchetype.PURE_COORDINATION
         }
 
         return GameArchetype.GENERIC
     }
 
-    /** True when each player has a strictly dominant strategy whose NE is Pareto-dominated. */
+    /**
+     * Returns the strictly dominant action index (0 or 1) for a player in a 2×2 game, or -1.
+     * [u] takes (playerAction, opponentAction) and returns the player's payoff.
+     */
+    private fun dominantAction(u: (Int, Int) -> Double): Int {
+        for (d in 0..1) {
+            val alt = 1 - d
+            if (u(d, 0) > u(alt, 0) && u(d, 1) > u(alt, 1)) return d
+        }
+        return -1
+    }
+
+    /**
+     * Classifies one-dominant-strategy games.
+     *
+     * HERO  — dominant player gets a WORSE payoff at the NE than they would if the other player
+     *          had chosen differently; they are exploited by their own dominance.
+     * LEADER — dominant player lands their best available payoff; they benefit from committing.
+     */
+    private fun detectHeroLeader(
+        domAction: Int, p1Dominant: Boolean,
+        u1: (Int, Int) -> Double, u2: (Int, Int) -> Double
+    ): GameArchetype {
+        val nePayoff: Double
+        val altPayoff: Double          // dominant player's payoff if opponent played differently
+
+        if (p1Dominant) {
+            val br2 = if (u2(domAction, 0) >= u2(domAction, 1)) 0 else 1
+            nePayoff  = u1(domAction, br2)
+            altPayoff = u1(domAction, 1 - br2)
+        } else {
+            val br1 = if (u1(0, domAction) >= u1(1, domAction)) 0 else 1
+            nePayoff  = u2(br1, domAction)
+            altPayoff = u2(1 - br1, domAction)
+        }
+        return if (altPayoff > nePayoff) GameArchetype.HERO else GameArchetype.LEADER
+    }
+
+    /** True when both players have strictly dominant strategies and the NE is Pareto-dominated. */
     private fun isPrisonersDilemma(u1: (Int, Int) -> Double, u2: (Int, Int) -> Double): Boolean {
         for (d1 in 0..1) {
             val c1 = 1 - d1
@@ -87,7 +143,13 @@ object GameArchetypeDetector {
         return false
     }
 
-    /** True when both players have a jointly dominant cooperative outcome. */
+    /**
+     * True when both players' dominant strategies lead to the globally optimal joint outcome
+     * (NE gives each player their personal maximum over all profiles).
+     *
+     * This correctly distinguishes Harmony from Deadlock: in Deadlock the NE is not the
+     * global maximum for at least one player even though it dominates the cooperative profile.
+     */
     private fun isHarmony(u1: (Int, Int) -> Double, u2: (Int, Int) -> Double): Boolean {
         for (d1 in 0..1) {
             val c1 = 1 - d1
@@ -95,7 +157,9 @@ object GameArchetypeDetector {
             for (d2 in 0..1) {
                 val c2 = 1 - d2
                 if (u2(0, d2) <= u2(0, c2) || u2(1, d2) <= u2(1, c2)) continue
-                if (u1(d1, d2) >= u1(c1, c2) && u2(d1, d2) >= u2(c1, c2)) return true
+                val u1Max = maxOf(u1(0, 0), u1(0, 1), u1(1, 0), u1(1, 1))
+                val u2Max = maxOf(u2(0, 0), u2(0, 1), u2(1, 0), u2(1, 1))
+                if (u1(d1, d2) >= u1Max - 1e-9 && u2(d1, d2) >= u2Max - 1e-9) return true
             }
         }
         return false

@@ -43,6 +43,9 @@ class SettingsRepository(private val db: StrategosDatabase) {
     suspend fun supportText(): String = dao.get(SAFETY_SUPPORT_TEXT) ?: DEFAULT_SUPPORT_TEXT
     suspend fun setSupportText(v: String) = put(SAFETY_SUPPORT_TEXT, v)
 
+    suspend fun quickMode(): Boolean = dao.get(QUICK_MODE) == "true"
+    suspend fun setQuickMode(v: Boolean) = put(QUICK_MODE, v.toString())
+
     suspend fun legacyMigrated(): Boolean = dao.get(LEGACY_MIGRATED) == "1"
     suspend fun setLegacyMigrated() = put(LEGACY_MIGRATED, "1")
 
@@ -76,6 +79,7 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val UI_EXPERT_PIN = "ui.expert_pin"
         const val SAFETY_SUPPORT_TEXT = "safety.support_text"
         const val LEGACY_MIGRATED = "legacy.migrated"
+        const val QUICK_MODE = "ui.quick_mode"
         const val SECRET_XAI_KEY = "secret.xai_api_key"
 
         // §17.6: the clinician must review this text and verify the helpline number before patients use the app.

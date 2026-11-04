@@ -57,7 +57,12 @@ class ConversationSummarizer(
     }
 
     companion object {
-        const val INSTRUCTION = "Update the running summary of a decision-support conversation. Max 250 words. " +
-            "Keep the user's stated facts verbatim in quotes. List open questions. Do not add anything not in the messages."
+        const val INSTRUCTION = "Update the running summary of a decision-support conversation. Max 300 words. " +
+            "Use four labelled sections:\n" +
+            "SITUATION: the user's context and goal (key facts verbatim in quotes).\n" +
+            "ENGINE ADVISED: what the engine recommended and whether it was robust or fragile. Omit if no recommendation has been given yet.\n" +
+            "USER TRIED: what the user reported doing or deciding since the last summary. Omit if nothing was tried.\n" +
+            "OPEN: unresolved questions or concerns.\n" +
+            "Preserve verbatim quotes from the previous summary. Do not add anything not in the messages."
     }
 }
