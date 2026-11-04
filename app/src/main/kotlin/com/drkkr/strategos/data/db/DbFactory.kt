@@ -62,8 +62,44 @@ object DbFactory {
 
     fun open(context: Context, passphrase: ByteArray): StrategosDatabase {
         System.loadLibrary("sqlcipher")
+        // DEBUG BUILDS ONLY: an unencrypted copy of the database so a developer can read conversations with
+        // `adb shell run-as` (see scripts/pull-debug-db.sh). A release build always uses the encrypted file below.
+        if (com.drkkr.strategos.BuildConfig.DEBUG) return openPlainForDebug(context, passphrase)
         return Room.databaseBuilder(context, StrategosDatabase::class.java, "strategos.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .build()
+    }
+
+    private const val PLAIN_DEBUG_DB = "strategos_plain_debug.db"
+
+    /**
+     * Debug only. The first time, copies the existing encrypted database (if any) into a plain SQLite file, keeping the
+     * data and its schema version; the encrypted original is left untouched. If the copy fails, a fresh plain database
+     * is used and the encrypted data is still there.
+     */
+    private fun openPlainForDebug(context: Context, passphrase: ByteArray): StrategosDatabase {
+        val plain = context.getDatabasePath(PLAIN_DEBUG_DB)
+        val encrypted = context.getDatabasePath("strategos.db")
+        if (!plain.exists() && encrypted.exists()) {
+            try {
+                plain.parentFile?.mkdirs()
+                val src = net.zetetic.database.sqlcipher.SQLiteDatabase.openDatabase(
+                    encrypted.path, passphrase, null, net.zetetic.database.sqlcipher.SQLiteDatabase.OPEN_READWRITE, null
+                )
+                try {
+                    val version = src.version
+                    src.rawExecSQL("ATTACH DATABASE '${plain.path.replace("'", "''")}' AS plaintext KEY ''")
+                    src.rawQuery("SELECT sqlcipher_export('plaintext')", emptyArray<Any>()).use { it.moveToFirst() }
+                    src.rawExecSQL("PRAGMA plaintext.user_version = $version")
+                    src.rawExecSQL("DETACH DATABASE plaintext")
+                } finally { src.close() }
+            } catch (e: Exception) {
+                android.util.Log.w("StrategosDebug", "plain debug copy failed (${e.javaClass.simpleName}); starting a fresh plain database")
+                plain.delete()
+            }
+        }
+        return Room.databaseBuilder(context, StrategosDatabase::class.java, PLAIN_DEBUG_DB)
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
     }
