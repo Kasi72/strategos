@@ -44,11 +44,11 @@ class DeepSeekLiveFlowTest {
         val directives = mutableListOf<String>()
     }
 
-    private suspend fun rig(key: String, scenarioId: String, title: String): Rig {
+    private suspend fun rig(key: String, scenarioId: String, title: String, negotiation: com.drkkr.strategos.domain.model.NegotiationContext? = null): Rig {
         val db = DbFactory.inMemoryForTests(ApplicationProvider.getApplicationContext())
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val scenarios = ScenarioRepository(db, null).also { it.load() }
-        val saved = (scenarios.save(Scenario(id = scenarioId, title = title)) as SaveResult.Success).saved
+        val saved = (scenarios.save(Scenario(id = scenarioId, title = title, negotiationContext = negotiation)) as SaveResult.Success).saved
         val conversations = ConversationRepository(db)
         val settings = SettingsRepository(db).apply { setAiEnabled(true); setConsentVersion(AgentConfig.CONSENT_VERSION) }
         db.settingDao().put(SettingEntity(SettingsRepository.SECRET_XAI_KEY, "ciphertext"))
@@ -99,7 +99,11 @@ class DeepSeekLiveFlowTest {
         val outFile = System.getenv("FLOW_OUT_FILE")?.takeIf { it.isNotBlank() }
         Assume.assumeTrue("FLOW_MESSAGES_FILE / FLOW_OUT_FILE / DEEPSEEK_API_KEY not set", key != null && inFile != null && outFile != null)
         val messages = Json.parseToJsonElement(java.io.File(inFile!!).readText()).jsonArray.map { it.jsonPrimitive.content }
-        val r = rig(key!!, "s1", "New scenario")
+        // Optional FLOW_NEGOTIATION_FILE: JSON object with NegotiationContext fields, seeded as if the prep wizard was filled in.
+        val nc = System.getenv("FLOW_NEGOTIATION_FILE")?.takeIf { it.isNotBlank() }?.let {
+            Json { ignoreUnknownKeys = true }.decodeFromString(com.drkkr.strategos.domain.model.NegotiationContext.serializer(), java.io.File(it).readText())
+        }
+        val r = rig(key!!, "s1", "New scenario", nc)
         val out = StringBuilder()
         try {
             for ((i, m) in messages.withIndex()) {
@@ -134,6 +138,23 @@ class DeepSeekLiveFlowTest {
                     out.append("  move_to_implement: ${str("move_to_implement")}\n")
                     out.append("  known_stakeholder_facts: ${d["known_stakeholder_facts"]?.jsonArray?.joinToString(" | ") { it.jsonPrimitive.content }}\n")
                     out.append("  bayesian_learning_note: ${str("bayesian_learning_note")}\n")
+                    // R5 fields: absent keys are printed as "-" so a run shows which engine features actually fired.
+                    out.append("  [R5] game_theoretic_pattern=${str("game_theoretic_pattern") ?: "-"} | dynamic_archetype=${str("dynamic_archetype") ?: "-"} | confidence=${str("confidence_level") ?: "-"} | stakes=${str("stakes_tier") ?: "-"}\n")
+                    out.append("  [R5] dominated_strategies=${d["dominated_strategies"] ?: "-"} | extensive_form_path=${d["extensive_form_path"] ?: "-"} | opponent_rationality=${str("opponent_rationality") ?: "-"}\n")
+                    out.append("  [R5] shapley_values=${d["shapley_values"] ?: "-"} | mechanism_hint=${str("mechanism_hint") ?: "-"} | info_asymmetry=${str("info_asymmetry") ?: "-"}\n")
+                    out.append("  [R5] red_team_challenge=${str("red_team_challenge") ?: "-"} | clarification=${str("clarification_question") ?: "-"}\n")
+                }
+
+                // Re-run the game-model stage on the scenario as saved after this turn, to show why R5 fields are or are not produced.
+                out.append("\n(b2) GAME MODEL (compile -> IEDS -> solve)\n")
+                val saved = r.gateway.activeScenario()
+                if (saved == null) out.append("  (no saved scenario)\n") else {
+                    val ctx = com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(saved)
+                    out.append("  stakeholders=${saved.stakeholders.size} actions=${saved.actions.size}\n")
+                    out.append("  result=${ctx.result::class.simpleName} integrity=${ctx.result.integrity}\n")
+                    (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Failed)?.let { out.append("  reason=${it.reason.take(400)}\n") }
+                    (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.let { out.append("  archetype=${it.ir.archetype}\n") }
+                    out.append("  coalition=${ctx.coalitionResult?.values ?: "-"} mechanism=${ctx.mechanismHint?.type ?: "-"}\n")
                 }
 
                 out.append("\n(c) CALL 2 translation\n")
