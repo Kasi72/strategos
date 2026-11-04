@@ -20,12 +20,15 @@ object NegotiationQuestions {
         Question(Field.COUNTERPART, "If you walked away, what do you think they would do?")
     )
 
-    private val keywords = setOf(
-        "negotiat", "salary", "offer", "contract", "deal", "agreement", "counter", "settlement", "terms",
-        "price", "pricing", "bid", "raise", "renew", "wage", "haggle", "quote", "proposal"
+    // Whole words / stems only: "bid" must not match "forbidden", and "raise" alone (as in raising a child) is not a negotiation.
+    private val negotiationWords = Regex(
+        """(?i)\b(negotiat\w*|salary|salaries|offer\w*|contract\w*|settlement|pric(?:e|es|ing)|haggl\w*|quote[sd]?|wages?|pay raise|a raise|the raise|bids?|bidding|counter-?offer)\b"""
     )
 
-    fun looksLikeNegotiation(text: String): Boolean = text.lowercase().let { t -> keywords.any { t.contains(it) } }
+    fun looksLikeNegotiation(text: String): Boolean = negotiationWords.containsMatchIn(text)
+
+    /** The three facts that matter most; with two or more missing, the agent asks before answering. */
+    private val CORE = setOf(Field.BATNA, Field.RESERVATION, Field.ASPIRATION)
 
     private fun missing(nc: NegotiationContext?, f: Field): Boolean = when (f) {
         Field.BATNA -> nc?.batna.isNullOrBlank()
@@ -39,6 +42,17 @@ object NegotiationQuestions {
     fun next(userText: String, nc: NegotiationContext?, earlierAssistantText: List<String>): Question? {
         if (!looksLikeNegotiation(userText)) return null
         return ALL.firstOrNull { q -> missing(nc, q.field) && earlierAssistantText.none { it.contains(q.text) } }
+    }
+
+    /**
+     * Up to two plain questions to ask BEFORE answering: only for a negotiation, only when at least two of the three core facts
+     * (fallback, lowest acceptable, ideal) are still unknown, and only once per thread, so the user can always skip them and still get an answer.
+     */
+    fun beforeAnswering(userText: String, nc: NegotiationContext?, earlierAssistantText: List<String>): List<Question> {
+        if (!looksLikeNegotiation(userText)) return emptyList()
+        if (ALL.any { q -> earlierAssistantText.any { it.contains(q.text) } }) return emptyList()
+        val unknown = ALL.filter { it.field in CORE && missing(nc, it.field) }
+        return if (unknown.size >= 2) unknown.take(2) else emptyList()
     }
 
     /** Adds [q] to the coach's closing line as one more sentence, marked optional. */

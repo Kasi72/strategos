@@ -167,6 +167,22 @@ class OneShotTurn(
             }
         }
 
+        // Negotiations: before answering, ask up to two plain-words questions (what you'd do if it falls through, the lowest you'd
+        // accept, the best you'd hope for) when those facts are still unknown. Asked once per thread and optional: the next
+        // message goes through whatever the user answers, or skips. The saved negotiation context is filled from the replies.
+        if (argon != null) {
+            val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
+            val recentUser = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString(" ") { it.text }
+            val qs = com.drkkr.strategos.domain.agent.NegotiationQuestions.beforeAnswering(
+                recentUser, gateway.activeScenario()?.negotiationContext, earlier
+            )
+            if (qs.isNotEmpty()) {
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(qs.map { it.text }) + "\n(Answer whichever you like, or say \"skip\" and I'll work with what I have.)")
+                afterTurn(cid)
+                return TurnResult.Done
+            }
+        }
+
         // Phase G.3 (ask first, then recommend): when Call 1 judges the input still too thin to rank honestly, ask the
         // user 1-2 targeted questions to strengthen the model instead of ranking guessed outcomes. The ops extracted
         // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go

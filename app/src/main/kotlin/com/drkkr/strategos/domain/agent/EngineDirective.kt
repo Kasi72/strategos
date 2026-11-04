@@ -264,7 +264,7 @@ object EngineDirectiveBuilder {
         fun redundantDiscovery(a: Action) = otherAlreadyKnown && Postures.isDiscoveryQuestion(a.label)
         val others = calmActions.filter { it.id != recommended.id && !redundantDiscovery(it) }
         val closest = others.maxByOrNull { value(it) }
-        val complementary = (flipTargets.firstOrNull { !reactive(it) && it.id != recommended.id && it.id !in excludedIds && !redundantDiscovery(it) }
+        val complementary = (flipTargets.firstOrNull { !reactive(it) && !belowFloor(it) && it.id != recommended.id && it.id !in excludedIds && !redundantDiscovery(it) }
             ?: closest?.takeIf { value(recommended) - value(it) <= COMPLEMENT_WITHIN && value(it) > Double.NEGATIVE_INFINITY })
         val rankedFallback = pathways.firstOrNull { it.label == FALLBACK && !it.excluded }?.actionId?.let { byId[it] }?.takeIf { !reactive(it) && !belowFloor(it) && it.id != recommended.id }
         val fallback = rankedFallback ?: complementary ?: closest

@@ -73,4 +73,24 @@ class NegotiationConversationTest {
         assertTrue(out, out.startsWith("Want help wording that?") && out.contains(q.text) && out.contains("Only if you'd like to say"))
         assertEquals("${q.text} (Only if you'd like to say.)", NegotiationQuestions.appendTo("", q))
     }
+
+    // ── ask BEFORE answering ─────────────────────────────────────────────────────────────────────────────────
+    @Test fun `a thin negotiation is asked two plain questions before the answer`() {
+        val qs = NegotiationQuestions.beforeAnswering("I want to ask my manager for a raise", null, emptyList())
+        assertEquals(listOf(NegotiationQuestions.Field.BATNA, NegotiationQuestions.Field.RESERVATION), qs.map { it.field })
+    }
+
+    @Test fun `no pre-questions once two of the three key facts are known, or once already asked`() {
+        val two = NegotiationContext(batna = "other offer", reservationPoint = "16 lakh")
+        assertTrue(NegotiationQuestions.beforeAnswering(text, two, emptyList()).isEmpty())
+        val asked = listOf("Before I call it — ${NegotiationQuestions.ALL[0].text}")
+        assertTrue(NegotiationQuestions.beforeAnswering(text, null, asked).isEmpty())
+    }
+
+    @Test fun `ordinary words are not mistaken for a negotiation`() {
+        assertFalse(NegotiationQuestions.looksLikeNegotiation("I want to raise my kids well"))
+        assertFalse(NegotiationQuestions.looksLikeNegotiation("It is forbidden at home"))
+        assertTrue(NegotiationQuestions.looksLikeNegotiation("The landlord is running a sealed bid"))
+        assertTrue(NegotiationQuestions.looksLikeNegotiation("HR offered me 15 lakh fixed"))
+    }
 }
