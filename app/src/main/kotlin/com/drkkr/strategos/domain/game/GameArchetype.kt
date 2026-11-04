@@ -49,6 +49,72 @@ object GameArchetypeDetector {
         return GameArchetype.GENERIC
     }
 
+    /**
+     * Archetype of a 2-player N×M game by projection to a 2×2 sub-game (our extractor gives "You" three options against
+     * the counterpart's two, so a plain 2×2 test almost never matches). Steps, stopping at the first 2×2:
+     *  1. drop the [droppable] actions (e.g. reactive "tempting" moves that are not real candidates);
+     *  2. remove strictly dominated actions, worst first, down to two per player;
+     *  3. keep each player's two actions with the best average own payoff.
+     * Games already classified, or with other than two players, are returned as [detect] gives them.
+     */
+    fun detectProjected(ir: GameIR, droppable: Set<String> = emptySet()): GameArchetype {
+        val direct = detect(ir)
+        if (direct != GameArchetype.GENERIC || ir.playerCount != 2) return direct
+
+        val keep = (0..1).map { p ->
+            val idx = ir.actionIds[p].indices.filter { ir.actionIds[p][it] !in droppable }
+            if (idx.size >= 2) idx else ir.actionIds[p].indices.toList()   // never drop below two actions
+        }
+        var sub = subGame(ir, keep)
+        // Remove strictly dominated actions one at a time, worst first, but never below two per player: full iterated
+        // elimination would collapse a prisoner's dilemma to its single equilibrium cell and hide the pattern.
+        for (p in 0..1) while (sub.strategyCounts[p] > 2) {
+            val worst = (0 until sub.strategyCounts[p]).filter { isDominated(sub, p, it) }.minByOrNull { averageOwnPayoff(sub, p, it) } ?: break
+            sub = subGame(sub, (0..1).map { q -> (0 until sub.strategyCounts[q]).filter { q != p || it != worst } })
+        }
+        if (sub.strategyCounts.any { it < 2 }) return GameArchetype.GENERIC
+        if (sub.strategyCounts != listOf(2, 2)) {
+            val top = (0..1).map { p ->
+                (0 until sub.strategyCounts[p]).sortedByDescending { a -> averageOwnPayoff(sub, p, a) }.take(2).sorted()
+            }
+            sub = subGame(sub, top)
+        }
+        return if (sub.strategyCounts == listOf(2, 2)) detect(sub) else GameArchetype.GENERIC
+    }
+
+    /** True when some other action of [player] pays strictly more against every opponent action (2-player games). */
+    private fun isDominated(ir: GameIR, player: Int, action: Int): Boolean {
+        val opp = 1 - player
+        fun u(a: Int, o: Int) = ir.utility[player][ir.profileIndex(IntArray(2).also { it[player] = a; it[opp] = o })]
+        return (0 until ir.strategyCounts[player]).any { b ->
+            b != action && (0 until ir.strategyCounts[opp]).all { o -> u(b, o) > u(action, o) }
+        }
+    }
+
+    /** Mean of [player]'s own payoff over the opponent's actions when [player] plays [action] (2-player games). */
+    private fun averageOwnPayoff(ir: GameIR, player: Int, action: Int): Double {
+        val opp = 1 - player
+        return (0 until ir.strategyCounts[opp]).map { o ->
+            val profile = IntArray(2).also { it[player] = action; it[opp] = o }
+            ir.utility[player][ir.profileIndex(profile)]
+        }.average()
+    }
+
+    /** The sub-game of a 2-player [ir] keeping only the listed action indices of each player. */
+    private fun subGame(ir: GameIR, keep: List<List<Int>>): GameIR {
+        val counts = keep.map { it.size }
+        val util = Array(2) { DoubleArray(counts[0] * counts[1]) }
+        for ((i, a) in keep[0].withIndex()) for ((j, b) in keep[1].withIndex()) {
+            val old = ir.profileIndex(intArrayOf(a, b))
+            val new = i * counts[1] + j
+            util[0][new] = ir.utility[0][old]; util[1][new] = ir.utility[1][old]
+        }
+        return ir.copy(
+            actionIds = listOf(keep[0].map { ir.actionIds[0][it] }, keep[1].map { ir.actionIds[1][it] }),
+            strategyCounts = counts, utility = util.toList()
+        )
+    }
+
     private fun detect2x2(ir: GameIR): GameArchetype {
         fun u1(i: Int, j: Int) = ir.utility[0][ir.profileIndex(intArrayOf(i, j))]
         fun u2(i: Int, j: Int) = ir.utility[1][ir.profileIndex(intArrayOf(i, j))]

@@ -13,8 +13,9 @@ object MechanismAdvisor {
     private val ALLOCATION_KEYWORDS = setOf("fair division", "split resource", "divide asset", "allocate budget", "resource allocation", "apportion")
     private val DESIGN_TRIGGER = setOf("design", "set up rules", "create system", "build mechanism", "structure the", "how should we structure", "what rules")
 
-    fun detect(scenario: Scenario): MechanismHint? {
-        val text = "${scenario.title} ${scenario.description}".lowercase()
+    /** [extraText]: recent user messages, passed in memory only (the Talk flow never writes them into the scenario's description). */
+    fun detect(scenario: Scenario, extraText: String = ""): MechanismHint? {
+        val text = "${scenario.title} ${scenario.description} $extraText".lowercase()
         val hasDesignTrigger = DESIGN_TRIGGER.any { text.contains(it) }
         val type = when {
             AUCTION_KEYWORDS.any { text.contains(it) } -> MechanismType.AUCTION

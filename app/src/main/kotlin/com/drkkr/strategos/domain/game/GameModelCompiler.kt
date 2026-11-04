@@ -89,9 +89,14 @@ object GameModelCompiler {
             coveragePct = coveragePct
         )
         return CompileResult.Success(
-            prelimIr.copy(archetype = GameArchetypeDetector.detect(prelimIr))
+            // Reactive ("tempting") options are not real candidates; leave them out when projecting an N×M game to 2×2.
+            prelimIr.copy(archetype = GameArchetypeDetector.detectProjected(prelimIr, reactiveActionIds(scenario)))
         )
     }
+
+    private fun reactiveActionIds(scenario: Scenario): Set<String> =
+        scenario.actions.filter { com.drkkr.strategos.domain.agent.Postures.of(it) == com.drkkr.strategos.domain.agent.Postures.REACTIVE }
+            .map { it.id }.toSet()
 
     private fun resolveProfile(
         actionProfile: Map<String, String>,

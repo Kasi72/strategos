@@ -171,7 +171,8 @@ class OneShotTurn(
         // user 1-2 targeted questions to strengthen the model instead of ranking guessed outcomes. The ops extracted
         // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go
         // ahead and recommend with what we have, so the user is never stuck in a loop of questions.
-        if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty()) {
+        // Concrete stakes (numbers) in the message mean there is something real to rank: do not hold the answer back for questions.
+        if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty() && !hasConcreteStakes(text)) {
             val recentAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }.takeLast(CLARIFY_MAX)
             val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { it.startsWith(CLARIFY_LEAD) }
             if (!askedTooMuch) {
@@ -243,12 +244,14 @@ class OneShotTurn(
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
         val snap = argon?.trajectory?.current(sid)
         val view = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
+        // In memory only: the last few things the user said, so text-based detectors (mechanism design) see more than the empty frame.
+        val recentUserText = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString(" ") { it.text }
         val (viewResult, stress, gameContext) = withContext(Dispatchers.Default) {
             val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
             Triple(
                 pipeline.run(view),
                 runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull(),
-                com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view)
+                com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view, contextText = recentUserText)
             )
         }
         val gameResult = gameContext.result
@@ -259,14 +262,15 @@ class OneShotTurn(
         val dominated = gameContext.pruneResult?.let { pruneRes ->
             pruneRes.eliminated.flatMap { (pid, acts) ->
                 val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
-                acts.map { act -> "$name: $act (dominated)" }
+                acts.map { act -> "$name: ${view.actions.firstOrNull { it.id == act }?.label ?: act} (dominated)" }
             }
         }.orEmpty()
         val extensiveFormPath = gameContext.biResult?.equilibriumPath.orEmpty()
         val opponentRationality = gameContext.opponentModel?.coachNote()
         val shapleyValues = gameContext.coalitionResult?.values
         val mechanismHint = gameContext.mechanismHint?.let { "${it.type.name.lowercase()}: ${it.insight}" }
-        val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint)
+        val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
+            statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text))
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
@@ -364,6 +368,16 @@ class OneShotTurn(
             if (previous != null) append("YOUR PREVIOUS REPLY TO THEM (opening only):\n").append(previous.take(THREAD_PREVIOUS_CHARS)).append('\n')
             append('\n')
         }
+    }
+
+    /**
+     * True when the user's message already carries concrete stakes: two or more distinct figures (an offer, a cap, a walk-away,
+     * a price), or one figure in a message long enough to describe the situation. Extraction always proposes three options, so
+     * option count cannot tell a thin message from a complete one; figures can.
+     */
+    private fun hasConcreteStakes(text: String): Boolean {
+        val figures = Regex("""\d+(?:[.,]\d+)?""").findAll(text).map { it.value }.toSet().size
+        return figures >= 2 || (figures >= 1 && text.length >= 200)
     }
 
     /** Summary from the prior negotiation round (if this thread has one), formatted for the coach. */

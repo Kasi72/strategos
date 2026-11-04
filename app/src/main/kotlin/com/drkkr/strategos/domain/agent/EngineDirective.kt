@@ -99,7 +99,8 @@ data class EngineDirective(
         putJsonArray("dominant_dynamic") { dominantDynamic.forEach { add(JsonPrimitive(it)) } }
         putJsonArray("influencers_in_play") { influencersInPlay.forEach { add(JsonPrimitive(it)) } }
         put("stress_verdict", stressVerdict)
-        put("stress_flip", stressFlip)
+        // A robust pick needs no "if X were better, the pick would move" line; only a fragile one shows what would flip it.
+        if (stressVerdict == "FRAGILE") put("stress_flip", stressFlip)
         putJsonArray("known_stakeholder_facts") { knownFacts.forEach { add(JsonPrimitive(it)) } }
         put("bayesian_learning_note", bayesianLearningNote)
         put("dynamic_archetype", dynamicArchetype)
@@ -200,6 +201,11 @@ object EngineDirectiveBuilder {
         })
     }
 
+    // Audit caveats from the report engine are for the Report screen; the coach should not repeat them to the user.
+    private val auditCaveat = Regex("""(?i)no evidence sources recorded[^.]*\.?|one or more hard constraints are unassessed[^.]*\.?""")
+    private fun cleanWhy(raw: String): String =
+        raw.replace(auditCaveat, " ").replace(Regex("""\s*—\s*(?=\s|$)"""), "").replace(Regex("""\s{2,}"""), " ").trim()
+
     fun build(
         s: Scenario, pr: PipelineResult, stress: StressResult?,
         previousMove: String? = null,
@@ -209,7 +215,9 @@ object EngineDirectiveBuilder {
         extensiveFormPath: List<String> = emptyList(),
         opponentRationality: String? = null,
         shapleyValues: Map<String, Double>? = null,
-        mechanismHint: String? = null
+        mechanismHint: String? = null,
+        /** A figure the user has said they will not go below (walk-away, or "I need X"); options that lead with less are never recommended. */
+        statedFloor: Double? = null
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -225,11 +233,12 @@ object EngineDirectiveBuilder {
         fun reactive(a: Action?) = posture(a) == Postures.REACTIVE
         val replies = ownerActions.associate { it.id to bestReply(s, owner.id, it.id) }
         fun value(a: Action) = replies[a.id]?.ownerValue ?: Double.NEGATIVE_INFINITY
-        val calmActions = ownerActions.filter { !reactive(it) }
+        fun belowFloor(a: Action?) = a != null && StatedFloor.leadsBelow(a.label, statedFloor)
+        val calmActions = ownerActions.filter { !reactive(it) && !belowFloor(it) }
 
         // The recommendation. A reactive move can never be it: if the ranking put one first, take the best calm move instead.
         val rankedAction = rankedPick.actionId?.let { byId[it] }
-        val recommended: Action = (rankedAction?.takeIf { !reactive(it) } ?: calmActions.maxByOrNull { value(it) }) ?: return notReady(s)
+        val recommended: Action = (rankedAction?.takeIf { !reactive(it) && !belowFloor(it) } ?: calmActions.maxByOrNull { value(it) }) ?: return notReady(s)
         val recommendedPathway = pathways.firstOrNull { it.actionId == recommended.id }
 
         val supporting = report.moduleResults.filter { r ->
@@ -257,7 +266,7 @@ object EngineDirectiveBuilder {
         val closest = others.maxByOrNull { value(it) }
         val complementary = (flipTargets.firstOrNull { !reactive(it) && it.id != recommended.id && it.id !in excludedIds && !redundantDiscovery(it) }
             ?: closest?.takeIf { value(recommended) - value(it) <= COMPLEMENT_WITHIN && value(it) > Double.NEGATIVE_INFINITY })
-        val rankedFallback = pathways.firstOrNull { it.label == FALLBACK && !it.excluded }?.actionId?.let { byId[it] }?.takeIf { !reactive(it) && it.id != recommended.id }
+        val rankedFallback = pathways.firstOrNull { it.label == FALLBACK && !it.excluded }?.actionId?.let { byId[it] }?.takeIf { !reactive(it) && !belowFloor(it) && it.id != recommended.id }
         val fallback = rankedFallback ?: complementary ?: closest
 
         // Moves to warn about: every reactive move first, then the weakest of the rest.
@@ -312,7 +321,7 @@ object EngineDirectiveBuilder {
         }
 
         return EngineDirective(
-            ready = true, recommendedMove = recommended.label, recommendedWhy = (recommendedPathway?.rationale ?: rankedPick.rationale).take(MAX_TEXT),
+            ready = true, recommendedMove = recommended.label, recommendedWhy = cleanWhy(recommendedPathway?.rationale ?: rankedPick.rationale).take(MAX_TEXT),
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
             blockedOrDominatedMoves = blocked, dominantDynamic = dynamicTexts, dynamicLabel = dynamicLabel,
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
@@ -324,7 +333,8 @@ object EngineDirectiveBuilder {
             analysisIntegrity = analysisIntegrity,
             clarification = clarification,
             gameTheoreticPattern = gameTheoreticPattern,
-            dominatedStrategies = dominatedStrategies,
+            // The solver's dominance view and the pathway ranking can disagree; never tell the coach its own pick is dominated.
+            dominatedStrategies = dominatedStrategies.filterNot { it.contains("${recommended.label} (dominated)") },
             extensiveFormPath = extensiveFormPath,
             opponentRationality = opponentRationality,
             confidenceLevel = confidence,
@@ -422,5 +432,25 @@ object EngineDirectiveBuilder {
         val label = s.actions.firstOrNull { it.id == theirAction }?.label ?: return null
         val myValue = mine.firstOrNull { it.actionProfile[other.id] == theirAction }?.payoff?.weighted(s.weights) ?: return null
         return Reply("${other.name} would most likely respond: $label", myValue)
+    }
+}
+
+/** Reads a figure the user will not go below, and tests whether an option's wording leads with less than it. */
+object StatedFloor {
+    private val number = Regex("""\d+(?:\.\d+)?""")
+    private val need = Regex("""(?i)\b(?:i need|i must get|at least|no less than|not less than|minimum(?: of)?|walk[- ]?away(?: is| at)?)\s*(?:is\s*)?\D{0,12}?(\d+(?:\.\d+)?)""")
+
+    /** The larger of the saved reservation point and any "I need X" / "at least X" in the message. */
+    fun from(reservationPoint: String?, message: String): Double? {
+        val saved = reservationPoint?.let { number.find(it)?.value?.toDoubleOrNull() }
+        val said = need.findAll(message).mapNotNull { it.groupValues[1].toDoubleOrNull() }.maxOrNull()
+        return listOfNotNull(saved, said).maxOrNull()
+    }
+
+    /** True when the label's first figure is below [floor]. Labels with no figure are never judged. */
+    fun leadsBelow(label: String, floor: Double?): Boolean {
+        if (floor == null) return false
+        val lead = number.find(label)?.value?.toDoubleOrNull() ?: return false
+        return lead < floor
     }
 }

@@ -78,7 +78,27 @@ class RelationalRepairModule : FrameworkModule {
         "bond", "rupture", "frayed", "alienat", "detach", "rapport"
     )
 
+    // Words that mean the other side is a market or workplace counterpart, not a personal bond. Words like "relationship" or
+    // "bond" appear in these scenarios too ("I don't want to burn the relationship with my manager"), so on their own they
+    // do not make it a repair game.
+    private val transactionalKeywords = listOf(
+        "competitor", "price", "pricing", "salary", "raise", "promotion", "offer", "negotiat", "employer", "manager", "boss",
+        "customer", "client", "vendor", "supplier", "contract", "investor", "market share", "rival"
+    )
+    private val weakRepairKeywords = setOf("relationship", "bond", "bridge", "renew", "restore", "distant")
+
+    private fun isTransactionalWithoutRepair(model: Scenario): Boolean {
+        val text = buildString {
+            append(model.description.lowercase()); append(' '); append(model.title.lowercase())
+            model.stakeholders.forEach { append(' '); append(it.name.lowercase()); append(' '); append(it.notes.lowercase()); append(' '); append(it.goals.joinToString(" ").lowercase()) }
+        }
+        val strongRepair = repairKeywords.any { it !in weakRepairKeywords && text.contains(it) }
+        return !strongRepair && transactionalKeywords.any { text.contains(it) }
+    }
+
     override fun canAnalyze(model: Scenario): Applicability {
+        if (isTransactionalWithoutRepair(model))
+            return Applicability(0.10, listOf("Transactional counterpart (competitor, employer, customer or deal) — not a personal bond to repair"))
         val hasTwo       = model.stakeholders.size == 2
         val isRepeated   = model.repeated
         val hasRepairLang = repairKeywords.any { kw ->

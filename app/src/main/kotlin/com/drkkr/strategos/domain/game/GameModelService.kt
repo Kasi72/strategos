@@ -1,5 +1,6 @@
 package com.drkkr.strategos.domain.game
 
+import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.Scenario
 
 /** Result of a full compile → solve → verify pipeline for one scenario. */
@@ -68,21 +69,40 @@ object GameModelService {
     fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
         analyzeWithContext(scenario, limits).result
 
+    /**
+     * Compiles [scenario]; if the only problem is that some players have no extracted actions (typically a third
+     * party the extraction named but gave no options), they are set aside as influencers for the matrix and the
+     * rest is compiled. They stay in the scenario, so nothing is lost for the other analyses.
+     */
+    private fun compileSkippingActionless(scenario: Scenario, limits: SolverLimits): CompileResult {
+        val first = GameModelCompiler.compile(scenario, limits = limits)
+        if (first !is CompileResult.Failure) return first
+        val actionless = first.errors.filterIsInstance<CompileError.PlayerHasNoActions>().map { it.playerId }.toSet()
+        if (actionless.isEmpty() || actionless.size != first.errors.size) return first
+        val reduced = scenario.copy(stakeholders = scenario.stakeholders.map {
+            if (it.id in actionless) it.copy(gameRole = GameRole.INFLUENCER) else it
+        })
+        return GameModelCompiler.compile(reduced, limits = limits).let { if (it is CompileResult.Success) it else first }
+    }
+
     fun analyzeWithContext(
         scenario: Scenario,
-        limits: SolverLimits = SolverLimits.ON_DEVICE
+        limits: SolverLimits = SolverLimits.ON_DEVICE,
+        contextText: String = ""
     ): AnalysisContext {
         val machine = DecisionStateMachine(DecisionState.EXPLORATORY)
 
-        val rawIr = when (val r = GameModelCompiler.compile(scenario, limits = limits)) {
+        val rawIr = when (val r = compileSkippingActionless(scenario, limits)) {
             is CompileResult.Success -> r.ir
+            // The mechanism hint reads the text, not the matrix, so a failed compile must not hide it.
             is CompileResult.Failure -> return AnalysisContext(
                 GameAnalysisResult.Failed(
                     reason = "Compile failed: ${r.errors.joinToString("; ")}",
                     decisionState = machine.state,
                     integrity = AnalysisIntegrity.BLOCKED
                 ),
-                null
+                null,
+                mechanismHint = MechanismAdvisor.detect(scenario, contextText)
             )
         }
 
@@ -136,7 +156,7 @@ object GameModelService {
         }
 
         val coalitionResult = if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null
-        val mechanismHint = MechanismAdvisor.detect(scenario)
+        val mechanismHint = MechanismAdvisor.detect(scenario, contextText)
         return AnalysisContext(analysisResult, pruneResult, biResult, opponentModel, coalitionResult, mechanismHint)
     }
 }
