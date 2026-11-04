@@ -80,7 +80,8 @@ object ChangeSetApplier {
                     decisionOwner = f.decisionOwner ?: s.decisionOwner, stakes = f.stakes ?: s.stakes,
                     timeHorizonLabel = f.timeHorizonLabel ?: s.timeHorizonLabel, institution = f.institution ?: s.institution,
                     location = f.location ?: s.location, repeated = f.repeated ?: s.repeated,
-                    informationAsymmetry = f.informationAsymmetry ?: s.informationAsymmetry, zeroSum = f.zeroSum ?: s.zeroSum
+                    informationAsymmetry = f.informationAsymmetry ?: s.informationAsymmetry, zeroSum = f.zeroSum ?: s.zeroSum,
+                    negotiationContext = f.negotiationContext?.let { NegotiationQuestions.merge(s.negotiationContext, it) } ?: s.negotiationContext
                 )
             }
             OpType.ADD_STAKEHOLDER -> s.copy(

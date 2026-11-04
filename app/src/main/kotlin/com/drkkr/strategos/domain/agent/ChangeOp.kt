@@ -95,7 +95,9 @@ data class ScenarioFieldsPatch(
     @SerialName("location") val location: String? = null,
     @SerialName("repeated") val repeated: Boolean? = null,
     @SerialName("information_asymmetry") val informationAsymmetry: Boolean? = null,
-    @SerialName("zero_sum") val zeroSum: Boolean? = null
+    @SerialName("zero_sum") val zeroSum: Boolean? = null,
+    /** What the user said about their fallback, floor and target; merged into the saved [NegotiationContext], never replacing a saved value with a blank. */
+    @SerialName("negotiation_context") val negotiationContext: com.drkkr.strategos.domain.model.NegotiationContext? = null
 )
 
 @Serializable

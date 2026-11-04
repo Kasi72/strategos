@@ -301,7 +301,11 @@ class OneShotTurn(
         val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
-            val g = reply.guide().copy(pill = pillFor(directive))
+            var g = reply.guide().copy(pill = pillFor(directive))
+            // One optional, plain-words question about the negotiation (fallback, lowest acceptable, ideal...), never repeated in this thread.
+            val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
+            com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
+                ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }
             onGuide(g); PlainResult.coach(g)
         }
         else {

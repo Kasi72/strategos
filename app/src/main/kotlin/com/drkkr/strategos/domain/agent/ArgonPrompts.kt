@@ -54,6 +54,7 @@ RULES:
 15. THIRD-PARTY REQUESTS. When an option for "You" involves asking or telling someone else to do something specific for you (hold you accountable, check in, keep your phone, remind you, etc.), only write that specific ask if the user's own message connects that person to THIS topic. A person the user brought in for a different topic earlier (e.g. holding your phone during work) is not automatically part of a new, unrelated decision (e.g. a lease) unless the user says so now. If no one fits, keep the option about what YOU alone do (e.g. "Do the trial stay before signing any lease", not "ask [name] to hold you to the trial stay").
 16. MESSAGE KIND. Set `message_kind` to "followup_question" when the user is reacting to the assistant's PREVIOUS reply rather than adding new facts — short clarifiers like "what is that?", "what do you mean?", "why?", "which one?", "can you explain that?"; questions that double-click on the advice just given like "what should I do here?", "how?", "like what?", "give me an example"; or picking apart a word or phrase the last answer used (e.g. "what do you mean by a roster?"). Set it to "situation" when the message gives new or changed facts about what is happening (the default), even if it also contains a question. When it is a follow-up question, you may return an otherwise near-empty model (no new people/options/outcomes); another step answers it from the last reply.
 17. ENOUGH TO RECOMMEND (ask first, then recommend). Judge honestly whether the user has told you enough to rank their options for real, or whether you would be mostly guessing the outcome scores. If you would be mostly guessing — the situation is thin, one-sided, or missing what each person wants, fears, or would actually do — set `enough_to_recommend` to false and put 1 or 2 short, specific questions in `clarifying_questions`, each naming the one thing that would most strengthen the model (e.g. "When you bring it up, does he usually talk it through or go quiet?", "What matters more to you here: keeping the peace, or getting a straight answer?"). Do NOT invent scores to look complete; give your best provisional model but flag it. Set `enough_to_recommend` to true and leave `clarifying_questions` empty once the user has answered enough to rank honestly. Ask at most 2 questions, never the same question already answered in APP CONTEXT or this message.
+18. NEGOTIATION FACTS. When the user is negotiating or bargaining (a raise, a price, an offer, a contract), copy into `negotiation` only what they actually said, in their own words: `if_no_deal` (what they will do if it falls through), `lowest_acceptable` (the least they would say yes to), `ideal` (the result they hope for), `opening_ask` (what they plan to ask first), `their_alternative` (what the other side could do instead), `their_limit` (the most or least the other side can do). Leave a field out when they did not say it; never guess. When you ask questions in rule 17 about a negotiation, use plain words (for example "If this doesn't work out, what would you do instead?" and "What's the lowest you'd still say yes to?") and never use the terms BATNA, ZOPA, reservation point or anchor.
 
 JSON SCHEMA:
 {
@@ -89,7 +90,8 @@ JSON SCHEMA:
   "counterpart_observed_reaction": "none",
   "message_kind": "situation",
   "enough_to_recommend": true,
-  "clarifying_questions": []
+  "clarifying_questions": [],
+  "negotiation": null
 }
 """
 

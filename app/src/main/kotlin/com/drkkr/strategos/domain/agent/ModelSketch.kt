@@ -57,8 +57,29 @@ data class ModelSketch(
      */
     @SerialName("enough_to_recommend") val enoughToRecommend: Boolean? = null,
     /** Phase G.3: 1-2 short, targeted questions that would most strengthen the model, used only when [enoughToRecommend] is false. */
-    @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList()
+    @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList(),
+    /** Only what the user said about a negotiation (fallback, lowest they'd accept, ideal, opening ask, the other side's alternative). Never guessed. */
+    val negotiation: SketchNegotiation? = null
 )
+
+/** Plain-word negotiation facts as the user stated them. Every field is optional. */
+@Serializable
+data class SketchNegotiation(
+    @SerialName("if_no_deal") @Serializable(with = TextOrListSerializer::class) val ifNoDeal: String? = null,
+    @SerialName("lowest_acceptable") @Serializable(with = TextOrListSerializer::class) val lowestAcceptable: String? = null,
+    @SerialName("ideal") @Serializable(with = TextOrListSerializer::class) val ideal: String? = null,
+    @SerialName("opening_ask") @Serializable(with = TextOrListSerializer::class) val openingAsk: String? = null,
+    @SerialName("their_alternative") @Serializable(with = TextOrListSerializer::class) val theirAlternative: String? = null,
+    @SerialName("their_limit") @Serializable(with = TextOrListSerializer::class) val theirLimit: String? = null
+) {
+    fun toContext() = com.drkkr.strategos.domain.model.NegotiationContext(
+        batna = ifNoDeal.orEmpty().take(200), reservationPoint = lowestAcceptable.orEmpty().take(200),
+        aspirationPoint = ideal.orEmpty().take(200), openingAnchor = openingAsk.orEmpty().take(200),
+        counterpartBatna = theirAlternative.orEmpty().take(200), counterpartReservation = theirLimit.orEmpty().take(200)
+    )
+    fun hasContent() = toContext().let { it.batna.isNotBlank() || it.reservationPoint.isNotBlank() || it.aspirationPoint.isNotBlank() ||
+        it.openingAnchor.isNotBlank() || it.counterpartBatna.isNotBlank() || it.counterpartReservation.isNotBlank() }
+}
 
 /** The coach guide. It is no longer part of [ModelSketch] (call 1 extracts only); call 2's [CoachReply] carries it. */
 @Serializable
@@ -163,7 +184,7 @@ object SketchConverter {
     fun toOps(sketch: ModelSketch, s: Scenario): SketchOps {
         // A reply that only asks a question (or flags support) saves nothing.
         val hasContent = sketch.people.isNotEmpty() || sketch.options.isNotEmpty() || sketch.limits.isNotEmpty() ||
-            sketch.outcomes.isNotEmpty() || !sketch.goal.isNullOrBlank()
+            sketch.outcomes.isNotEmpty() || !sketch.goal.isNullOrBlank() || sketch.negotiation?.hasContent() == true
         if (!hasContent) return SketchOps(emptyList(), askOf(sketch), sketch.support == true)
         val ops = mutableListOf<ChangeOp>()
         val taken = mutableSetOf<String>()
@@ -190,10 +211,12 @@ object SketchConverter {
                 decisionOwner = if (s.decisionOwner.isBlank()) "You" else null,
                 stakes = sketch.goal?.takeIf { s.stakes.isBlank() && it.isNotBlank() }?.take(200),
                 // A relationship that goes on: this is what lets the repeated-game modules apply.
-                repeated = true.takeIf { !s.repeated && sketch.options.any { o -> Postures.clean(o.posture) != null } }
+                repeated = true.takeIf { !s.repeated && sketch.options.any { o -> Postures.clean(o.posture) != null } },
+                negotiationContext = sketch.negotiation?.takeIf { it.hasContent() }?.toContext()
             )
         )
-        if (fields.scenarioFields!!.decisionOwner != null || fields.scenarioFields.stakes != null || fields.scenarioFields.repeated != null) ops += fields
+        if (fields.scenarioFields!!.decisionOwner != null || fields.scenarioFields.stakes != null || fields.scenarioFields.repeated != null ||
+            fields.scenarioFields.negotiationContext != null) ops += fields
 
         for (p in people) {
             val name = p.name.trim()

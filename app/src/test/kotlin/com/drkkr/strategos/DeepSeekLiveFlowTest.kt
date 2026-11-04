@@ -151,6 +151,7 @@ class DeepSeekLiveFlowTest {
                 if (saved == null) out.append("  (no saved scenario)\n") else {
                     val ctx = com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(saved)
                     out.append("  stakeholders=${saved.stakeholders.size} actions=${saved.actions.size}\n")
+                    out.append("  negotiationContext=${saved.negotiationContext ?: "-"}\n")
                     out.append("  result=${ctx.result::class.simpleName} integrity=${ctx.result.integrity}\n")
                     (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Failed)?.let { out.append("  reason=${it.reason.take(400)}\n") }
                     (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.let { out.append("  archetype=${it.ir.archetype}\n") }
