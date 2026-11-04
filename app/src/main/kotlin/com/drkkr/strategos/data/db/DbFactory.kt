@@ -53,7 +53,7 @@ object DbFactory {
 
     /** Statements for 3 -> 4. Adds prior_round_conversation_id to conversation for multi-round scenario threading. */
     val MIGRATION_3_4_SQL: List<String> = listOf(
-        "ALTER TABLE `conversation` ADD COLUMN `prior_round_conversation_id` TEXT"
+        "ALTER TABLE `conversation` ADD COLUMN `prior_round_conversation_id` TEXT DEFAULT NULL"
     )
 
     val MIGRATION_3_4 = object : Migration(3, 4) {
