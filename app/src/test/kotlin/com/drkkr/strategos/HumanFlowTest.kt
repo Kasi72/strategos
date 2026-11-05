@@ -12,12 +12,18 @@ import com.drkkr.strategos.data.repo.*
 import com.drkkr.strategos.data.secure.XorBase64TestCipher
 import com.drkkr.strategos.domain.agent.ChangeSetApplier
 import com.drkkr.strategos.domain.agent.ChangeSetValidator
+import com.drkkr.strategos.domain.agent.GuidanceCodec
 import com.drkkr.strategos.domain.agent.Decision
 import com.drkkr.strategos.domain.agent.OpDecision
 import com.drkkr.strategos.domain.agent.OpNormalizer
 import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
+import com.drkkr.strategos.domain.human.BannedWords
 import com.drkkr.strategos.domain.human.HumanizedView
+import com.drkkr.strategos.domain.human.TacticId
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.fixtures.EngineEchoLlm
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +34,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
@@ -116,5 +123,40 @@ class HumanFlowTest {
         assertEquals("manager", saved.humanContext!!.relationship)
         assertNotSame("the view really does differ from what is saved", saved, HumanizedView.apply(saved))
         assertTrue("calls: ${llm.requests.map { it.purpose }}, reply: ${conversations.messages(controller.state.value.conversationId!!).last().text.take(200)}", llm.requests.any { it.purpose == "COACH" })
+    }
+
+    @Test
+    fun TC_HL_DIR_05_aFullTurnGivesTheCoachTheDeliveryHintsOnly_andThePillIsUnchanged() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(sketch))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("I want to ask my manager Priya for a raise.")!!.join(); controller.awaitIdle()
+
+        val directive = llm.lastDirective!!
+        val delivery = directive["delivery"]!!.jsonObject
+        assertEquals("a correction of a higher-status person: private", "PRIVATE", delivery.getValue("channel").jsonPrimitive.content)
+        val coachInput = llm.requests.first { it.purpose == "COACH" }.input.toString()
+        assertFalse(BannedWords.containedIn(directive.toString()))
+        for (id in TacticId.values()) assertFalse(id.name, coachInput.contains(id.name, ignoreCase = true))
+        // the pill is still: move · pattern · Robust|Fragile
+        val last = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }
+        val pill = GuidanceCodec.decode(last.payloadJson!!)!!.pill
+        assertTrue(pill, pill.startsWith(directive.getValue("move_to_implement").jsonPrimitive.content))
+        assertTrue(pill, pill.endsWith("Robust") || pill.endsWith("Fragile"))
+        assertFalse(pill, delivery.getValue("tactics").jsonArray.any { pill.contains(it.jsonPrimitive.content) })
+    }
+
+    @Test
+    fun TC_HL_COACH_03_aReplyThatNamesALawIsNeverShown_theEnginesOwnTextIs() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(sketch), exactWords = "As Law 31 says, offer her two options.")
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("I want to ask my manager Priya for a raise.")!!.join(); controller.awaitIdle()
+        assertEquals("tried twice, then gave up", 2, llm.requests.count { it.purpose == "COACH" })
+        val reply = conversations.messages(controller.state.value.conversationId!!).last().text
+        assertFalse(reply, reply.contains("Law 31"))
+        assertTrue("falls back to the engine's own text: $reply", reply.contains("Options to consider"))
     }
 }

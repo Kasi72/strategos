@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
  * (purpose COACH) read the ENGINE DIRECTIVE out of the request and answer with a reply that implements its `move_to_implement`,
  * or with [wrongMove] to simulate a model that ignores the engine.
  */
-class EngineEchoLlm(private val extraction: List<String>, private val wrongMove: String? = null) : LlmClient {
+class EngineEchoLlm(private val extraction: List<String>, private val wrongMove: String? = null, private val exactWords: String = "Let's talk tomorrow.") : LlmClient {
     val requests = mutableListOf<LlmRequest>()
     var lastDirective: JsonObject? = null
     private var turn = 0
@@ -24,7 +24,7 @@ class EngineEchoLlm(private val extraction: List<String>, private val wrongMove:
             put("engine_move", move)
             put("what_happened", "They felt cornered. The pull is to chase.")
             put("clear_win_move", "Do this: $move")
-            put("exact_words", "Let's talk tomorrow.")
+            put("exact_words", exactWords)
             put("do_this", buildJsonArray { add("Give space") })
             put("dont_do_this", buildJsonArray { add("Don't double-text") })
         }.toString())

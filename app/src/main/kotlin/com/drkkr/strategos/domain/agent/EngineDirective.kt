@@ -84,7 +84,13 @@ data class EngineDirective(
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
     val shapleyValues: Map<String, Double>? = null,
     /** Mechanism design hint when the user wants to design rules rather than play a move. */
-    val mechanismHint: String? = null
+    val mechanismHint: String? = null,
+    /** Human Layer: how to deliver the pick (null without a human context, or when there is a safety need). See DeliveryPlanner. */
+    val delivery: com.drkkr.strategos.domain.human.Delivery? = null,
+    /** Human Layer: patterns being used on the user, with the protective move. Filled by the radar. */
+    val watchFor: List<com.drkkr.strategos.domain.human.WatchFor> = emptyList(),
+    /** Human Layer: one plain line for the X-ray sheet. Never sent to the coach. */
+    val humanLens: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -117,6 +123,19 @@ data class EngineDirective(
         infoAsymmetry?.let { put("info_asymmetry", it) }
         shapleyValues?.let { sv -> putJsonObject("shapley_values") { sv.forEach { (k, v) -> put(k, v) } } }
         mechanismHint?.let { put("mechanism_hint", it) }
+        // Human Layer: the coach gets the plain-language hints and the how/when/where, never a tactic's name or where it comes from.
+        delivery?.takeIf { !it.isEmpty }?.let { d ->
+            putJsonObject("delivery") {
+                putJsonArray("tactics") { d.tactics.forEach { add(JsonPrimitive(it.hint)) } }
+                put("timing", d.timing.name)
+                d.channel?.let { put("channel", it.name) }
+                // not "say_less": that is a tactic name, and no tactic name may reach the coach (TC_HL_DIR_01)
+                if (d.sayLess) put("keep_it_short", true)
+                d.defaultOffer?.let { put("default_offer", it) }
+                if (d.optionsToOffer.isNotEmpty()) putJsonArray("options_to_offer") { d.optionsToOffer.forEach { add(JsonPrimitive(it)) } }
+            }
+        }
+        if (watchFor.isNotEmpty()) putJsonArray("watch_for") { watchFor.forEach { w -> addJsonObject { put("sign", w.sign); put("protect", w.protect) } } }
     }
 
     /**

@@ -21,6 +21,9 @@ data class CoachReply(
     private fun all() = listOf(whatHappened, clearWinMove, exactWords) + doThis + dontDoThis
     fun hasPlaceholder() = all().any(Placeholders::has)
 
+    /** True when the coach named a law, a book, an author or a delivery tactic. Such a reply is never shown (the engine's own text stands). */
+    fun namesSomethingBanned() = (all() + followUp).any(com.drkkr.strategos.domain.human.BannedWords::containedIn)
+
     /** The same reply with any `[bracketed placeholder]` removed. */
     fun stripped() = copy(
         whatHappened = Placeholders.strip(whatHappened), clearWinMove = Placeholders.strip(clearWinMove), exactWords = Placeholders.strip(exactWords),

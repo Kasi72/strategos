@@ -227,7 +227,7 @@ class OneShotTurn(
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it })
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -254,7 +254,8 @@ class OneShotTurn(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
         understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
         onGuide: (CoachGuideSketch) -> Unit = {},
-        quickMode: Boolean = false
+        quickMode: Boolean = false,
+        support: Boolean = false
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -297,7 +298,9 @@ class OneShotTurn(
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
         } else null
-        val directive = if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective
+        val directive = withDelivery(
+            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, raw, gameContext.opponentModel, support
+        )
         if (gameResult is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved) {
             certificates?.persist(s.id, s.version, gameResult, directive)
         }
@@ -340,6 +343,25 @@ class OneShotTurn(
     /** A warm, specific answer to what the person just said, written from the engine's facts. Null if the model can't deliver one. */
     private suspend fun reflect(cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult, text: String): String? =
         coachReply(cid, turnId, s, pr, text) ?: run { delay(RETRY_PAUSE_MS); coachReply(cid, turnId, s, pr, text) }
+
+    /**
+     * Human Layer: how to DELIVER the engine's pick. The move itself is never changed (I-H1); the plan is null without a human
+     * context, and empty (so nothing is sent) when there is a safety need, a vulnerable counterpart or coercive behaviour.
+     */
+    private fun withDelivery(
+        d: EngineDirective, raw: com.drkkr.strategos.domain.model.Scenario,
+        opponent: com.drkkr.strategos.domain.game.OpponentModel?, support: Boolean
+    ): EngineDirective {
+        val hc = raw.humanContext ?: return d
+        if (!d.ready) return d
+        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(raw) ?: return d
+        val mine = raw.actionsFor(owner.id)
+        val move = mine.firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } ?: return d
+        val second = listOfNotNull(d.complementaryMove, d.safeFallbackMove)
+            .firstNotNullOfOrNull { l -> mine.firstOrNull { it.label.equals(l, ignoreCase = true) && it.id != move.id } }
+        val plan = com.drkkr.strategos.domain.human.DeliveryPlanner.plan(raw, hc, move, second, support, com.drkkr.strategos.domain.human.ResponseModel.betaFrom(opponent))
+        return d.copy(delivery = plan.takeIf { !it.isEmpty })
+    }
 
     private fun pillFor(d: EngineDirective): String = listOfNotNull(
         d.moveToImplement?.takeIf { it.isNotBlank() },
@@ -438,7 +460,7 @@ class OneShotTurn(
             }
             val r = result
             val reply = CoachReply.parse(r.output.assistantText())
-            if (reply != null && reply.implements(directive.moveToImplement)) {
+            if (reply != null && reply.implements(directive.moveToImplement) && !reply.namesSomethingBanned()) {
                 if (!reply.hasPlaceholder()) return reply
                 usable = reply
             }
