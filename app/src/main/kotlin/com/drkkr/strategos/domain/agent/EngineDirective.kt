@@ -244,7 +244,8 @@ object EngineDirectiveBuilder {
         val guessedOutcomes = cov.filled < cov.expected
         val fragile = flipsToBad || guessedOutcomes
         val flipText = flip?.let { f ->
-            "if ${f.stakeholder}'s outcome for \"${f.profileLabel}\" were ${if (f.direction == StressDirection.IMPROVE) "better" else "worse"}, the pick would move to ${f.newRecommended ?: "no clear pick"}"
+            val moveDesc = f.newRecommended?.let { "shift to $it" } ?: "lose its clear ranking"
+            "If ${f.stakeholder}'s situation changes, the best move could $moveDesc."
         }
 
         // A second calm move: close in score, or the one the stress test flips to. It is blended in, not swapped for the first.

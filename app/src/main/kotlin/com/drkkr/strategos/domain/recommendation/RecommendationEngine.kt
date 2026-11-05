@@ -379,7 +379,6 @@ class RecommendationEngine {
         fun rationale(c: DecisionCandidate, label: String): String = buildString {
             append("$label.")
             val caveats = mutableListOf<String>()
-            if (evidenceEmpty) caveats += "No evidence sources recorded — results are structural proxy estimates only."
             if (c.constraintStatusSummary == ConstraintStatus.UNKNOWN) caveats += "One or more hard constraints are unassessed — verify compliance before committing."
             if (caveats.isNotEmpty()) {
                 append(" ")

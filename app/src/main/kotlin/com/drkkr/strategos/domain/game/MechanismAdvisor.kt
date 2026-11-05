@@ -14,7 +14,16 @@ object MechanismAdvisor {
     private val DESIGN_TRIGGER = setOf("design", "set up rules", "create system", "build mechanism", "structure the", "how should we structure", "what rules")
 
     fun detect(scenario: Scenario): MechanismHint? {
-        val text = "${scenario.title} ${scenario.description}".lowercase()
+        val parts = buildList {
+            add(scenario.title)
+            add(scenario.description)
+            scenario.stakeholders.forEach { s ->
+                add(s.notes)
+                s.goals.forEach { add(it) }
+            }
+            scenario.actions.forEach { add(it.label) }
+        }
+        val text = parts.filter { it.isNotBlank() }.joinToString(" ").lowercase()
         val hasDesignTrigger = DESIGN_TRIGGER.any { text.contains(it) }
         val type = when {
             AUCTION_KEYWORDS.any { text.contains(it) } -> MechanismType.AUCTION

@@ -61,23 +61,25 @@ object GameModelCompiler {
             utility[pi][idx] = entry.payoff.weighted(weights)
         }
 
-        // Validate coverage and finiteness.
+        // Fill missing cells with proxy 0.0 and track coverage. Partial payoff tables are
+        // common in multi-player chat scenarios; hard-failing them blocks all Stage 5 handlers.
         var missing = 0
         for (pi in playerIds.indices) {
             for (idx in 0 until totalProfiles) {
                 val v = utility[pi][idx]
                 if (v.isNaN()) {
+                    utility[pi][idx] = 0.0
                     missing++
                 } else if (!v.isFinite()) {
                     errors += CompileError.NonFinitePayoff(playerIds[pi], idx)
                 }
             }
         }
-        if (missing > 0) errors += CompileError.MissingPayoffProfiles(missing, totalProfiles * playerIds.size)
         if (errors.isNotEmpty()) return CompileResult.Failure(errors)
 
         val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
-        val coveragePct = 100
+        val total = totalProfiles * playerIds.size
+        val coveragePct = if (missing == 0) 100 else ((total - missing) * 100 / total)
 
         val prelimIr = GameIR(
             scenarioId = scenario.id,

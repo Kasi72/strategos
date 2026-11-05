@@ -94,7 +94,7 @@ class RelationalRepairModule : FrameworkModule {
         val score = when {
             hasTwo && isRepeated && hasRepairLang -> 0.92
             hasTwo && isRepeated && isStagHunt    -> 0.78
-            hasTwo && (isRepeated || hasRepairLang) -> 0.55
+            hasTwo && (isRepeated || hasRepairLang) -> 0.65
             hasRepairLang                           -> 0.40
             else                                    -> 0.10
         }
