@@ -4,7 +4,7 @@ import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.Scenario
 
 /**
- * The read-only Summary page (blueprint §17.5), also the text shared with a clinician. Everyday words only: the situation,
+ * The read-only Summary page (blueprint §17.5), also the text the user can share. Everyday words only: the situation,
  * the people involved with a role line, the user's options and the last answer.
  */
 object PlainSummary {

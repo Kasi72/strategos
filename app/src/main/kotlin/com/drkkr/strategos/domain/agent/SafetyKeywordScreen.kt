@@ -4,8 +4,8 @@ package com.drkkr.strategos.domain.agent
  * Deterministic safety net (blueprint §17.4): runs on every USER message before it is sent, independent of the LLM.
  * A match shows the support card at once; the message is still sent.
  *
- * CLINICIAN REVIEW REQUIRED (§17.6): the default phrases below are a starting list written by the implementer.
- * They must be reviewed (English and Tamil) before patients use the app.
+ * SAFETY REVIEW REQUIRED (§17.6): the default phrases below are a starting list written by the implementer.
+ * They must be reviewed (English and Tamil) before release.
  */
 object SafetyKeywordScreen {
     val DEFAULT_PHRASES: List<String> = listOf(

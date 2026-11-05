@@ -45,8 +45,8 @@ fun SummaryScreen(vm: StrategosViewModel) {
         Text(text, color = p.ink, style = MaterialTheme.typography.bodyMedium)
         Button(onClick = {
             val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, text) }
-            context.startActivity(Intent.createChooser(send, "Share with my clinician"))
-        }) { Text("Share with my clinician") }
+            context.startActivity(Intent.createChooser(send, "Share summary"))
+        }) { Text("Share summary") }
         Spacer(Modifier.height(StratTokens.dockTotalBottomPad))
     }
 }

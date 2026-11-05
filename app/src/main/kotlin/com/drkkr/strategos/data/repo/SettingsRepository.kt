@@ -82,9 +82,9 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val QUICK_MODE = "ui.quick_mode"
         const val SECRET_XAI_KEY = "secret.xai_api_key"
 
-        // §17.6: the clinician must review this text and verify the helpline number before patients use the app.
+        // §17.6: review this text and verify the helpline number before release.
         const val DEFAULT_SUPPORT_TEXT =
-            "If you're in danger or thinking about harming yourself, contact your clinician or local emergency services now. " +
+            "If you're in danger or thinking about harming yourself, reach out to someone you trust or local emergency services now. " +
                 "In India you can call Tele-MANAS on 14416."
     }
 }

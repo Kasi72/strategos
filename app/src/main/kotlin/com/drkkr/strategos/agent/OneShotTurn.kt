@@ -676,7 +676,7 @@ Write 120-170 words of plain prose. No lists, headings, scores or percentages. S
 3) Suggest one or two small, concrete things they could do or say in the next few days, about their own behaviour.
 4) End with one gentle question, or invite them to share how it goes.
 Use only facts given to you; never invent events or feelings. Say "may" and "could", never promise an outcome.
-If they sound overwhelmed, acknowledge it kindly and suggest leaning on their clinician or someone they trust."""
+If they sound overwhelmed, acknowledge it kindly and suggest leaning on someone they trust."""
 
         const val NOTHING_NEW = "There was nothing new in that to add to the model, so this is the same view as before. Tell me who did or said what, or what changed, and I'll update it."
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."

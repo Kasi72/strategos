@@ -70,7 +70,7 @@ object AiConsentText {
         "When you chat, your messages and a short summary of what's saved are sent to DeepSeek, an AI company, to write replies. DeepSeek's data policies apply.",
         "If you use the Journal, each entry is also sent to DeepSeek in the background to look for patterns. It stays encrypted on this phone, and you never see a reply to it there.",
         "The analysis always runs on this phone. The AI helps build the model and never calculates the results.",
-        "Don't include patient identifiers, names, addresses or anything you aren't allowed to share with a third party. Check your institution's data policy.",
+        "Don't include other people's private details (full names, addresses, account numbers) or anything you aren't allowed to share.",
         "You can turn AI off at any time. Strategos works fully offline without it."
     )
 }

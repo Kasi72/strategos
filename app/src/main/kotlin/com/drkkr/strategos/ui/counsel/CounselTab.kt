@@ -97,7 +97,7 @@ fun CounselTab(vm: StrategosViewModel, expert: Boolean, onOpenSettings: () -> Un
         // ── Notices ───────────────────────────────────────────────────────────
         Column(Modifier.padding(horizontal = StratTokens.screenPad), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (ui.supportVisible) NoticeCard(
-                "Support is available", ui.supportText.ifBlank { "If you're in danger or thinking about harming yourself, contact your clinician or local emergency services now." },
+                "Support is available", ui.supportText.ifBlank { "If you're in danger or thinking about harming yourself, reach out to someone you trust or local emergency services now." },
                 action = "OK", onAction = counsel::dismissSupport, p = p, accent = NeoTokens.red
             )
             when {
