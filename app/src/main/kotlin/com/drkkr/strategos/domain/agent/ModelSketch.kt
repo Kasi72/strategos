@@ -80,7 +80,9 @@ data class ModelSketch(
     @SerialName("last_attempt_tags") @Serializable(with = StringListSerializer::class) val lastAttemptTags: List<String> = emptyList(),
     /** A small whole number; may arrive quoted, so it is read through [SketchHuman]. */
     @SerialName("steps_for_them_to_say_yes") val stepsForThemToSayYes: JsonPrimitive? = null,
-    @SerialName("goal_is") @Serializable(with = WordSerializer::class) val goalIs: String? = null
+    @SerialName("goal_is") @Serializable(with = WordSerializer::class) val goalIs: String? = null,
+    /** Power Mode: what the user explicitly asks the app to help them do, when it is manipulative (closed vocabulary, per turn). */
+    @SerialName("user_asks_for") @Serializable(with = WordSerializer::class) val userAsksFor: String? = null
 )
 
 /** The counterpart compared with "You". Every field is a closed word, read through [SketchHuman]. */
@@ -308,7 +310,9 @@ object SketchConverter {
         val thisTurn = humanReading?.lastAttemptTags.orEmpty()
         val history = if (humanFields && (thisTurn.isNotEmpty() || savedAttempts.isNotEmpty())) (listOf(thisTurn) + savedAttempts).take(3) else null
         val withHistory = history?.let { h -> (withQuiet ?: HumanContext()).copy(attemptHistory = h, lastAttemptTags = h.flatten().distinct()) } ?: withQuiet
-        val humanCtx = if (humanFields && learned != null) (withHistory ?: HumanContext()).copy(tacticSuccess = learned.success, learnedFromMessage = learned.messageId) else withHistory
+        val learnedCtx = if (humanFields && learned != null) (withHistory ?: HumanContext()).copy(tacticSuccess = learned.success, learnedFromMessage = learned.messageId) else withHistory
+        // Power Mode: `user_asks_for` lives for one turn. A turn that says nothing about it still sends a patch, so a saved one is cleared.
+        val humanCtx = if (humanFields && learnedCtx == null && s.humanContext?.userAsksFor != null) HumanContext() else learnedCtx
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(

@@ -45,6 +45,9 @@ object HumanVocab {
      */
     val POWER_THEIR_TACTICS = setOf("probes_you")
 
+    /** Power Mode: the manipulative help a user may ask for. Never planned; each gets a fixed decline note (`DeclineNotes`). */
+    val USER_ASKS_FOR = setOf("none", "false_facts", "exploit_weakness", "isolate", "make_dependent", "fake_friend", "scapegoat")
+
     /** Smoothed-state scale: 0 = calm … 3 = furious. */
     fun stateLevel(state: String?): Double? = when (state) {
         "calm" -> 0.0; "tense" -> 1.0; "upset" -> 2.0; "furious" -> 3.0

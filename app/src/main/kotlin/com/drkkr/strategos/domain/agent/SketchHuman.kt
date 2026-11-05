@@ -25,10 +25,11 @@ object SketchHuman {
             theirVulnerable = HumanVocab.clean(sk.theirVulnerable, HumanVocab.VULNERABLE),
             yourStateLevel = HumanVocab.stateLevel(your), theirStateLevel = HumanVocab.stateLevel(their),
             yourStateRaw = your, theirStateRaw = their,
-            theirTactics = sk.theirTactics.mapNotNull { HumanVocab.clean(it, HumanVocab.THEIR_TACTICS) }.filter { it != "none" }.distinct().take(HumanContext.TACTICS_MAX),
+            theirTactics = sk.theirTactics.mapNotNull { HumanVocab.clean(it, HumanVocab.THEIR_TACTICS + HumanVocab.POWER_THEIR_TACTICS) }.filter { it != "none" }.distinct().take(HumanContext.TACTICS_MAX),
             lastAttemptTags = sk.lastAttemptTags.mapNotNull { HumanVocab.clean(it, HumanVocab.OPTION_TAGS) }.distinct(),
             stepsForThemToSayYes = sk.stepsForThemToSayYes?.content?.trim()?.toIntOrNull()?.takeIf { it in 1..9 },
-            goalIs = HumanVocab.clean(sk.goalIs, HumanVocab.GOAL_IS)
+            goalIs = HumanVocab.clean(sk.goalIs, HumanVocab.GOAL_IS),
+            userAsksFor = HumanVocab.clean(sk.userAsksFor, HumanVocab.USER_ASKS_FOR)?.takeIf { it != "none" }
         )
         return c.takeIf { it != HumanContext() }
     }

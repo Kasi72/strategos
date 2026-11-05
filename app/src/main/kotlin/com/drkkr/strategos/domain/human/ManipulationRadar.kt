@@ -35,7 +35,9 @@ object ManipulationRadar {
         // The three coercive patterns. Close relationships never get these (they route to support); at work they are ordinary power dynamics.
         "hot_cold" to Entry("Warmth and coldness alternate unpredictably.", "Fix your position and write agreements down.", "L17"),
         "isolates_you" to Entry("You're being kept apart from the people who could back you up.", "Keep your own contacts and sources outside this person.", "L42 reversed"),
-        "keeps_you_dependent" to Entry("Things are set up so you need them for everything.", "Build a second option or source so you don't rely on one person.", "L11 reversed")
+        "keeps_you_dependent" to Entry("Things are set up so you need them for everything.", "Build a second option or source so you don't rely on one person.", "L11 reversed"),
+        // Power Mode: unusually curious about your plans or limits.
+        "probes_you" to Entry("They're digging for your limits.", "Answer questions about your limits with ranges, not your bottom line.", "L14 (defensive)")
     )
 
     fun scan(ctx: HumanContext?, domain: RelationshipDomain): RadarResult {

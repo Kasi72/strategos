@@ -56,7 +56,9 @@ data class HumanContext(
     /** The reply whose outcome was last counted into [tacticSuccess], so one reply is never counted twice. */
     val learnedFromMessage: String? = null,
     /** Fields the user has kept or fixed in the Review sheet. The model never overwrites them again (I-H8: the user's word wins). */
-    val userFixed: Set<String> = emptySet()
+    val userFixed: Set<String> = emptySet(),
+    /** Power Mode: what the user asked the app to help them do this turn, when manipulative. Per turn: never carried forward. */
+    val userAsksFor: String? = null
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -123,7 +125,8 @@ data class HumanContext(
         lastAttemptTags = if (newer.attemptHistory.isNotEmpty()) newer.lastAttemptTags else newer.lastAttemptTags.ifEmpty { lastAttemptTags },
         attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory },
         learnedFromMessage = newer.learnedFromMessage ?: learnedFromMessage,
-        userFixed = userFixed + newer.userFixed
+        userFixed = userFixed + newer.userFixed,
+        userAsksFor = newer.userAsksFor
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {
