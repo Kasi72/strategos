@@ -1,5 +1,6 @@
 package com.drkkr.strategos.domain.agent
 
+import com.drkkr.strategos.domain.human.DeliveryTags
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
@@ -254,6 +255,8 @@ object SketchConverter {
 
         fun youExists() = s.stakeholders.any { key(it.name) == "you" } || sketch.people.any { key(it.name) == "you" }
         val people = if (youExists()) sketch.people else listOf(SketchPerson("You", "PLAYER")) + sketch.people
+        // Human Layer: what the model read about power, status quo and state (closed vocabularies only; AI_INFERRED).
+        val humanCtx = SketchHuman.context(sketch)
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(
@@ -261,11 +264,13 @@ object SketchConverter {
                 stakes = sketch.goal?.takeIf { s.stakes.isBlank() && it.isNotBlank() }?.take(200),
                 // A relationship that goes on: this is what lets the repeated-game modules apply.
                 repeated = true.takeIf { !s.repeated && sketch.options.any { o -> Postures.clean(o.posture) != null } },
-                negotiationContext = sketch.negotiation?.takeIf { it.hasContent() }?.toContext()
-            )
+                negotiationContext = sketch.negotiation?.takeIf { it.hasContent() }?.toContext(),
+                humanContext = humanCtx
+            ),
+            source = OpSource.AI_INFERRED.takeIf { humanCtx != null }
         )
         if (fields.scenarioFields!!.decisionOwner != null || fields.scenarioFields.stakes != null || fields.scenarioFields.repeated != null ||
-            fields.scenarioFields.negotiationContext != null) ops += fields
+            fields.scenarioFields.negotiationContext != null || fields.scenarioFields.humanContext != null) ops += fields
 
         for (p in people) {
             val name = p.name.trim()
@@ -309,6 +314,7 @@ object SketchConverter {
                 optionCount[owner] = (optionCount[owner] ?: 1) - 1
             }
         }
+        val tagsByLabel = SketchHuman.optionTags(sketch)
         for (o in sketch.options) {
             val owner = idByName[key(o.owner)] ?: continue
             val label = o.label.trim()
@@ -325,7 +331,9 @@ object SketchConverter {
             val r = ref("${o.owner}_$label")
             optionIds[k] = r
             optionCount[owner] = (optionCount[owner] ?: 0) + 1
-            ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label, description = Postures.tag(o.posture).ifEmpty { null }, rationale = RATIONALE)
+            ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label,
+                description = (Postures.tag(o.posture) + (if (key(o.owner) == "you") DeliveryTags.tag(tagsByLabel[key(label)].orEmpty()) else "")).ifEmpty { null },
+                rationale = RATIONALE)
         }
 
         // ── Limits ────────────────────────────────────────────────────────────
@@ -389,6 +397,22 @@ object SketchConverter {
                     values = dims.mapIndexed { i, d -> DimValue(d, values[i].coerceIn(0.0, 10.0)) }
                 )
             }
+        }
+
+        // ── Power (Human Layer) ───────────────────────────────────────────────
+        // Fill the counterpart's authority and influence only while both are still at their default 0, so a value the
+        // user or an earlier turn set is never overwritten. A strong alternative means they can walk away.
+        // BLUEPRINT-QUESTION: UPDATE_STAKEHOLDER stamps the whole stakeholder AI_INFERRED (applier), so this one op can downgrade
+        // a stakeholder whose goals the user had confirmed. Same as every other update op today; left as is.
+        if (otherKey != null) {
+            val saved = s.stakeholders.firstOrNull { it.id == otherKey }
+            val levels = when (humanCtx?.theirPower) { "they_higher" -> 8 to 5; "equal" -> 5 to 5; "you_higher" -> 3 to 5; else -> null }
+            val fill = levels != null && (saved?.authority ?: 0) == 0 && (saved?.influence ?: 0) == 0
+            val canExit = humanCtx?.theirAlternative == "strong" && saved?.canExit != true
+            if (fill || canExit) ops += ChangeOp(
+                OpType.UPDATE_STAKEHOLDER, targetId = otherKey, rationale = RATIONALE, source = OpSource.AI_INFERRED,
+                authority = levels?.first?.takeIf { fill }, influence = levels?.second?.takeIf { fill }, canExit = true.takeIf { canExit }
+            )
         }
         return SketchOps(ops, askOf(sketch), sketch.support == true)
     }
