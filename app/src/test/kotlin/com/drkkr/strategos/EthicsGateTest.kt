@@ -15,7 +15,7 @@ import org.junit.Test
 class EthicsGateTest {
     private val offered = TacticCatalog.offered
     private val closeDomains = RelationshipDomain.values().filter { it.isClose }
-    private val deceptive = Tactic(TacticId.DEFAULT_WITH_DEADLINE, "L14", Ethics.DECEPTIVE, true, RelationshipDomain.values().toSet(), { _, _, _ -> true }, emptySet(), emptySet(), "x")
+    private val deceptive = Tactic(TacticId.DEFAULT_WITH_DEADLINE, "L14", Ethics.MANIPULATIVE, true, RelationshipDomain.values().toSet(), { _, _, _ -> true }, emptySet(), emptySet(), "x")
     private val hidden = Tactic(TacticId.DEFAULT_WITH_DEADLINE, "Ch.5", Ethics.BENIGN, false, RelationshipDomain.values().toSet(), { _, _, _ -> true }, emptySet(), emptySet(), "x")
 
     @Test
@@ -23,7 +23,7 @@ class EthicsGateTest {
         val ctxs = listOf<HumanContext?>(null, HumanContext(), HumanContext(theirVulnerable = "none"), HumanContext(theirTactics = listOf("hot_cold")))
         for (t in offered + deceptive + hidden) for (d in RelationshipDomain.values()) for (support in listOf(true, false)) for (c in ctxs) {
             val ok = EthicsGate.allowed(t, c, d, support)
-            if (t.ethics == Ethics.DECEPTIVE || !t.publicityPass) assertFalse("${t.id} $d support=$support", ok)
+            if (t.ethics == Ethics.MANIPULATIVE || !t.publicityPass) assertFalse("${t.id} $d support=$support", ok)
         }
     }
 

@@ -3,8 +3,11 @@ package com.drkkr.strategos.domain.human
 import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.Scenario
 
-/** BENIGN works anywhere; CONTEXT only in work, negotiation or adversarial settings; DECEPTIVE is never offered (I-H2). */
-enum class Ethics { BENIGN, CONTEXT, DECEPTIVE }
+/**
+ * BENIGN works anywhere; CONTEXT only in work, negotiation or adversarial settings; STRATEGIC (hardball) only through Power Mode's
+ * `PowerGate`, never through [EthicsGate]; MANIPULATIVE is never offered in any mode (I-H2, I-P2). Power Mode renamed DECEPTIVE.
+ */
+enum class Ethics { BENIGN, CONTEXT, STRATEGIC, MANIPULATIVE }
 
 enum class TacticId {
     DEFAULT_WITH_DEADLINE, TWO_GOOD_OPTIONS, FUTURE_COMMITMENT, WHEN_AND_HOW, MAKE_IT_CONCRETE, THEIR_INTEREST_FRAME,

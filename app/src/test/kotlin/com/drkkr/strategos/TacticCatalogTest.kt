@@ -21,7 +21,7 @@ class TacticCatalogTest {
         assertEquals(TacticId.values().toSet(), offered.map { it.id }.toSet())
         assertEquals(16, offered.count { it.ethics == Ethics.BENIGN })
         assertEquals(3, offered.count { it.ethics == Ethics.CONTEXT })
-        assertEquals(0, offered.count { it.ethics == Ethics.DECEPTIVE })
+        assertEquals(0, offered.count { it.ethics == Ethics.MANIPULATIVE })
         assertTrue(offered.all { it.publicityPass })
         assertEquals(
             setOf(TacticId.STEP_BACK, TacticId.CONCEDE_SMALL_FIRST, TacticId.NAME_YOUR_LEVERAGE),
