@@ -5,6 +5,8 @@ import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -59,8 +61,55 @@ data class ModelSketch(
     /** Phase G.3: 1-2 short, targeted questions that would most strengthen the model, used only when [enoughToRecommend] is false. */
     @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList(),
     /** Only what the user said about a negotiation (fallback, lowest they'd accept, ideal, opening ask, the other side's alternative). Never guessed. */
-    val negotiation: SketchNegotiation? = null
+    val negotiation: SketchNegotiation? = null,
+    // Human Layer: how the other person is placed and feeling, and how each move would be carried out. All optional and
+    // read only through [SketchHuman] (closed vocabularies; anything else is dropped), so old sketches parse unchanged.
+    val relationship: String? = null,
+    @Serializable(with = SketchPowerSerializer::class) val power: SketchPower? = null,
+    @SerialName("status_quo") @Serializable(with = TextOrListSerializer::class) val statusQuo: String? = null,
+    @SerialName("status_quo_for_them") val statusQuoForThem: String? = null,
+    val deadline: String? = null,
+    @SerialName("their_vulnerable") val theirVulnerable: String? = null,
+    @SerialName("your_state") val yourState: String? = null,
+    @SerialName("their_state") val theirState: String? = null,
+    @SerialName("option_tags") @Serializable(with = OptionTagsSerializer::class) val optionTags: Map<String, List<String>> = emptyMap(),
+    @SerialName("their_tactics") @Serializable(with = StringListSerializer::class) val theirTactics: List<String> = emptyList(),
+    /** A small whole number; may arrive quoted, so it is read through [SketchHuman]. */
+    @SerialName("steps_for_them_to_say_yes") val stepsForThemToSayYes: JsonPrimitive? = null,
+    @SerialName("goal_is") val goalIs: String? = null
 )
+
+/** The counterpart compared with "You". Every field is a closed word, read through [SketchHuman]. */
+@Serializable
+data class SketchPower(
+    val relative: String? = null,
+    @SerialName("they_depend_on_you") val theyDependOnYou: String? = null,
+    @SerialName("you_depend_on_them") val youDependOnThem: String? = null,
+    @SerialName("your_alternative") val yourAlternative: String? = null,
+    @SerialName("their_alternative") val theirAlternative: String? = null,
+    val setting: String? = null
+)
+
+/** A string where a list belongs becomes a one-item list; anything that isn't text is skipped. */
+private fun lenientList(e: JsonElement): JsonElement = when (e) {
+    is JsonArray -> JsonArray(e.filterIsInstance<JsonPrimitive>())
+    is JsonPrimitive -> if (e.contentOrNull.isNullOrBlank()) JsonArray(emptyList()) else JsonArray(listOf(e))
+    else -> JsonArray(emptyList())
+}
+
+object StringListSerializer : JsonTransformingSerializer<List<String>>(ListSerializer(String.serializer())) {
+    override fun transformDeserialize(element: JsonElement): JsonElement = lenientList(element)
+}
+
+object OptionTagsSerializer : JsonTransformingSerializer<Map<String, List<String>>>(MapSerializer(String.serializer(), ListSerializer(String.serializer()))) {
+    override fun transformDeserialize(element: JsonElement): JsonElement =
+        if (element is JsonObject) JsonObject(element.mapValues { lenientList(it.value) }) else JsonObject(emptyMap())
+}
+
+/** `power` should be an object; a bare word or list is ignored rather than failing the whole reply. */
+object SketchPowerSerializer : JsonTransformingSerializer<SketchPower>(SketchPower.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement = if (element is JsonObject) element else JsonObject(emptyMap())
+}
 
 /** Plain-word negotiation facts as the user stated them. Every field is optional. */
 @Serializable
