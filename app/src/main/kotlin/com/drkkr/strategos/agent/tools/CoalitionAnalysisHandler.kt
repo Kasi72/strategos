@@ -4,6 +4,7 @@ import com.drkkr.strategos.agent.ToolContext
 import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
+import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.game.GameModelService
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -39,6 +40,6 @@ object CoalitionAnalysisHandler : ToolHandler {
                 }
             }
         }
-        return ToolOutcome(out, "Computed Shapley values for ${coalition.values.size} players")
+        return ToolOutcome(out, "Computed Shapley values for ${coalition.values.size} players", UiKind.RECOMMENDATION)
     }
 }

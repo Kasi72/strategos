@@ -4,6 +4,7 @@ import com.drkkr.strategos.agent.ToolContext
 import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
+import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.analysis.AnalysisPipeline
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -60,6 +61,6 @@ object RunSpecificFrameworkHandler : ToolHandler {
             }
             put("explanation", result.explanation.take(800))
         }
-        return ToolOutcome(out, "Ran ${module.name}")
+        return ToolOutcome(out, "Ran ${module.name}", UiKind.RECOMMENDATION)
     }
 }

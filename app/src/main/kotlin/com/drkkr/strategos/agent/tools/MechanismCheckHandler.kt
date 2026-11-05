@@ -4,6 +4,7 @@ import com.drkkr.strategos.agent.ToolContext
 import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
+import com.drkkr.strategos.data.repo.UiKind
 import com.drkkr.strategos.domain.game.MechanismAdvisor
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -32,6 +33,6 @@ object MechanismCheckHandler : ToolHandler {
             put("insight", hint.insight)
             put("recommendation", hint.recommendation)
         }
-        return ToolOutcome(out, "Detected ${hint.type.name.lowercase()} mechanism")
+        return ToolOutcome(out, "Detected ${hint.type.name.lowercase()} mechanism", UiKind.RECOMMENDATION)
     }
 }
