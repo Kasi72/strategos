@@ -219,7 +219,9 @@ object EngineDirectiveBuilder {
         /** A figure the user has said they will not go below (walk-away, or "I need X"); options that lead with less are never recommended. */
         statedFloor: Double? = null,
         /** Human Layer (I-H6): the pick changes when the Human Layer's constants are halved or doubled, so it is not a safe pick. */
-        humanFragile: Boolean = false
+        humanFragile: Boolean = false,
+        /** How noisy the other side is; sets how sharply the Human Layer expects them to pick their best reply. */
+        opponentModel: com.drkkr.strategos.domain.game.OpponentModel? = null
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -234,7 +236,12 @@ object EngineDirectiveBuilder {
         fun posture(a: Action?) = a?.let { Postures.of(it) }
         fun reactive(a: Action?) = posture(a) == Postures.REACTIVE
         val replies = ownerActions.associate { it.id to bestReply(s, owner.id, it.id) }
-        fun value(a: Action) = replies[a.id]?.ownerValue ?: Double.NEGATIVE_INFINITY
+        // Human Layer: with a human context the reply is a probability (noisy best reply); without one, today's hard best reply, unchanged.
+        val human = s.humanContext != null
+        val beta = com.drkkr.strategos.domain.human.ResponseModel.betaFrom(opponentModel)
+        fun value(a: Action) =
+            (if (human) com.drkkr.strategos.domain.human.ResponseModel.expectedValue(s, owner.id, a.id, beta) else null)
+                ?: replies[a.id]?.ownerValue ?: Double.NEGATIVE_INFINITY
         fun belowFloor(a: Action?) = a != null && StatedFloor.leadsBelow(a.label, statedFloor)
         val calmActions = ownerActions.filter { !reactive(it) && !belowFloor(it) }
 
@@ -288,7 +295,12 @@ object EngineDirectiveBuilder {
                     a.id in excludedIds -> pathway?.constraintViolations?.firstOrNull()?.let { "it breaks \"$it\"" } ?: "ruled out by a limit"
                     else -> pathway?.rationale?.take(MAX_TEXT) ?: "ranks below the recommended move"
                 }
-                val triggers = replies[a.id]?.text?.takeIf { !reactive(a) || a.id == canonicalReactiveId }
+                val likely = if (human) com.drkkr.strategos.domain.human.ResponseModel.likelyReply(s, owner.id, a.id, beta) else null
+                val replyText = likely?.let {
+                    "${com.drkkr.strategos.domain.human.ResponseModel.otherName(s, owner.id)} would most likely respond: ${it.replyLabel}" +
+                        if (it.couldGoEitherWay) " (could go either way)" else ""
+                } ?: replies[a.id]?.text
+                val triggers = replyText?.takeIf { !reactive(a) || a.id == canonicalReactiveId }
                 BlockedMove(a.label, reason, triggers)
             }
 

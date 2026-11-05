@@ -292,7 +292,7 @@ class OneShotTurn(
         val shapleyValues = gameContext.coalitionResult?.values
         val mechanismHint = gameContext.mechanismHint?.let { "${it.type.name.lowercase()}: ${it.insight}" }
         val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
-            statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile)
+            statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile, opponentModel = gameContext.opponentModel)
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
