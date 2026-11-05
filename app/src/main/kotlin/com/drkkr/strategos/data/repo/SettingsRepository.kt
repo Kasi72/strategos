@@ -52,6 +52,15 @@ class SettingsRepository(private val db: StrategosDatabase) {
     suspend fun legacyMigrated(): Boolean = dao.get(LEGACY_MIGRATED) == "1"
     suspend fun setLegacyMigrated() = put(LEGACY_MIGRATED, "1")
 
+    // Power Mode (blueprint §5): per conversation, off by default (I-P1); the lock forces it off everywhere (I-P4).
+    // BLUEPRINT-QUESTION: there is no single-conversation delete path to clear `power_mode:<cid>` from; orphaned keys are harmless.
+    suspend fun isPowerMode(cid: String): Boolean = !powerLock() && dao.get(powerModeKey(cid)) == "1"
+    suspend fun setPowerMode(cid: String, on: Boolean) = put(powerModeKey(cid), if (on) "1" else "0")
+    fun observePowerMode(cid: String): Flow<Boolean> =
+        combine(dao.observe(powerModeKey(cid)), dao.observe(POWER_MODE_LOCK)) { on, lock -> on == "1" && lock != "1" }
+    suspend fun powerLock(): Boolean = dao.get(POWER_MODE_LOCK) == "1"
+    suspend fun setPowerLock(on: Boolean) = put(POWER_MODE_LOCK, if (on) "1" else "0")
+
     suspend fun get(key: String): String? = dao.get(key)
 
     /** Set when a turn gets 401: the stored key stopped working. Cleared by a successful save (§11.5.1). */
@@ -84,6 +93,8 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val LEGACY_MIGRATED = "legacy.migrated"
         const val QUICK_MODE = "ui.quick_mode"
         const val SECRET_XAI_KEY = "secret.xai_api_key"
+        const val POWER_MODE_LOCK = "power_mode_lock"
+        fun powerModeKey(cid: String) = "power_mode:$cid"
 
         // §17.6: review this text and verify the helpline number before release.
         const val DEFAULT_SUPPORT_TEXT =
