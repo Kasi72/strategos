@@ -143,7 +143,8 @@ class OneShotTurn(
         // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
         // the engine that reads the saved scenario afterward both see the same just-updated numbers in one commit.
         val scenario = if (argon != null) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
-        val converted = SketchConverter.toOps(parsed, scenario)
+        val learned = if (argon != null) tacticLearningFor(cid, scenario, parsed.counterpartObservedReaction) else null
+        val converted = SketchConverter.toOps(parsed, scenario, learned = learned)
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
         if (converted.support) onSupport()
         // A follow-up that only restates what is already saved has nothing to add. With a model in place that is not a
@@ -350,7 +351,8 @@ class OneShotTurn(
         val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
-            var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" })
+            var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" },
+                tactics = directive.delivery?.tactics.orEmpty().map { it.id.name })
             // One optional, plain-words question about the negotiation (fallback, lowest acceptable, ideal...), never repeated in this thread.
             val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
             com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
@@ -388,6 +390,19 @@ class OneShotTurn(
             userSaysNow = com.drkkr.strategos.domain.human.HotStateGate.userSaysNow(userText))
         val radar = com.drkkr.strategos.domain.human.ManipulationRadar.scan(hc, com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null))
         return d.copy(delivery = plan.takeIf { !it.isEmpty }, watchFor = radar.watchFor)
+    }
+
+    /**
+     * The user just reported how the last reply landed (softened / withdrew or escalated): teach the priors of the delivery tactics
+     * that reply used. Counted once per reply (see [com.drkkr.strategos.domain.human.HumanContext.learnedFromMessage]).
+     */
+    private suspend fun tacticLearningFor(cid: String, scenario: com.drkkr.strategos.domain.model.Scenario, reaction: String?): com.drkkr.strategos.domain.human.TacticLearning.Learned? {
+        if (reaction != "softened" && reaction != "withdrew_or_escalated") return null
+        val last = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name && it.payloadJson != null } ?: return null
+        if (scenario.humanContext?.learnedFromMessage == last.id) return null
+        val used = com.drkkr.strategos.domain.agent.GuidanceCodec.decode(last.payloadJson!!)?.tactics.orEmpty()
+        val update = com.drkkr.strategos.domain.human.TacticLearning.update(scenario.humanContext?.tacticSuccess.orEmpty(), used, reaction)
+        return update.takeIf { it.isNotEmpty() }?.let { com.drkkr.strategos.domain.human.TacticLearning.Learned(last.id, it) }
     }
 
     /** The safety-first reply: one short call that never sees an engine move, checked by [SafetyReply]; the fixed warm text if it fails. */

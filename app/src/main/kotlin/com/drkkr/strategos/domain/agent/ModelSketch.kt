@@ -164,7 +164,9 @@ data class CoachGuideSketch(
     /** The engine's one-line label for this reply ("Wait · Mutual trust needed · Robust"), set by Kotlin, never by the model. Shown as the pill. */
     @SerialName("pill") val pill: String = "",
     /** Human Layer: things to watch for (what is being done TO the user), each one plain sentence with its protective move. Joins the Overview's standing do/don't box. */
-    @SerialName("watch_for") val watchFor: List<String> = emptyList()
+    @SerialName("watch_for") val watchFor: List<String> = emptyList(),
+    /** Human Layer: which delivery tactics this reply used (internal ids, never shown), so a later reaction can teach what worked. */
+    @SerialName("tactics") val tactics: List<String> = emptyList()
 )
 
 /**
@@ -257,7 +259,11 @@ object SketchConverter {
      * [humanFields] is false for the repair pass: its human readings were already counted by the first request of the turn,
      * and a value must not be "confirmed" twice within one turn.
      */
-    fun toOps(sketch: ModelSketch, s: Scenario, humanFields: Boolean = true): SketchOps {
+    fun toOps(
+        sketch: ModelSketch, s: Scenario, humanFields: Boolean = true,
+        /** What the user's report of how the last reply landed taught about the tactics it used (see TacticLearning). */
+        learned: com.drkkr.strategos.domain.human.TacticLearning.Learned? = null
+    ): SketchOps {
         // A reply that only asks a question (or flags support) saves nothing.
         val hasContent = sketch.people.isNotEmpty() || sketch.options.isNotEmpty() || sketch.limits.isNotEmpty() ||
             sketch.outcomes.isNotEmpty() || !sketch.goal.isNullOrBlank() || sketch.negotiation?.hasContent() == true
@@ -301,7 +307,8 @@ object SketchConverter {
         val savedAttempts = s.humanContext?.attemptHistory.orEmpty()
         val thisTurn = humanReading?.lastAttemptTags.orEmpty()
         val history = if (humanFields && (thisTurn.isNotEmpty() || savedAttempts.isNotEmpty())) (listOf(thisTurn) + savedAttempts).take(3) else null
-        val humanCtx = history?.let { h -> (withQuiet ?: HumanContext()).copy(attemptHistory = h, lastAttemptTags = h.flatten().distinct()) } ?: withQuiet
+        val withHistory = history?.let { h -> (withQuiet ?: HumanContext()).copy(attemptHistory = h, lastAttemptTags = h.flatten().distinct()) } ?: withQuiet
+        val humanCtx = if (humanFields && learned != null) (withHistory ?: HumanContext()).copy(tacticSuccess = learned.success, learnedFromMessage = learned.messageId) else withHistory
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(

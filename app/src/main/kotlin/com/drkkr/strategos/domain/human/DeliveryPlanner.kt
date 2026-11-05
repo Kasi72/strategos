@@ -67,7 +67,8 @@ object DeliveryPlanner {
         if (t.id in NO_GAIN_PRIORITY || baseP == null) 0.0 else {
             val flipped = DeliveryTags.with(recommended, t.adds, t.removes)
             val view = HumanizedView.apply(withCtx.copy(actions = withCtx.actions.map { if (it.id == recommended.id) flipped else it }))
-            (ResponseModel.receptiveProbability(view, recommended.stakeholderId, recommended.id, beta) ?: baseP) - baseP
+            ((ResponseModel.receptiveProbability(view, recommended.stakeholderId, recommended.id, beta) ?: baseP) - baseP) *
+                TacticLearning.multiplier(withCtx.humanContext?.tacticSuccess.orEmpty(), t.id.name)         // what worked with THIS person
         }
 
     /** Every tactic that passes the gate and its condition, with the gain it would give (0 for the ones the model cannot measure). */

@@ -272,4 +272,28 @@ class HumanFlowTest {
         val guide = GuidanceCodec.decode(last.payloadJson!!)!!
         assertEquals(listOf("The target changes after you meet it. Agree the finish line in writing first."), guide.watchFor)
     }
+
+    @Test
+    fun TC_HL_LEARN_07_aReportedReactionTeachesThePriorsOfTheTacticsTheLastReplyUsed_once() = runBlocking {
+        val gateway = CommittingGateway(start)
+        // both calm moves are open-ended with no deadline, so a default is the tactic that helps
+        val open = sketch.replace(
+            "\"option_tags\":{\"Ask with a plan and a date\":[\"asks_them_to_give_up\",\"public\",\"corrects_them\"]}",
+            "\"option_tags\":{\"Ask with a plan and a date\":[\"open_ended\"],\"Hold the line until the review\":[\"open_ended\"]}"
+        )
+        val reported = open.dropLast(1) + ""","counterpart_observed_reaction":"softened","user_last_move_posture":"repair"}"""
+        val llm = EngineEchoLlm(listOf(open, "Is that fair?", reported, "Is that fair?", reported, "Is that fair?"))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("I want to ask my manager Priya for a raise.")!!.join(); controller.awaitIdle()
+        val first = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }
+        val used = GuidanceCodec.decode(first.payloadJson!!)!!.tactics
+        assertTrue("a tactic was used: $used", used.isNotEmpty())
+        assertTrue("nothing learned yet", gateway.inner.scenario!!.humanContext!!.tacticSuccess.isEmpty())
+
+        controller.send("I put a date on it and she softened.")!!.join(); controller.awaitIdle()
+        val learned = gateway.inner.scenario!!.humanContext!!
+        for (id in used) assertEquals("$id alpha", listOf(2.0, 1.0), learned.tacticSuccess[id])
+        assertEquals(first.id, learned.learnedFromMessage)
+    }
 }

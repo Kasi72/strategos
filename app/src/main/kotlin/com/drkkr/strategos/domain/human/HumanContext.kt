@@ -52,7 +52,9 @@ data class HumanContext(
     /** How the user already tried (or is about to), in the same words as an option's tags. Habits in it steer the delivery of the next move. */
     val lastAttemptTags: List<String> = emptyList(),
     /** The last three turns' readings of [lastAttemptTags], newest first. Habits older than three turns drop out. */
-    val attemptHistory: List<List<String>> = emptyList()
+    val attemptHistory: List<List<String>> = emptyList(),
+    /** The reply whose outcome was last counted into [tacticSuccess], so one reply is never counted twice. */
+    val learnedFromMessage: String? = null
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -108,7 +110,8 @@ data class HumanContext(
         routingQuietTurns = newer.routingQuietTurns ?: routingQuietTurns,
         // A real turn carries the whole history (so an empty union can legitimately replace an old one); a bare patch only adds.
         lastAttemptTags = if (newer.attemptHistory.isNotEmpty()) newer.lastAttemptTags else newer.lastAttemptTags.ifEmpty { lastAttemptTags },
-        attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory }
+        attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory },
+        learnedFromMessage = newer.learnedFromMessage ?: learnedFromMessage
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {

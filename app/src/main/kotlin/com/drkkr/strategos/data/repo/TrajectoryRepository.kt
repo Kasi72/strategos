@@ -57,6 +57,19 @@ class TrajectoryRepository(
         return MomentumEvents.pendingCheck(points, counterpart)
     }
 
+    /** Human Layer: a quick-check says how the last reply of this thread landed; teach the priors of the tactics it used (once per reply). */
+    private suspend fun learnTactics(s: Scenario, threadId: String?, counterpartReaction: String): Scenario {
+        val reaction = when (counterpartReaction) { "DE_ESCALATED" -> "softened"; "ESCALATED_ATTACKED" -> "withdrew_or_escalated"; else -> return s }
+        val last = threadId?.let { db.messageDao().lastGuided(it) } ?: return s
+        if (s.humanContext?.learnedFromMessage == last.id) return s
+        val used = last.payloadJson?.let { com.drkkr.strategos.domain.agent.GuidanceCodec.decode(it) }?.tactics.orEmpty()
+        val update = com.drkkr.strategos.domain.human.TacticLearning.update(s.humanContext?.tacticSuccess.orEmpty(), used, reaction)
+        if (update.isEmpty()) return s
+        return s.copy(humanContext = (s.humanContext ?: com.drkkr.strategos.domain.human.HumanContext()).merge(
+            com.drkkr.strategos.domain.human.HumanContext(tacticSuccess = update, learnedFromMessage = last.id)
+        ))
+    }
+
     /** The latest stored point as a snapshot, or the neutral start (50 / 50, streak 0) when the project has none. */
     suspend fun current(scenarioId: String): TrajectorySnapshot {
         val p = db.trajectoryDao().latestForScenario(scenarioId) ?: return TrajectoryCalculator.buildSnapshot(50.0, 50.0, null, 0, DEFAULT_ARCHETYPE)
@@ -89,7 +102,7 @@ class TrajectoryRepository(
             db.trajectoryDao().insert(point(scenarioId, threadId, "QUICK_CHECK", snapshot, at))
         }
         // A newer stored scenario version (SaveResult.Conflict) just skips the trust-baseline write; the point is already kept.
-        outcome.scenario?.let { if (commit != null) commit(it) else scenarios.save(it) }
+        outcome.scenario?.let { learnTactics(it, threadId, counterpartReaction) }?.let { if (commit != null) commit(it) else scenarios.save(it) }
         return snapshot
     }
 
