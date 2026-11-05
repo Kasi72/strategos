@@ -97,7 +97,7 @@ class HumanFlowTest {
     ), gateway)
 
     @Test
-    fun TC_HL_VIEW_12_aFullTurnSavesTheSketchAndNothingFromTheHumanisedView() = runBlocking {
+    fun TC_HL_VIEW_10_aFullTurnSavesTheSketchAndNothingFromTheHumanisedView() = runBlocking {
         val gateway = CommittingGateway(start)
         val llm = EngineEchoLlm(listOf(sketch))
         val controller = controllerWith(llm, gateway)

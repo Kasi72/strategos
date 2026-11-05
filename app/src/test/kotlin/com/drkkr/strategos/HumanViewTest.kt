@@ -153,7 +153,7 @@ class HumanViewTest {
     }
 
     @Test
-    fun TC_HL_VIEW_10_aPublicSettingHelpsACommitmentThatSticksButHurtsBreakingFromTheGroup() {
+    fun TC_HL_VIEW_13_aPublicSettingHelpsACommitmentThatSticksButHurtsBreakingFromTheGroup() {
         val sticky = ctx(base("public")) { it.copy(goalIs = "lasting_commitment") }
         assertEquals(cell(sticky, "mgr", "a1", "r1", REL) + 0.25, cell(HumanizedView.apply(sticky), "mgr", "a1", "r1", REL), 1e-9)
         val faceCost = ctx(base("public", "corrects_them")) { it.copy(goalIs = "lasting_commitment") }
