@@ -330,7 +330,7 @@ class OneShotTurn(
         // Power Mode: hardball moves join the delivery when they pay (I-P3); the decline note is set in any mode.
         val powerOn = settings.isPowerMode(cid)
         val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, settings.powerLock(), support, snap?.trustScore)
-        val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor))
+        val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready)
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
         if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
             s.humanContext?.pendingCooling != directive.moveToImplement) {
