@@ -259,7 +259,9 @@ class OneShotTurn(
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
         val snap = argon?.trajectory?.current(sid)
-        val view = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
+        val raw = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
+        // Human Layer: the other person's payoffs as a real person would feel them. In memory only, like the line above.
+        val view = com.drkkr.strategos.domain.human.HumanizedView.apply(raw)
         // In memory only: the last few things the user said, so text-based detectors (mechanism design) see more than the empty frame.
         val recentUserText = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString(" ") { it.text }
         val (viewResult, stress, gameContext) = withContext(Dispatchers.Default) {
@@ -269,6 +271,10 @@ class OneShotTurn(
                 runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull(),
                 com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view, contextText = recentUserText)
             )
+        }
+        // I-H6: a pick that only exists because of one of the Human Layer's constants is reported as fragile.
+        val humanFragile = withContext(Dispatchers.Default) {
+            runCatching { com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(raw, com.drkkr.strategos.domain.analysis.AnalysisPipeline()) }.getOrDefault(false)
         }
         val gameResult = gameContext.result
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
@@ -286,7 +292,7 @@ class OneShotTurn(
         val shapleyValues = gameContext.coalitionResult?.values
         val mechanismHint = gameContext.mechanismHint?.let { "${it.type.name.lowercase()}: ${it.insight}" }
         val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
-            statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text))
+            statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile)
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }

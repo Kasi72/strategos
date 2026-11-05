@@ -217,7 +217,9 @@ object EngineDirectiveBuilder {
         shapleyValues: Map<String, Double>? = null,
         mechanismHint: String? = null,
         /** A figure the user has said they will not go below (walk-away, or "I need X"); options that lead with less are never recommended. */
-        statedFloor: Double? = null
+        statedFloor: Double? = null,
+        /** Human Layer (I-H6): the pick changes when the Human Layer's constants are halved or doubled, so it is not a safe pick. */
+        humanFragile: Boolean = false
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -251,10 +253,10 @@ object EngineDirectiveBuilder {
         val excludedIds = pathways.filter { it.excluded }.mapNotNull { it.actionId }.toSet()
         val flipsToBad = flipTargets.any { reactive(it) || it.id in excludedIds }
         val guessedOutcomes = cov.filled < cov.expected
-        val fragile = flipsToBad || guessedOutcomes
+        val fragile = flipsToBad || guessedOutcomes || humanFragile
         val flipText = flip?.let { f ->
             "if ${f.stakeholder}'s outcome for \"${f.profileLabel}\" were ${if (f.direction == StressDirection.IMPROVE) "better" else "worse"}, the pick would move to ${f.newRecommended ?: "no clear pick"}"
-        }
+        } ?: "how they take this depends on how you put it, so the pick could change if they react more or less strongly than assumed".takeIf { humanFragile }
 
         // A second calm move: close in score, or the one the stress test flips to. It is blended in, not swapped for the first.
         // Phase F.5: never pick a "discovery" move (asking what the other person feels or is worried about) as the
