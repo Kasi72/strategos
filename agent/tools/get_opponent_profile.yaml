@@ -1,0 +1,15 @@
+name: get_opponent_profile
+description: >
+  Synthesise a behavioural profile for a named opponent by analysing past outcome
+  records. Returns dominant archetype, average outcome rating, advice-follow rate,
+  and a plain-language insight. Requires at least 2 records with opponent or
+  archetype data; returns insufficient_data status otherwise.
+input_schema:
+  type: object
+  properties:
+    opponent_id:
+      type: string
+      description: >
+        Name or identifier of the opponent/counterpart to profile
+        (e.g. "Alex", "the manager", "the client").
+  required: [opponent_id]

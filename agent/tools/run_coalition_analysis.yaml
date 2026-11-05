@@ -1,0 +1,7 @@
+name: run_coalition_analysis
+description: >
+  Compute Shapley values and coalition stability for 3–8 player games.
+  Use when the user asks who has the most leverage, whose support matters most,
+  or whether the grand coalition is stable. Returns player Shapley values and a
+  plain-language summary. Returns not_applicable for fewer than 3 or more than 8 players.
+input_schema: { type: object, properties: {}, required: [] }

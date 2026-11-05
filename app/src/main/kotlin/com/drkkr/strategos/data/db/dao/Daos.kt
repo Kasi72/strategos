@@ -143,3 +143,9 @@ import kotlinx.coroutines.flow.Flow
     @Query("SELECT * FROM decision_certificate WHERE scenario_id = :scenarioId ORDER BY created_at DESC") suspend fun forScenario(scenarioId: String): List<DecisionCertificateEntity>
     @Query("SELECT * FROM decision_certificate WHERE game_model_id = :gameModelId ORDER BY created_at DESC LIMIT 1") suspend fun latestForGameModel(gameModelId: String): DecisionCertificateEntity?
 }
+
+@Dao interface OutcomeRecordDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(e: OutcomeRecordEntity)
+    @Query("SELECT * FROM outcome_record WHERE scenario_id = :scenarioId ORDER BY recorded_at DESC") suspend fun forScenario(scenarioId: String): List<OutcomeRecordEntity>
+    @Query("SELECT * FROM outcome_record WHERE scenario_id = :scenarioId ORDER BY recorded_at DESC LIMIT :limit") suspend fun recentForScenario(scenarioId: String, limit: Int): List<OutcomeRecordEntity>
+}
