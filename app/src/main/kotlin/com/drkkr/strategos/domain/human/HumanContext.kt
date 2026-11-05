@@ -50,7 +50,9 @@ data class HumanContext(
     /** Messages in a row with no coercive tag since one was last described; routing to support expires at [CoerciveControl.EXPIRES_AFTER]. Null = not counting. */
     val routingQuietTurns: Int? = null,
     /** How the user already tried (or is about to), in the same words as an option's tags. Habits in it steer the delivery of the next move. */
-    val lastAttemptTags: List<String> = emptyList()
+    val lastAttemptTags: List<String> = emptyList(),
+    /** The last three turns' readings of [lastAttemptTags], newest first. Habits older than three turns drop out. */
+    val attemptHistory: List<List<String>> = emptyList()
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -104,7 +106,9 @@ data class HumanContext(
         pendingCooling = if (newer.pendingCooling == "") null else newer.pendingCooling ?: pendingCooling,
         tacticTurns = tacticTurns + newer.theirTactics.distinct().associateWith { (tacticTurns[it] ?: 0) + 1 },
         routingQuietTurns = newer.routingQuietTurns ?: routingQuietTurns,
-        lastAttemptTags = newer.lastAttemptTags.ifEmpty { lastAttemptTags }
+        // A real turn carries the whole history (so an empty union can legitimately replace an old one); a bare patch only adds.
+        lastAttemptTags = if (newer.attemptHistory.isNotEmpty()) newer.lastAttemptTags else newer.lastAttemptTags.ifEmpty { lastAttemptTags },
+        attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory }
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {

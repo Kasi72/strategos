@@ -82,7 +82,7 @@ class HumanFoundationTest {
         assertEquals(0.5, d.settingShift, 0.0)
         assertEquals(0.25, d.commitShift, 0.0)
         assertEquals(2.0, d.cellCap, 0.0)
-        assertEquals(0.05, d.deltaPMin, 0.0)
+        assertEquals(0.02, d.deltaPMin, 0.0)
         assertEquals(2, d.maxTactics)
         assertTrue(d.privateFaceShare > 0.33 && d.privateFaceShare < 0.34)
     }

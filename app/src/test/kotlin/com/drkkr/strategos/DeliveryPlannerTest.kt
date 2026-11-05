@@ -80,8 +80,8 @@ class DeliveryPlannerTest {
     @Test
     fun TC_HL_DEL_04_aGainBelowTheThresholdIsNotChosen() {
         val def = TacticCatalog.offered.single { it.id == TacticId.DEFAULT_WITH_DEADLINE }
-        assertTrue(DeliveryPlanner.resolve(listOf(def to 0.03)).isEmpty())
-        assertEquals(1, DeliveryPlanner.resolve(listOf(def to 0.05)).size)
+        assertTrue(DeliveryPlanner.resolve(listOf(def to 0.01)).isEmpty())          // the bar is 0.02 since hl3.7 (it only decides whether a tip is shown)
+        assertEquals(1, DeliveryPlanner.resolve(listOf(def to 0.02)).size)
     }
 
     @Test

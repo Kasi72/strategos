@@ -130,4 +130,48 @@ class PlannerHabitTest {
         assertTrue("gain ${concede.deltaP}", (concede.deltaP ?: 0.0) >= 0.05)
         assertFalse(concede.preconditionOnly)
     }
+
+    // ── hl3.7: habits are kept for three turns ────────────────────────────────────
+
+    private fun turns(vararg readings: List<String>): HumanContext = readings.fold(HumanContext()) { saved, tags ->
+        val hist = (listOf(tags) + saved.attemptHistory).take(3)
+        saved.merge(HumanContext(attemptHistory = hist, lastAttemptTags = hist.flatten().distinct()))
+    }
+
+    @Test
+    fun TC_HL_HABIT_07_aHabitSurvivesThreeTurns_newestFirst_thenDrops() {
+        val gratitude = listOf("appeals_to_fairness_or_gratitude"); val publicCorrection = listOf("public", "corrects_them")
+        assertEquals(gratitude, turns(gratitude).lastAttemptTags)
+        assertEquals(listOf("public", "corrects_them", "appeals_to_fairness_or_gratitude"), turns(gratitude, publicCorrection).lastAttemptTags)
+        assertEquals("still there on turn 3", listOf("public", "corrects_them", "appeals_to_fairness_or_gratitude"), turns(gratitude, publicCorrection, emptyList()).lastAttemptTags)
+        assertEquals("the gratitude appeal is 4 turns old and drops", publicCorrection, turns(gratitude, publicCorrection, emptyList(), emptyList()).lastAttemptTags)
+        assertTrue(turns(gratitude, publicCorrection, emptyList(), emptyList(), emptyList()).lastAttemptTags.isEmpty())
+        // a repeat is listed once
+        assertEquals(gratitude, turns(gratitude, gratitude).lastAttemptTags)
+    }
+
+    @Test
+    fun TC_HL_HABIT_08_theConverterAgesThemOnRealTurnsOnly() {
+        val json = { tags: String -> """{"people":[{"name":"You","role":"PLAYER"},{"name":"Manager","role":"PLAYER"}],"relationship":"manager","last_attempt_tags":[$tags]}""" }
+        fun say(s: Scenario, j: String): Scenario {
+            val ops = com.drkkr.strategos.domain.agent.OpNormalizer.normalize(com.drkkr.strategos.domain.agent.SketchConverter.toOps(SketchParser.parse(j)!!, s).ops, s)
+            val v = com.drkkr.strategos.domain.agent.ChangeSetValidator.validate(s, ops)
+            val acc = v.accepted.map { it.op }
+            return com.drkkr.strategos.domain.agent.ChangeSetApplier.apply(s, acc, acc.indices.map { com.drkkr.strategos.domain.agent.OpDecision(it, com.drkkr.strategos.domain.agent.Decision.ACCEPT) }, v.refIds, emptyList(), "t").scenario
+        }
+        var s = say(Scenario(title = "t"), json("\"appeals_to_fairness_or_gratitude\""))
+        s = say(s, json("\"public\", \"corrects_them\""))
+        assertEquals(listOf("public", "corrects_them", "appeals_to_fairness_or_gratitude"), s.humanContext!!.lastAttemptTags)
+        s = say(s, json("")); s = say(s, json(""))
+        assertEquals(listOf("public", "corrects_them"), s.humanContext!!.lastAttemptTags)                 // gratitude dropped after 3 turns
+        // a reminder patch is not a turn: it must not age anything
+        val kept = s.humanContext!!.merge(HumanContext(pendingCooling = "x"))
+        assertEquals(s.humanContext!!.lastAttemptTags, kept.lastAttemptTags); assertEquals(s.humanContext!!.attemptHistory, kept.attemptHistory)
+    }
+
+    @Test
+    fun TC_HL_HABIT_09_thePromptNamesTheCorrectingHabit() {
+        assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("public, corrects_them"))
+        assertTrue(ArgonPrompts.EXTRACTION_PROMPT.contains("in any language"))
+    }
 }

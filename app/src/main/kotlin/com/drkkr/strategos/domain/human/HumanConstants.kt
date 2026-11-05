@@ -25,8 +25,13 @@ data class HumanConstants(
     val commitShift: Double = 0.25,
     /** Largest total adjustment to any one counterpart cell. A cap, so [scaled] leaves it alone. */
     val cellCap: Double = 2.0,
-    /** Smallest gain in the chance they say yes for a tactic to be offered. A threshold, so [scaled] leaves it alone. */
-    val deltaPMin: Double = 0.05,
+    /**
+     * Smallest gain in the chance they say yes for a delivery tip to be shown. A threshold, so [scaled] leaves it alone.
+     * Lowered from 0.05 to 0.02 at hl3.7: a single small shift (0.25) can add at most about 0.06 even at even odds, so 0.05 made every
+     * small effect invisible. The bar only decides whether a harmless (BENIGN) tip is shown; it never moves the engine's pick, and
+     * the HumanizedView shifts themselves are unchanged.
+     */
+    val deltaPMin: Double = 0.02,
     /** Most delivery tactics per move. A count, so [scaled] leaves it alone. */
     val maxTactics: Int = 2,
     /** Raise in their receptive score when the user gives something real first. Reciprocity; 48 Laws L43 (generosity wins allies). Judgement call. */

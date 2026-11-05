@@ -296,7 +296,12 @@ object SketchConverter {
             coerciveSaved -> (s.humanContext?.routingQuietTurns ?: 0) + 1
             else -> null
         }
-        val humanCtx = quiet?.let { q -> (humanReading ?: HumanContext()).copy(routingQuietTurns = q) } ?: humanReading
+        val withQuiet = quiet?.let { q -> (humanReading ?: HumanContext()).copy(routingQuietTurns = q) } ?: humanReading
+        // The user's habits (how they already tried) are kept for three turns, newest first; a turn with none ages the older ones.
+        val savedAttempts = s.humanContext?.attemptHistory.orEmpty()
+        val thisTurn = humanReading?.lastAttemptTags.orEmpty()
+        val history = if (humanFields && (thisTurn.isNotEmpty() || savedAttempts.isNotEmpty())) (listOf(thisTurn) + savedAttempts).take(3) else null
+        val humanCtx = history?.let { h -> (withQuiet ?: HumanContext()).copy(attemptHistory = h, lastAttemptTags = h.flatten().distinct()) } ?: withQuiet
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(
