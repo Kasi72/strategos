@@ -144,7 +144,8 @@ private fun PowerChip(on: Boolean, onClick: () -> Unit) {
     val c = Calm.colors
     val shape = RoundedCornerShape(16.dp)
     Box(
-        Modifier.height(32.dp).clip(shape).background(if (on) c.rigor.copy(alpha = 0.18f) else c.card.copy(alpha = 0.94f))
+        // Opaque: the conversation scrolls under the header, and a see-through chip would show it.
+        Modifier.height(32.dp).clip(shape).background(c.card).background(if (on) c.rigor.copy(alpha = 0.18f) else Color.Transparent)
             .border(1.dp, if (on) c.rigor else c.line, shape).clickable(onClick = onClick).padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) { Text("⚡ Power", color = if (on) c.rigor else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
@@ -155,7 +156,7 @@ private fun PowerBanner() {
     val c = Calm.colors
     Text("Power Mode — hardball moves for work and negotiations.", color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.Medium,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp).clip(RoundedCornerShape(10.dp))
-            .background(c.rigor.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 6.dp))
+            .background(c.card).background(c.rigor.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 6.dp))
 }
 
 /** Shown the first time Power Mode is turned on in a conversation: what it does, what it never does (blueprint §1), where it is off. */
