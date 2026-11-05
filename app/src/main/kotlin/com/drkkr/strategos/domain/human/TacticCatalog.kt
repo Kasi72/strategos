@@ -1,7 +1,6 @@
 package com.drkkr.strategos.domain.human
 
 import com.drkkr.strategos.domain.model.Action
-import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 
 /** BENIGN works anywhere; CONTEXT only in work, negotiation or adversarial settings; DECEPTIVE is never offered (I-H2). */
@@ -37,6 +36,8 @@ object TacticCatalog {
     private val WORK_ETC = setOf(RelationshipDomain.WORK_HIERARCHY, RelationshipDomain.WORK_PEER, RelationshipDomain.NEGOTIATION)
     private val NEVER = { _: HumanContext, _: Action, _: Scenario -> false }          // no signal from Call 1 yet: dormant, never guessed
     private fun tags(a: Action) = DeliveryTags.of(a)
+    /** Words that say an agreement or an amount is in play. Read only from the status quo and the saved description. */
+    private val AGREEMENT = Regex("(?i)\\b(loan|lend|lent|borrow\\w*|repay\\w*|pay(?:ing)? (?:it )?back|owe\\w*|money|lakh|rupees?|split|equity|shares?|verbal\\w*|promis\\w*|handshake|not written|nothing is written|agreement|contract|deposit|terms)\\b")
     /** The paths actually worth offering: the user's own options minus the tempting reactive one. */
     private fun calmOptions(s: Scenario, a: Action) = s.actionsFor(a.stakeholderId).filter { com.drkkr.strategos.domain.agent.Postures.of(it) != com.drkkr.strategos.domain.agent.Postures.REACTIVE }
 
@@ -101,10 +102,13 @@ object TacticCatalog {
             "Start with a smaller first step, and agree the next step in advance."),
         Tactic(TacticId.PUT_IT_IN_WRITING, "Nudge Ch.5 (expect error), Ch.15; 48 Laws L40", Ethics.BENIGN, true, ALL,
             { c, a, s ->
-                val money = s.payoffs.any { PayoffDimension.COST in it.payoff.values.keys }
+                // A family loan, a co-founder split, a verbal agreement, a plan with a forgettable last step. Read from the
+                // relationship, any negotiation figures and the status quo; no money dimension needed (the live model often draws none).
                 val domain = RelationshipDomains.of(c.relationship, null)
-                "written" !in tags(a) && money && (c.relationship == "cofounder" ||
-                    domain in setOf(RelationshipDomain.FAMILY, RelationshipDomain.FRIENDSHIP, RelationshipDomain.WORK_PEER, RelationshipDomain.NEGOTIATION))
+                val inScope = domain in setOf(RelationshipDomain.FAMILY, RelationshipDomain.FRIENDSHIP, RelationshipDomain.WORK_PEER, RelationshipDomain.NEGOTIATION)
+                val agreement = c.relationship == "cofounder" || s.negotiationContext?.hasContent() == true ||
+                    AGREEMENT.containsMatchIn(listOfNotNull(c.statusQuo, s.stakes, s.description).joinToString(" "))
+                "written" !in tags(a) && (c.relationship == "cofounder" || inScope) && agreement
             },
             setOf("written"), emptySet(),
             "Send a one-line written summary with the terms and a date to review it."),

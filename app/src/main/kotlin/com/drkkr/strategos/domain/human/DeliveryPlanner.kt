@@ -53,6 +53,13 @@ object DeliveryPlanner {
         return assemble(raw, hc, recommended, second, chosen, support, c)
     }
 
+    private fun gainOf(withCtx: Scenario, recommended: Action, t: Tactic, beta: Double, baseP: Double?): Double =
+        if (t.id in NO_GAIN_PRIORITY || baseP == null) 0.0 else {
+            val flipped = DeliveryTags.with(recommended, t.adds, t.removes)
+            val view = HumanizedView.apply(withCtx.copy(actions = withCtx.actions.map { if (it.id == recommended.id) flipped else it }))
+            (ResponseModel.receptiveProbability(view, recommended.stakeholderId, recommended.id, beta) ?: baseP) - baseP
+        }
+
     /** Every tactic that passes the gate and its condition, with the gain it would give (0 for the ones the model cannot measure). */
     fun candidates(raw: Scenario, hc: HumanContext, recommended: Action, support: Boolean, beta: Double = 1.0): List<Pair<Tactic, Double>> {
         val domain = RelationshipDomains.of(hc.relationship, null)
@@ -61,14 +68,23 @@ object DeliveryPlanner {
         return TacticCatalog.offered
             .filter { EthicsGate.allowed(it, hc, domain, support) && it.preconditions(hc, recommended, withCtx) }
             .filter { it.id != TacticId.SAY_LESS }                                    // a flag, see [assemble]
-            .map { t ->
-                val gain = if (t.id in NO_GAIN_PRIORITY || baseP == null) 0.0 else {
-                    val flipped = DeliveryTags.with(recommended, t.adds, t.removes)
-                    val view = HumanizedView.apply(withCtx.copy(actions = withCtx.actions.map { if (it.id == recommended.id) flipped else it }))
-                    (ResponseModel.receptiveProbability(view, recommended.stakeholderId, recommended.id, beta) ?: baseP) - baseP
-                }
-                t to gain
-            }
+            .map { t -> t to gainOf(withCtx, recommended, t, beta, baseP) }
+    }
+
+    /** One row of the diagnostic table: why a tactic was or was not offered. [deltaP] is null for a precondition-only tactic or a flag. */
+    data class Diagnosis(val id: TacticId, val gatePass: Boolean, val preconditionPass: Boolean, val deltaP: Double?, val preconditionOnly: Boolean)
+
+    /** For the live replay and for tuning: every tactic, whether it passed the ethics gate and its own condition, and its gain. */
+    fun diagnose(raw: Scenario, hc: HumanContext, recommended: Action, support: Boolean, beta: Double = 1.0): List<Diagnosis> {
+        val domain = RelationshipDomains.of(hc.relationship, null)
+        val withCtx = raw.copy(humanContext = hc)
+        val baseP = ResponseModel.receptiveProbability(HumanizedView.apply(withCtx), recommended.stakeholderId, recommended.id, beta)
+        return TacticCatalog.offered.map { t ->
+            val gate = EthicsGate.allowed(t, hc, domain, support)
+            val pre = t.preconditions(hc, recommended, withCtx)
+            val noGain = t.id in NO_GAIN_PRIORITY || t.id == TacticId.SAY_LESS
+            Diagnosis(t.id, gate, pre, if (gate && pre && !noGain) gainOf(withCtx, recommended, t, beta, baseP) else null, noGain)
+        }
     }
 
     /** Picks at most [HumanConstants.maxTactics]: the biggest gains first, no conflicting pair, the unmeasurable ones last. */

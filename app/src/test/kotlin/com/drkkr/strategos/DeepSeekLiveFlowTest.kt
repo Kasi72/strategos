@@ -144,6 +144,19 @@ class DeepSeekLiveFlowTest {
                     out.append("  dominant dynamic: ${d["dominant_dynamic"]?.jsonArray?.joinToString(" // ") { it.jsonPrimitive.content }}\n")
                     out.append("  stress: ${str("stress_verdict")} ${str("stress_flip") ?: ""}\n")
                     out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")
+                    r.gateway.activeScenario()?.let { sc ->
+                        val hc = sc.humanContext
+                        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(sc)
+                        val rec = owner?.let { o -> sc.actionsFor(o.id).firstOrNull { it.label.equals(str("move_to_implement"), ignoreCase = true) } }
+                        if (hc != null && rec != null) {
+                            out.append("  PLANNER TABLE for \"${rec.label}\" (tags ${com.drkkr.strategos.domain.human.DeliveryTags.of(rec)}, domain ${com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null)}):\n")
+                            out.append("    tactic | gate | precondition | delta p\n")
+                            val raw = com.drkkr.strategos.domain.agent.EngineDirectiveBuilder.analysisView(sc, null, null)
+                            com.drkkr.strategos.domain.human.DeliveryPlanner.diagnose(raw, hc, rec, false).forEach { row ->
+                                out.append("    ${row.id} | ${if (row.gatePass) "pass" else "FAIL"} | ${if (row.preconditionPass) "pass" else "no"} | ${when { !(row.gatePass && row.preconditionPass) -> "-"; row.preconditionOnly -> "precondition-only"; else -> "%.3f".format(row.deltaP ?: 0.0) }}\n")
+                            }
+                        }
+                    }
                     out.append("  move_to_implement: ${str("move_to_implement")}\n")
                     out.append("  known_stakeholder_facts: ${d["known_stakeholder_facts"]?.jsonArray?.joinToString(" | ") { it.jsonPrimitive.content }}\n")
                     out.append("  bayesian_learning_note: ${str("bayesian_learning_note")}\n")
