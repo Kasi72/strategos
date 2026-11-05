@@ -97,7 +97,9 @@ data class ScenarioFieldsPatch(
     @SerialName("information_asymmetry") val informationAsymmetry: Boolean? = null,
     @SerialName("zero_sum") val zeroSum: Boolean? = null,
     /** What the user said about their fallback, floor and target; merged into the saved [NegotiationContext], never replacing a saved value with a blank. */
-    @SerialName("negotiation_context") val negotiationContext: com.drkkr.strategos.domain.model.NegotiationContext? = null
+    @SerialName("negotiation_context") val negotiationContext: com.drkkr.strategos.domain.model.NegotiationContext? = null,
+    /** What the model read about power, status quo and emotional state; merged into the saved context, never replacing a saved value with null. */
+    @SerialName("human_context") val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null
 )
 
 @Serializable

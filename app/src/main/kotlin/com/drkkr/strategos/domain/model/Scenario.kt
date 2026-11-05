@@ -228,7 +228,9 @@ data class Scenario(
     val changeHistory: List<ChangeRecord> = emptyList(),
     val attachments: List<ScenarioAttachment> = emptyList(),
     // Stage 4: negotiation prep wizard context
-    val negotiationContext: NegotiationContext? = null
+    val negotiationContext: NegotiationContext? = null,
+    // Human Layer: inferred power, status quo, emotional state. Null for projects from before it existed.
+    val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null
 ) {
     fun actionsFor(sid: String) = actions.filter { it.stakeholderId == sid }
 
