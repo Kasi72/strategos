@@ -58,7 +58,7 @@ RULES:
 19. Fill relationship whenever the user names the person (spouse|partner|parent|child|sibling|relative|friend|manager|report|peer|cofounder|client|vendor|landlord|opponent|other). power {relative: they_higher|equal|you_higher, they_depend_on_you, you_depend_on_them: none|some|high, your_alternative, their_alternative: none|weak|strong, setting: private|semi_public|public}: never guess; give dependencies, alternatives, setting ONLY if the user said them.
 20. status_quo: what goes on if nobody acts, their words. status_quo_for_them: keeps_something|loses_something|neutral. deadline: none|soft|hard (a real constraint goes here). their_vulnerable: none|child|elder_in_care|unwell|in_crisis, only if the user says so.
 21. your_state, their_state: calm|tense|upset|furious (their_state also unknown), this message only.
-22. option_tags ("You" options): public (others see or hear it), corrects_them (points out THEIR mistake, never an apology), credits_them, argues, demonstrates, asks_them_to_give_up (they lose something they have), future_commitment, sets_default (says what will happen unless they object), two_choices, open_ended, their_interest, appeals_to_fairness_or_gratitude, gives_first, withdraws, immediate (done today), written, irreversible (cannot be undone). their_tactics: only behaviour the user describes as deliberate or repeated, not one delay or quiet moment: isolates_you|keeps_you_dependent|gives_then_demands|controls_the_options|guilt_or_gratitude|silent_treatment|public_undermining|moves_goalposts|flattery_before_ask|creates_chaos|artificial_deadline (only when the user doubts the deadline)|extreme_anchor|self_serving_default|adds_friction_to_your_exit|reaches_you_through_others|hot_cold.
+22. option_tags ("You" options): public (others see or hear it), corrects_them (points out THEIR mistake, never an apology), credits_them, argues, demonstrates, asks_them_to_give_up (they lose something they have), future_commitment, sets_default (says what will happen unless they object), two_choices, open_ended, their_interest, appeals_to_fairness_or_gratitude, gives_first, withdraws, immediate (done today), written, irreversible (cannot be undone). their_tactics: only behaviour the user describes as deliberate or repeated, not one delay or quiet moment: isolates_you|keeps_you_dependent|gives_then_demands|controls_the_options|guilt_or_gratitude|silent_treatment|public_undermining|moves_goalposts|flattery_before_ask|creates_chaos|artificial_deadline (only when the user doubts the deadline)|extreme_anchor|self_serving_default|adds_friction_to_your_exit|reaches_you_through_others|hot_cold. last_attempt_tags: the same option words for what they ALREADY did or are about to do, only if described.
 
 JSON SCHEMA:
 {
@@ -102,7 +102,8 @@ JSON SCHEMA:
   "your_state": null,
   "their_state": null,
   "option_tags": {},
-  "their_tactics": []
+  "their_tactics": [],
+  "last_attempt_tags": []
 }
 """
 

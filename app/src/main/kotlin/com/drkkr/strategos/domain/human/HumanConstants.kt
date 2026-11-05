@@ -28,7 +28,15 @@ data class HumanConstants(
     /** Smallest gain in the chance they say yes for a tactic to be offered. A threshold, so [scaled] leaves it alone. */
     val deltaPMin: Double = 0.05,
     /** Most delivery tactics per move. A count, so [scaled] leaves it alone. */
-    val maxTactics: Int = 2
+    val maxTactics: Int = 2,
+    /** Raise in their receptive score when the user gives something real first. Reciprocity; 48 Laws L43 (generosity wins allies). Judgement call. */
+    val giveFirstShift: Double = 0.25,
+    /** Raise when both sides can check an outside reference (a market rate, a formula). Nudge Ch.15 (self-serving bias in bargaining). Judgement call. */
+    val yardstickShift: Double = 0.25,
+    /** Raise when the ask is framed around what the user's role makes possible, never as a threat. 48 Laws L11 (awareness form). Judgement call. */
+    val leverageShift: Double = 0.25,
+    /** Raise when the user stops chasing and lets them come to you. 48 Laws L16, L8. Judgement call. */
+    val stepBackShift: Double = 0.25
 ) {
     /**
      * Multiplies every effect size by [f], for the sensitivity check (all halved, all doubled). Thresholds, caps and
@@ -41,7 +49,11 @@ data class HumanConstants(
         inertia = inertia * f,
         frictionPerStep = frictionPerStep * f,
         settingShift = settingShift * f,
-        commitShift = commitShift * f
+        commitShift = commitShift * f,
+        giveFirstShift = giveFirstShift * f,
+        yardstickShift = yardstickShift * f,
+        leverageShift = leverageShift * f,
+        stepBackShift = stepBackShift * f
     )
 
     companion object {

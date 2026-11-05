@@ -122,7 +122,7 @@ class DeepSeekLiveFlowTest {
                     sketch.options.groupBy { it.owner }.forEach { (who, opts) -> out.append("  $who: ${opts.joinToString(" | ") { "${it.label} <${it.posture}>" }}\n") }
                     out.append("  archetype=${sketch.archetype} trust_delta=${sketch.trustDelta} tension_delta=${sketch.tensionDelta} backstory_only=${sketch.backstoryOnly} support=${sketch.support}\n")
                     // Human Layer fields, raw (what the model wrote) and then as Kotlin reads them (closed vocabularies only).
-                    out.append("  HUMAN raw: relationship=${sketch.relationship} power=${sketch.power} status_quo=${sketch.statusQuo} status_quo_for_them=${sketch.statusQuoForThem} deadline=${sketch.deadline} their_vulnerable=${sketch.theirVulnerable} your_state=${sketch.yourState} their_state=${sketch.theirState} their_tactics=${sketch.theirTactics} steps=${sketch.stepsForThemToSayYes} goal_is=${sketch.goalIs}\n")
+                    out.append("  HUMAN raw: relationship=${sketch.relationship} power=${sketch.power} status_quo=${sketch.statusQuo} status_quo_for_them=${sketch.statusQuoForThem} deadline=${sketch.deadline} their_vulnerable=${sketch.theirVulnerable} your_state=${sketch.yourState} their_state=${sketch.theirState} their_tactics=${sketch.theirTactics} last_attempt_tags=${sketch.lastAttemptTags} steps=${sketch.stepsForThemToSayYes} goal_is=${sketch.goalIs}\n")
                     out.append("  HUMAN option_tags raw: ${sketch.optionTags}\n")
                     out.append("  HUMAN read: ${com.drkkr.strategos.domain.agent.SketchHuman.context(sketch)}\n  HUMAN tags read: ${com.drkkr.strategos.domain.agent.SketchHuman.optionTags(sketch)}\n")
                     r.gateway.activeScenario()?.let { sc ->

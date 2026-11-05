@@ -39,6 +39,16 @@ object DeliveryPlanner {
     /** Tactics that cannot be measured by the model: they enter on their own condition, below any tactic with a gain. */
     private val NO_GAIN_PRIORITY = listOf(TacticId.PUT_IT_IN_WRITING, TacticId.ASK_IF_OPEN_FIRST, TacticId.APOLOGISE_FOR_YOUR_PART, TacticId.STOP_AT_THE_MARK)
 
+    /**
+     * What a person does once tends to be what they do next. The habits in the user's described last attempt (the same tag words) are
+     * inherited by the move about to be delivered, so the planner can see and replace them: a gratitude appeal becomes "lead with what
+     * they gain", a public correction becomes "say it in private". Only habits carry over, not everything they did.
+     */
+    private val HABIT = setOf("public", "corrects_them", "argues", "appeals_to_fairness_or_gratitude", "open_ended", "asks_them_to_give_up", "immediate")
+
+    private fun carrying(hc: HumanContext, recommended: Action): Action =
+        hc.lastAttemptTags.filter { it in HABIT }.toSet().let { if (it.isEmpty()) recommended else DeliveryTags.with(recommended, it, emptySet()) }
+
     private fun conflicts(a: TacticId, b: TacticId) = CONFLICTS.any { (x, y) -> (a == x && b == y) || (a == y && b == x) }
 
     /** [raw] is the analysis view BEFORE the humanised view; [second] is the other calm move (complement, else fallback). */
@@ -63,12 +73,13 @@ object DeliveryPlanner {
     /** Every tactic that passes the gate and its condition, with the gain it would give (0 for the ones the model cannot measure). */
     fun candidates(raw: Scenario, hc: HumanContext, recommended: Action, support: Boolean, beta: Double = 1.0): List<Pair<Tactic, Double>> {
         val domain = RelationshipDomains.of(hc.relationship, null)
-        val withCtx = raw.copy(humanContext = hc)
+        val moved = carrying(hc, recommended)
+        val withCtx = raw.copy(humanContext = hc, actions = raw.actions.map { if (it.id == recommended.id) moved else it })
         val baseP = ResponseModel.receptiveProbability(HumanizedView.apply(withCtx), recommended.stakeholderId, recommended.id, beta)
         return TacticCatalog.offered
-            .filter { EthicsGate.allowed(it, hc, domain, support) && it.preconditions(hc, recommended, withCtx) }
+            .filter { EthicsGate.allowed(it, hc, domain, support) && it.preconditions(hc, moved, withCtx) }
             .filter { it.id != TacticId.SAY_LESS }                                    // a flag, see [assemble]
-            .map { t -> t to gainOf(withCtx, recommended, t, beta, baseP) }
+            .map { t -> t to gainOf(withCtx, moved, t, beta, baseP) }
     }
 
     /** One row of the diagnostic table: why a tactic was or was not offered. [deltaP] is null for a precondition-only tactic or a flag. */
@@ -77,13 +88,14 @@ object DeliveryPlanner {
     /** For the live replay and for tuning: every tactic, whether it passed the ethics gate and its own condition, and its gain. */
     fun diagnose(raw: Scenario, hc: HumanContext, recommended: Action, support: Boolean, beta: Double = 1.0): List<Diagnosis> {
         val domain = RelationshipDomains.of(hc.relationship, null)
-        val withCtx = raw.copy(humanContext = hc)
+        val moved = carrying(hc, recommended)
+        val withCtx = raw.copy(humanContext = hc, actions = raw.actions.map { if (it.id == recommended.id) moved else it })
         val baseP = ResponseModel.receptiveProbability(HumanizedView.apply(withCtx), recommended.stakeholderId, recommended.id, beta)
         return TacticCatalog.offered.map { t ->
             val gate = EthicsGate.allowed(t, hc, domain, support)
-            val pre = t.preconditions(hc, recommended, withCtx)
+            val pre = t.preconditions(hc, moved, withCtx)
             val noGain = t.id in NO_GAIN_PRIORITY || t.id == TacticId.SAY_LESS
-            Diagnosis(t.id, gate, pre, if (gate && pre && !noGain) gainOf(withCtx, recommended, t, beta, baseP) else null, noGain)
+            Diagnosis(t.id, gate, pre, if (gate && pre && !noGain) gainOf(withCtx, moved, t, beta, baseP) else null, noGain)
         }
     }
 
@@ -111,7 +123,7 @@ object DeliveryPlanner {
         val domain = RelationshipDomains.of(hc.relationship, null)
         if (EthicsGate.nothingAllowed(hc, domain, support)) return Delivery()
         val ids = chosen.map { it.first.id }
-        val tags = DeliveryTags.of(recommended)
+        val tags = DeliveryTags.of(carrying(hc, recommended))
         val faceCost = "corrects_them" in tags && hc.theirPower == "they_higher" && "credits_them" !in tags
         val numbers = raw.negotiationContext?.hasContent() == true
         val channel = when {
@@ -121,7 +133,7 @@ object DeliveryPlanner {
             else -> null
         }
         val sayLess = TacticCatalog.offered.single { it.id == TacticId.SAY_LESS }.let {
-            EthicsGate.allowed(it, hc, domain, support) && it.preconditions(hc, recommended, raw.copy(humanContext = hc))
+            EthicsGate.allowed(it, hc, domain, support) && it.preconditions(hc, carrying(hc, recommended), raw.copy(humanContext = hc))
         } && TacticId.MAKE_IT_CONCRETE !in ids
         return Delivery(
             tactics = chosen.map { (t, gain) -> PlannedTactic(t.id, t.coachHint, gain) },

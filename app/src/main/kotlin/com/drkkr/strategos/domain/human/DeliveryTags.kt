@@ -11,11 +11,11 @@ object DeliveryTags {
 
     /** The tags on [a], in-vocabulary only. */
     fun of(a: Action): Set<String> =
-        marker.find(a.description)?.groupValues?.get(1)?.split(',')?.filter { it in HumanVocab.OPTION_TAGS }?.toSet().orEmpty()
+        marker.find(a.description)?.groupValues?.get(1)?.split(',')?.filter { it in HumanVocab.OPTION_TAGS || it in HumanVocab.PLANNER_TAGS }?.toSet().orEmpty()
 
     /** `[f:a,b]` (sorted, so it is stable), or "" when there is nothing to tag. */
     fun tag(tags: Collection<String>): String =
-        tags.filter { it in HumanVocab.OPTION_TAGS }.toSortedSet().takeIf { it.isNotEmpty() }?.let { "[f:${it.joinToString(",")}]" }.orEmpty()
+        tags.filter { it in HumanVocab.OPTION_TAGS || it in HumanVocab.PLANNER_TAGS }.toSortedSet().takeIf { it.isNotEmpty() }?.let { "[f:${it.joinToString(",")}]" }.orEmpty()
 
     /** An in-memory copy of [a] with [add] turned on and [remove] turned off. Used by the planner; never saved. */
     fun with(a: Action, add: Set<String>, remove: Set<String>): Action {

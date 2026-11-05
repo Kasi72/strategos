@@ -59,7 +59,7 @@ class TacticCatalogTest {
 
     @Test
     fun TC_HL_CAT_05_everyTacticHasConsistentTagChanges() {
-        val vocab = com.drkkr.strategos.domain.human.HumanVocab.OPTION_TAGS
+        val vocab = com.drkkr.strategos.domain.human.HumanVocab.OPTION_TAGS + com.drkkr.strategos.domain.human.HumanVocab.PLANNER_TAGS
         for (t in offered) {
             assertTrue("${t.id} adds ${t.adds}", vocab.containsAll(t.adds))
             assertTrue("${t.id} removes ${t.removes}", vocab.containsAll(t.removes))

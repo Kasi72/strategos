@@ -27,6 +27,9 @@ object HumanVocab {
         "withdraws", "immediate", "written", "irreversible"
     )
 
+    /** Tags only the planner uses (never asked of Call 1): what a delivery tactic adds so the humanised view can measure it. */
+    val PLANNER_TAGS = setOf("outside_yardstick", "names_leverage")
+
     /** Behaviour the user DESCRIBED in the other person (actions, never intentions). "none" means nothing to report. */
     val THEIR_TACTICS = setOf(
         "isolates_you", "keeps_you_dependent", "gives_then_demands", "controls_the_options", "guilt_or_gratitude",

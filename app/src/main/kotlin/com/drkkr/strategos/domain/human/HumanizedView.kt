@@ -22,6 +22,8 @@ import com.drkkr.strategos.domain.model.Scenario
  *  3. Self-interest vs gratitude (L13): appealing to fairness or gratitude costs, except in close relationships where it is a
  *     legitimate appeal; leading with their interest helps everywhere.
  *  4. Inertia (Nudge Ch.1, 5): an open-ended ask with no deadline makes doing nothing more attractive; a default, two concrete choices or a deadline cancel it.
+ *  6. Giving first, an outside yardstick, naming what the role makes possible, and stepping back each add a small [HumanConstants] shift
+ *     to their receptive reply (they make the matching tactics measurable).
  *  5. Setting (Nudge Ch.3, L1/L38): a `public` move hurts a request to break from a group and helps a commitment that should stick
  *     (only when there is no face cost). Uses the option's own `public` tag.
  *
@@ -84,6 +86,11 @@ object HumanizedView {
                 // 3. self-interest vs gratitude
                 if ("appeals_to_fairness_or_gratitude" in tags && !domain.isClose) addAll(-c.interestShift)
                 if ("their_interest" in tags) addAll(c.interestShift)
+                // 6. small, bounded effects of delivering the move in a way that is easier to say yes to
+                if ("gives_first" in tags) addAll(c.giveFirstShift)
+                if ("outside_yardstick" in tags) addAll(c.yardstickShift)
+                if ("names_leverage" in tags) addAll(c.leverageShift)
+                if ("withdraws" in tags) addAll(c.stepBackShift)
                 // 5. setting
                 if ("public" in tags) {
                     if (ctx.goalIs == "break_from_group") addAll(-c.settingShift)

@@ -26,6 +26,7 @@ object SketchHuman {
             yourStateLevel = HumanVocab.stateLevel(your), theirStateLevel = HumanVocab.stateLevel(their),
             yourStateRaw = your, theirStateRaw = their,
             theirTactics = sk.theirTactics.mapNotNull { HumanVocab.clean(it, HumanVocab.THEIR_TACTICS) }.filter { it != "none" }.distinct().take(HumanContext.TACTICS_MAX),
+            lastAttemptTags = sk.lastAttemptTags.mapNotNull { HumanVocab.clean(it, HumanVocab.OPTION_TAGS) }.distinct(),
             stepsForThemToSayYes = sk.stepsForThemToSayYes?.content?.trim()?.toIntOrNull()?.takeIf { it in 1..9 },
             goalIs = HumanVocab.clean(sk.goalIs, HumanVocab.GOAL_IS)
         )

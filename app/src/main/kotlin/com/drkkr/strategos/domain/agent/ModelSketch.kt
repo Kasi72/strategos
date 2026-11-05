@@ -76,6 +76,8 @@ data class ModelSketch(
     @SerialName("their_state") @Serializable(with = WordSerializer::class) val theirState: String? = null,
     @SerialName("option_tags") @Serializable(with = OptionTagsSerializer::class) val optionTags: Map<String, List<String>> = emptyMap(),
     @SerialName("their_tactics") @Serializable(with = StringListSerializer::class) val theirTactics: List<String> = emptyList(),
+    /** How the user already tried, or is about to, in the option_tags words. Read through [SketchHuman]. */
+    @SerialName("last_attempt_tags") @Serializable(with = StringListSerializer::class) val lastAttemptTags: List<String> = emptyList(),
     /** A small whole number; may arrive quoted, so it is read through [SketchHuman]. */
     @SerialName("steps_for_them_to_say_yes") val stepsForThemToSayYes: JsonPrimitive? = null,
     @SerialName("goal_is") @Serializable(with = WordSerializer::class) val goalIs: String? = null
