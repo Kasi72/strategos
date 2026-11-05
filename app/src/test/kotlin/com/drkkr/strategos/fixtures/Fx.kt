@@ -1,5 +1,6 @@
 package com.drkkr.strategos.fixtures
 
+import com.drkkr.strategos.domain.human.HumanContext
 import com.drkkr.strategos.domain.model.*
 import com.drkkr.strategos.templates.CrisisManagementTemplate
 import com.drkkr.strategos.templates.InstitutionalHealthcareTemplate
@@ -86,6 +87,65 @@ object Fx {
             constraints = listOf(Constraint(id = "peace", label = "Don't risk peace at home", kind = Constraint.Kind.ETHICAL))
         )
     }
+
+
+    // ── Human Layer fixtures (TEST_CASES) ────────────────────────────────────────────────────────
+
+    private fun hlPayoffs(you: String, them: String, mine: List<String>, his: List<String>, theirScores: (Int, Int) -> List<Double>): List<PayoffEntry> {
+        val dims = listOf(PayoffDimension.LONG_TERM_VALUE, PayoffDimension.RELATIONSHIPS, PayoffDimension.COST)
+        return buildList {
+            mine.forEachIndexed { i, a ->
+                his.forEachIndexed { j, b ->
+                    val profile = mapOf(you to a, them to b)
+                    add(PayoffEntry(you, profile, MultiPayoff(dims.zip(listOf(6.0 - j, 6.0 - j, 4.0 + i)).toMap())))
+                    add(PayoffEntry(them, profile, MultiPayoff(dims.zip(theirScores(i, j)).toMap())))
+                }
+            }
+        }
+    }
+
+    /**
+     * Raise story: "You" (repair a1, boundary a2, reactive a3) and "Manager" (receptive r1, defensive r2). Dims LONG_TERM_VALUE,
+     * RELATIONSHIPS, COST; all 6 rows filled. The manager is the higher-status side. Their defensive reply to the boundary move (a2)
+     * is the status-quo row: LTV 5, RELATIONSHIPS 6, COST 3.
+     */
+    fun hlRaise(): Scenario = Scenario(
+        id = "hl-raise", title = "Asking for a raise", decisionOwner = "You", stakes = "My pay and my standing", repeated = true,
+        stakeholders = listOf(Stakeholder(id = "you", name = "You", authority = 3), Stakeholder(id = "mgr", name = "Manager", authority = 8, influence = 5)),
+        actions = listOf(
+            Action(id = "a1", stakeholderId = "you", label = "Ask with a plan", description = "[posture:repair]"),
+            Action(id = "a2", stakeholderId = "you", label = "Hold the line", description = "[posture:boundary]"),
+            Action(id = "a3", stakeholderId = "you", label = "Threaten to leave", description = "[posture:reactive]"),
+            Action(id = "r1", stakeholderId = "mgr", label = "Engage", description = "[posture:receptive]"),
+            Action(id = "r2", stakeholderId = "mgr", label = "Put it off", description = "[posture:defensive]")
+        ),
+        payoffs = hlPayoffs("you", "mgr", listOf("a1", "a2", "a3"), listOf("r1", "r2")) { i, j ->
+            if (j == 0) listOf(8.0 - 2 * i, 8.0 - 2 * i, 3.0) else listOf(5.0, 6.0, 3.0)      // [LTV, REL, COST] for the manager
+        },
+        humanContext = HumanContext(relationship = "manager", theirPower = "they_higher")
+    )
+
+    /** The loan story, with the human context of a sibling who would keep something. */
+    fun hlLoan(): Scenario = loanFamily().copy(
+        humanContext = HumanContext(relationship = "sibling", statusQuoForThem = "keeps_something")
+    )
+
+    /** A relational-repair 2x3 with a furious user. */
+    fun hlSpouse(): Scenario = Scenario(
+        id = "hl-spouse", title = "Hurt about the money", decisionOwner = "You", stakes = "Trust at home", repeated = true,
+        stakeholders = listOf(Stakeholder(id = "you", name = "You", authority = 5), Stakeholder(id = "meera", name = "Meera", authority = 5, influence = 5)),
+        actions = listOf(
+            Action(id = "s1", stakeholderId = "you", label = "Tell her calmly it hurt", description = "[posture:repair]"),
+            Action(id = "s2", stakeholderId = "you", label = "Hold the topic until morning", description = "[posture:boundary]"),
+            Action(id = "s3", stakeholderId = "you", label = "Send the angry message", description = "[posture:reactive]"),
+            Action(id = "t1", stakeholderId = "meera", label = "Listen", description = "[posture:receptive]"),
+            Action(id = "t2", stakeholderId = "meera", label = "Shut down", description = "[posture:defensive]")
+        ),
+        payoffs = hlPayoffs("you", "meera", listOf("s1", "s2", "s3"), listOf("t1", "t2")) { i, j ->
+            if (j == 0) listOf(8.0 - 2 * i, 8.0 - 2 * i, 3.0) else listOf(4.0, 4.0 + i, 4.0)
+        },
+        humanContext = HumanContext(relationship = "spouse", yourStateLevel = 3.0)
+    )
 
     /** The 4 built-in templates. */
     fun templates(): List<Scenario> = listOf(
