@@ -34,6 +34,9 @@ object ProspectTheoryTransform {
 
     val DEFAULT = Config()
 
+    /** Human Layer (Nudge Ch.1): no curvature on a 0-10 scale, losses count about twice. Used with [referenceValue]. */
+    val HUMAN_LAYER = Config(alpha = 1.0, beta = 1.0, lambda = 2.0)
+
     /**
      * Returns a new [GameIR] with utilities transformed by the prospect-theory
      * value function. The [GameIR.gameClass] is recomputed to reflect the change.
@@ -64,4 +67,11 @@ object ProspectTheoryTransform {
     fun valueFunction(x: Double, config: Config = DEFAULT): Double =
         if (x >= 0) x.pow(config.alpha)
         else -config.lambda * abs(x).pow(config.beta)
+
+    /**
+     * A value measured from a reference point but kept on the original scale: a gain over [reference] is unchanged,
+     * a loss below it counts [Config.lambda] times. Exactly [x] when [x] equals [reference].
+     */
+    fun referenceValue(x: Double, reference: Double, config: Config = HUMAN_LAYER): Double =
+        reference + valueFunction(x - reference, config)
 }
