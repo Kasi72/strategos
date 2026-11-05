@@ -474,7 +474,9 @@ object EngineDirectiveBuilder {
 /** Reads a figure the user will not go below, and tests whether an option's wording leads with less than it. */
 object StatedFloor {
     private val number = Regex("""\d+(?:\.\d+)?""")
-    private val need = Regex("""(?i)\b(?:i need|i must get|at least|no less than|not less than|minimum(?: of)?|walk[- ]?away(?: is| at)?)\s*(?:is\s*)?\D{0,12}?(\d+(?:\.\d+)?)""")
+    /** The words that introduce a figure the user will not go below; [com.drkkr.strategos.domain.negotiation.DealFrame] reads the same ones. */
+    const val NEED_PHRASES = """i need|i must get|at least|no less than|not less than|minimum(?: of)?|walk[- ]?away(?: is| at)?"""
+    private val need = Regex("""(?i)\b(?:$NEED_PHRASES)\s*(?:is\s*)?\D{0,12}?(\d+(?:\.\d+)?)""")
 
     /** The larger of the saved reservation point and any "I need X" / "at least X" in the message. */
     fun from(reservationPoint: String?, message: String): Double? {
