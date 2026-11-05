@@ -92,7 +92,9 @@ data class EngineDirective(
     /** Human Layer: one plain line for the X-ray sheet. Never sent to the coach. */
     val humanLens: String? = null,
     /** Human Layer: the move that was held back last time; the coach opens by asking how it went. */
-    val pendingCooling: String? = null
+    val pendingCooling: String? = null,
+    /** Negotiation Numbers: the figures the coach may use, and the walk-away for checking only. Null without a deal frame (I-N1). */
+    val deal: com.drkkr.strategos.domain.negotiation.DealBlock? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -139,6 +141,7 @@ data class EngineDirective(
         }
         pendingCooling?.let { put("pending_cooling", it) }
         if (watchFor.isNotEmpty()) putJsonArray("watch_for") { watchFor.forEach { w -> addJsonObject { put("sign", w.sign); put("protect", w.protect) } } }
+        deal?.let { put("deal", it.toJson()) }
     }
 
     /**
@@ -391,7 +394,8 @@ object EngineDirectiveBuilder {
             stakesTier = tier,
             infoAsymmetry = asymmetry,
             shapleyValues = shapleyValues,
-            mechanismHint = mechanismHint
+            mechanismHint = mechanismHint,
+            deal = deal?.let(com.drkkr.strategos.domain.negotiation.DealBlock::from)
         )
     }
 

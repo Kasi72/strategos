@@ -106,5 +106,25 @@ class NegotiationFlowTest {
         assertTrue(blocked, Regex("""Accept 95k[^}]*crosses your walk-away""").containsMatchIn(blocked))
         val coachInput = llm.requests.first { it.purpose == "COACH" }.input.toString()
         assertFalse(coachInput.contains("Walk-away: 100,000"))
+        // the deal block reached the coach
+        assertTrue(directive.toString(), directive.containsKey("deal"))
+    }
+
+    @Test
+    fun TC_NG_CHECK_01_aReplyThatCountersBelowTheWalkAwayIsNeverShown_theEnginesTextIs() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(sketch), exactWords = "Counter at 95k and close it today.")
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("deal").join()
+        controller.send("Asha wants my design work. I won't go below 100k, I'd love 130k, I think she can go to 120k. I have another client at 105k.")!!.join()
+        controller.awaitIdle()
+        assertEquals("tried twice, then gave up", 2, llm.requests.count { it.purpose == "COACH" })
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertFalse(reply, reply.contains("Counter at 95k"))
+        // "Accept 95k" may be listed as one of their options or warned against, never offered
+        val offered = reply.lines().filter { "Accept 95k" in it && !it.startsWith("• Your options") && !it.startsWith("Not advised") }
+        assertTrue(offered.toString(), offered.isEmpty())
+        // the engine's own text never offers the option that crosses the walk-away, nor states the walk-away or the fallback
+        assertFalse(reply, Regex("""100,000|100k|105,000|105k""").containsMatchIn(reply))
     }
 }

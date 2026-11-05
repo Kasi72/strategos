@@ -1,6 +1,7 @@
 package com.drkkr.strategos.domain.negotiation
 
 import com.drkkr.strategos.domain.agent.IntakeChecklist
+import com.drkkr.strategos.domain.analysis.PipelineResult
 import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.Constraint
 import com.drkkr.strategos.domain.model.ConstraintAssessment
@@ -32,11 +33,7 @@ object NegotiationView {
         )
         val hardIds = view.constraints.filter { it.kind in HARD }.map { it.id }.toSet()
 
-        fun crosses(a: Action): Boolean {
-            if (a.stakeholderId != owner.id) return false
-            val figure = DealNumbers.parse(a.label) ?: return false
-            return frame.compatible(figure) && frame.worse(figure.value, walk.value)
-        }
+        fun crosses(a: Action): Boolean = a.stakeholderId == owner.id && crosses(a.label, frame)
 
         // Every other option gets the status that leaves its own summary exactly as it was before this limit existed:
         // with no assessment at all it would read UNKNOWN as soon as any hard limit exists (RecommendationEngine).
@@ -60,5 +57,28 @@ object NegotiationView {
             )
         }
         return view.copy(constraints = view.constraints + limit, constraintAssessments = view.constraintAssessments + assessments)
+    }
+
+    /** True when [label] carries exactly one figure, in the frame's unit, on the wrong side of the walk-away. */
+    fun crosses(label: String, frame: DealFrame): Boolean {
+        val walk = frame.walkAway ?: return false
+        val figure = DealNumbers.parse(label) ?: return false
+        return frame.compatible(figure) && frame.worse(figure.value, walk.value)
+    }
+
+    /**
+     * The saved analysis with every option that crosses the walk-away marked excluded, for the engine's own fallback text: when the
+     * coach's reply is not used, that text must not offer what the vote ruled out. Null frame = the same instance (I-N1).
+     */
+    fun withinWalkAway(pr: PipelineResult, frame: DealFrame?): PipelineResult {
+        val report = pr.report ?: return pr
+        if (frame?.walkAway == null) return pr
+        val labels = report.scenario.actions.associate { it.id to it.label }
+        val owner = IntakeChecklist.self(report.scenario)?.id
+        val pathways = report.pathways.map { p ->
+            val mine = p.actionId != null && report.scenario.actions.firstOrNull { it.id == p.actionId }?.stakeholderId == owner
+            if (!p.excluded && mine && crosses(labels[p.actionId] ?: p.action, frame)) p.copy(excluded = true) else p
+        }
+        return pr.copy(report = report.copy(pathways = pathways))
     }
 }

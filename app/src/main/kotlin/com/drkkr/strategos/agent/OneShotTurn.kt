@@ -340,7 +340,10 @@ class OneShotTurn(
             // No confident pick yet. Still answer THIS message in the coach's own words; the fixed template ignores what was said.
             DebugLog.d { "FALLBACK engine has no pick (directive not ready); asking the coach to reflect on the message" }
             onActivity("Writing my reply…")
-            return reflect(cid, turnId, s, pr, text) ?: PlainResult.build(s, pr, understood)
+            // Negotiation Numbers: the engine's own text and the reflection never offer an option that crosses the walk-away.
+            val within = com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal)
+            return reflect(cid, turnId, s, within, text)?.takeIf { com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(it), deal) }
+                ?: PlainResult.build(s, within, understood)
         }
         // Quick mode: skip interpret (Call 2) and return the engine badge only.
         if (quickMode) return directive.badge()
@@ -351,7 +354,7 @@ class OneShotTurn(
             com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
             else -> INTERPRET_MAX_TOKENS
         }
-        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
+        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal)
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
             var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" },
@@ -364,8 +367,8 @@ class OneShotTurn(
         }
         else {
             // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.
-            DebugLog.d { "FALLBACK structured reply unusable (not parsed, or did not echo the engine's pick); showing the engine's text" }
-            PlainResult.build(s, pr, understood)
+            DebugLog.d { "FALLBACK structured reply unusable (not parsed, did not echo the engine's pick, or broke the walk-away); showing the engine's text" }
+            PlainResult.build(s, com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal), understood)
         }
     }
 
@@ -502,7 +505,10 @@ class OneShotTurn(
     }
 
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
-    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS): CoachReply? {
+    private suspend fun interpret(
+        cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS,
+        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
+    ): CoachReply? {
         val priorRoundCtx = priorRound(cid)
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
@@ -526,11 +532,13 @@ class OneShotTurn(
             }
             val r = result
             val reply = CoachReply.parse(r.output.assistantText())
-            if (reply != null && reply.implements(directive.moveToImplement) && !reply.namesSomethingBanned()) {
+            // Negotiation Numbers: a reply whose advice crosses the walk-away, or tells them the walk-away or the fallback, is not used either.
+            if (reply != null && reply.implements(directive.moveToImplement) && !reply.namesSomethingBanned() &&
+                com.drkkr.strategos.domain.negotiation.DealCheck.usable(reply, deal)) {
                 if (!reply.hasPlaceholder()) return reply
                 usable = reply
             }
-            DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()}" }
+            DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()} dealOk=${reply?.let { com.drkkr.strategos.domain.negotiation.DealCheck.usable(it, deal) }}" }
         }
         return usable?.stripped()
     }
