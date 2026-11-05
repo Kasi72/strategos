@@ -22,7 +22,9 @@ data class PowerPlan(
     val deliveryMoves: List<StrategicTactic> = emptyList(),
     val noHardballReason: String? = null,
     val closeDomainNote: String? = null,
-    val q: Double? = null
+    val q: Double? = null,
+    /** The EV of every move that cleared the minimum, for merging with the benign moves by value. */
+    val ev: Map<StrategicId, Double> = emptyMap()
 )
 
 /**
@@ -89,6 +91,6 @@ object PowerPlanner {
             if (delivery.any { d -> StrategicCatalog.SAME_FAMILY.any { f -> d.id in f && t.id in f } }) continue
             delivery += t
         }
-        return PowerPlan(cardMoves = card, deliveryMoves = delivery, q = q)
+        return PowerPlan(cardMoves = card, deliveryMoves = delivery, q = q, ev = positive.associate { (t, e) -> t.id to e })
     }
 }

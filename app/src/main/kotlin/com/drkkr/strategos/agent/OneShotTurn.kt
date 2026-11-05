@@ -244,7 +244,8 @@ class OneShotTurn(
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support)
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
+                    userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -272,7 +273,9 @@ class OneShotTurn(
         understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
         onGuide: (CoachGuideSketch) -> Unit = {},
         quickMode: Boolean = false,
-        support: Boolean = false
+        support: Boolean = false,
+        /** Power Mode: this turn's manipulative request, if any (read from this turn's sketch, never a saved one). */
+        userAsksFor: String? = null
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -320,9 +323,14 @@ class OneShotTurn(
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
         } else null
-        val directive = withDelivery(
-            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(raw, deal), gameContext.opponentModel, support, text
+        val maskedRaw = com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(raw, deal)
+        val delivered = withDelivery(
+            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, maskedRaw, gameContext.opponentModel, support, text
         )
+        // Power Mode: hardball moves join the delivery when they pay (I-P3); the decline note is set in any mode.
+        val powerOn = settings.isPowerMode(cid)
+        val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, settings.powerLock(), support, snap?.trustScore)
+        val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor))
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
         if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
             s.humanContext?.pendingCooling != directive.moveToImplement) {
@@ -399,6 +407,39 @@ class OneShotTurn(
             userSaysNow = com.drkkr.strategos.domain.human.HotStateGate.userSaysNow(userText))
         val radar = com.drkkr.strategos.domain.human.ManipulationRadar.scan(hc, com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null))
         return d.copy(delivery = plan.takeIf { !it.isEmpty }, watchFor = radar.watchFor)
+    }
+
+    /**
+     * Power Mode (blueprint §4): plans the hardball moves and merges up to two into the delivery, ranked against the benign ones by
+     * value (a benign move's Δp × the user's receptive-minus-defensive spread; a hardball move's EV), at most three in all. The
+     * engine's pick is never changed (I-H1). Returns the plan for the Power Read card.
+     */
+    private fun withPower(
+        d: EngineDirective, raw: com.drkkr.strategos.domain.model.Scenario, powerOn: Boolean, powerLock: Boolean, support: Boolean, trust: Double?
+    ): kotlin.Pair<EngineDirective, com.drkkr.strategos.domain.human.power.PowerPlan?> {
+        if (!powerOn || !d.ready) return d to null
+        val hc = raw.humanContext ?: return d to null
+        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(raw) ?: return d to null
+        val move = raw.actionsFor(owner.id).firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } ?: return d to null
+        val spread = com.drkkr.strategos.domain.human.power.BenignEquivalent.spread(raw, move.id)
+        val benign = d.delivery?.tactics.orEmpty().map { it to com.drkkr.strategos.domain.human.power.BenignEquivalent.of(it.deltaP, spread) }
+        val domain = com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null)
+        val plan = com.drkkr.strategos.domain.human.power.PowerPlanner.plan(raw, domain, powerOn, support, powerLock, trust,
+            benignBest = benign.maxOfOrNull { it.second } ?: 0.0, move = move)
+        if (plan.deliveryMoves.isEmpty()) return d to plan
+        val hard = plan.deliveryMoves.map { t ->
+            com.drkkr.strategos.domain.human.PlannedTactic(t.id, t.hint(raw, hc), 0.0) to (plan.ev[t.id] ?: 0.0)
+        }
+        val kept = (benign + hard).sortedByDescending { it.second }.take(MAX_DELIVERY_TACTICS).map { it.first }
+        val ids = kept.map { it.id }.toSet()
+        val base = d.delivery ?: com.drkkr.strategos.domain.human.Delivery()
+        val delivery = base.copy(
+            tactics = kept,
+            // a benign move that was outranked takes its own extras with it
+            defaultOffer = base.defaultOffer.takeIf { com.drkkr.strategos.domain.human.TacticId.DEFAULT_WITH_DEADLINE in ids },
+            optionsToOffer = base.optionsToOffer.takeIf { com.drkkr.strategos.domain.human.TacticId.TWO_GOOD_OPTIONS in ids }.orEmpty()
+        )
+        return d.copy(delivery = delivery) to plan
     }
 
     /**
@@ -728,6 +769,8 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        /** Benign and hardball delivery moves together (Power Mode, STEPS PM4.1). */
+        private const val MAX_DELIVERY_TACTICS = 3
         private const val RETRY_PAUSE_MS = 1_500L
         private const val THREAD_USER_MESSAGES = 2
         private const val THREAD_PREVIOUS_CHARS = 600
