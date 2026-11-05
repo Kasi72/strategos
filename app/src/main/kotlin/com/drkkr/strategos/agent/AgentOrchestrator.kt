@@ -160,7 +160,10 @@ class AgentOrchestrator(
             "stress_test_inferred" to "Stress-testing AI estimates…",
             "update_memory" to "Updating memory…",
             "show_understanding" to "Writing a recap…",
-            "show_support" to "Showing support contacts…"
+            "show_support" to "Showing support contacts…",
+            "run_coalition_analysis" to "Computing leverage…",
+            "check_mechanism_design" to "Checking design structure…",
+            "run_specific_framework" to "Running framework…"
         )
     }
 }

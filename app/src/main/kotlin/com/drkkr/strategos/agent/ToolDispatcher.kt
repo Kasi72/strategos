@@ -2,10 +2,13 @@ package com.drkkr.strategos.agent
 
 import android.util.Log
 import com.drkkr.strategos.agent.tools.AskUserHandler
+import com.drkkr.strategos.agent.tools.CoalitionAnalysisHandler
 import com.drkkr.strategos.agent.tools.ExplainFrameworkHandler
 import com.drkkr.strategos.agent.tools.GetScenarioHandler
+import com.drkkr.strategos.agent.tools.MechanismCheckHandler
 import com.drkkr.strategos.agent.tools.ProposeChangesHandler
 import com.drkkr.strategos.agent.tools.RunAnalysisHandler
+import com.drkkr.strategos.agent.tools.RunSpecificFrameworkHandler
 import com.drkkr.strategos.agent.tools.ShowSupportHandler
 import com.drkkr.strategos.agent.tools.ShowUnderstandingHandler
 import com.drkkr.strategos.agent.tools.StressTestInferredHandler
@@ -102,7 +105,10 @@ class ToolDispatcher(private val handlers: Map<String, ToolHandler>) {
                 "stress_test_inferred" to StressTestInferredHandler,
                 "update_memory" to UpdateMemoryHandler,
                 "show_understanding" to ShowUnderstandingHandler,
-                "show_support" to ShowSupportHandler
+                "show_support" to ShowSupportHandler,
+                "run_coalition_analysis" to CoalitionAnalysisHandler,
+                "check_mechanism_design" to MechanismCheckHandler,
+                "run_specific_framework" to RunSpecificFrameworkHandler
             )
         )
     }

@@ -1,0 +1,8 @@
+name: check_mechanism_design
+description: >
+  Detect if the scenario is a mechanism design problem: auction, matching, contract,
+  voting, or resource allocation. Use when the user is designing rules, processes, or
+  incentive structures, or asks "how should we structure this". Returns the detected type,
+  an insight explaining what kind of problem it is, and a concrete recommendation.
+  Returns none if no mechanism structure is detected.
+input_schema: { type: object, properties: {}, required: [] }

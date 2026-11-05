@@ -38,6 +38,16 @@
   },
   {
     "type": "function",
+    "name": "check_mechanism_design",
+    "description": "Detect if the scenario is a mechanism design problem: auction, matching, contract, voting, or resource allocation. Use when the user is designing rules, processes, or incentive structures, or asks \"how should we structure this\". Returns the detected type, an insight explaining what kind of problem it is, and a concrete recommendation. Returns none if no mechanism structure is detected.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "explain_framework",
     "description": "Explain one framework from the last analysis.",
     "parameters": {
@@ -255,6 +265,33 @@
       "type": "object",
       "properties": {},
       "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "run_coalition_analysis",
+    "description": "Compute Shapley values and coalition stability for 3–8 player games. Use when the user asks who has the most leverage, whose support matters most, or whether the grand coalition is stable. Returns player Shapley values and a plain-language summary. Returns not_applicable for fewer than 3 or more than 8 players.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "run_specific_framework",
+    "description": "Run a single named analysis framework on the current model and return its findings. Use when the user asks for a deep-dive into one framework, or to run a framework that the full pipeline may not have selected. Pass the module_id exactly as returned in run_analysis output (e.g. \"dominant-strategy\", \"pure-nash\", \"relational-repair\"). Returns not_applicable if the framework score is below the minimum threshold.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "module_id": {
+          "type": "string",
+          "description": "The id of the framework module to run (e.g. \"dominant-strategy\", \"pure-nash\")."
+        }
+      },
+      "required": [
+        "module_id"
+      ]
     }
   },
   {
