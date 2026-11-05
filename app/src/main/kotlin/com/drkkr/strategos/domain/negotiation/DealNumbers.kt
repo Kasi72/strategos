@@ -71,6 +71,22 @@ object DealNumbers {
         }.toList()
     }
 
+    // A figure with any currency symbol or word written next to it, so a masked figure leaves no stray "$" or "dollars".
+    private val withCurrency = Regex(
+        """(?:[₹$€£]\s*|\b(?:rs\.?|inr|usd|eur|gbp)\s*)?""" + figure.pattern + """(?:\s*(?:dollars?|rupees?|usd|inr|euros?|eur|pounds?|gbp)\b)?""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** [text] with each figure (and its currency) replaced by what [replace] returns for it; null keeps that figure as written. */
+    fun replaceFigures(text: String, replace: (Amount) -> String?): String = withCurrency.replace(text) { m ->
+        val inner = figure.find(m.value) ?: return@replace m.value
+        val n = (inner.groupValues[1].replace(",", "") + inner.groupValues[2]).toDoubleOrNull() ?: return@replace m.value
+        val suffix = inner.groupValues[3]
+        val a = if (percent(suffix)) Amount(n, Amount.Unit.PERCENT, null)
+                else Amount(n * multiplier(suffix), Amount.Unit.AMOUNT, currencies.firstOrNull { (_, r) -> r.containsMatchIn(m.value) }?.first)
+        replace(a) ?: m.value
+    }
+
     /** "₹40,000", "$132,000", "110,000", "30%". Whole numbers lose the ".0"; others keep up to two decimals. */
     fun format(a: Amount): String {
         val digits = DecimalFormat("#,##0.##", DecimalFormatSymbols(Locale.US)).format(a.value)

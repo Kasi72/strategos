@@ -374,13 +374,14 @@ object EngineDirectiveBuilder {
         }
 
         return EngineDirective(
-            ready = true, recommendedMove = recommended.label, recommendedWhy = cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY).take(MAX_TEXT),
+            ready = true, recommendedMove = recommended.label, recommendedWhy = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY), deal).take(MAX_TEXT),
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
             blockedOrDominatedMoves = blocked, dominantDynamic = dynamicTexts, dynamicLabel = dynamicLabel,
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
             stressVerdict = if (fragile) "FRAGILE" else "ROBUST", stressFlip = flipText,
             moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
-            knownFacts = knownFacts(s, previousMove, recommended.label),
+            // CP-N: the walk-away and the fallback never reach the coach as a figure (a saved fear, a limit or last turn's move can carry one).
+            knownFacts = knownFacts(s, previousMove?.let { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) }, recommended.label).map { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) },
             bayesianLearningNote = BayesianUpdater.learningNote(s),
             dynamicArchetype = dynamicArchetype,
             analysisIntegrity = analysisIntegrity,

@@ -127,4 +127,33 @@ class NegotiationFlowTest {
         // the engine's own text never offers the option that crosses the walk-away, nor states the walk-away or the fallback
         assertFalse(reply, Regex("""100,000|100k|105,000|105k""").containsMatchIn(reply))
     }
+
+    /** Delegates to [EngineEchoLlm], except the follow-up-answer call, which always gives the walk-away as a line to say. */
+    private class LeakyFollowUpLlm(private val inner: EngineEchoLlm) : com.drkkr.strategos.llm.LlmClient by inner {
+        var followUpCalls = 0
+        override suspend fun create(req: com.drkkr.strategos.llm.LlmRequest): com.drkkr.strategos.llm.LlmResult {
+            if (req.input.toString().contains("they are asking about the reply you just gave them")) {
+                followUpCalls++
+                return com.drkkr.strategos.fixtures.FakeLlmClient.textReply("Your strongest line tomorrow is \"I'm not going below $100,000\" and nothing else.")
+            }
+            return inner.create(req)
+        }
+    }
+
+    @Test
+    fun aFollowUpAnswerThatGivesTheWalkAwayAsALineIsRetriedThenShownMasked() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val followUp = """{"message_kind":"followup_question","people":[],"options":[]}"""
+        val llm = LeakyFollowUpLlm(EngineEchoLlm(listOf(sketch, followUp)))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("deal").join()
+        controller.send("Asha wants my design work. I won't go below 100k, I'd love 130k, I think she can go to 120k. I have another client at 105k.")!!.join()
+        controller.awaitIdle()
+        controller.send("What should I actually say to her?")!!.join()
+        controller.awaitIdle()
+        assertEquals("rejected once, retried once", 2, llm.followUpCalls)
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertFalse(reply, Regex("""100,000|100k""").containsMatchIn(reply))
+        assertTrue(reply, reply.contains("your floor"))
+    }
 }

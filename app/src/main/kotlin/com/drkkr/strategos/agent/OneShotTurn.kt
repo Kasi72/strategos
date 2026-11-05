@@ -128,7 +128,8 @@ class OneShotTurn(
             val prior = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
             if (!prior.isNullOrBlank()) {
                 onActivity("Answering your question…")
-                answerFollowUp(cid, turnId, text, prior, previousReportJson)?.let { answer ->
+                val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(loaded.negotiationContext, loaded.humanContext, text)
+                answerFollowUp(cid, turnId, text, prior, previousReportJson, deal)?.let { answer ->
                     conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
                     afterTurn(cid)
                     return TurnResult.Done
@@ -279,7 +280,8 @@ class OneShotTurn(
         val raw = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
         // Negotiation Numbers: the walk-away as a limit inside the vote (PLAN §3.3). In memory only; null frame = the same instance (I-N1).
         val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(raw.negotiationContext, raw.humanContext, text)
-        val negotiated = com.drkkr.strategos.domain.negotiation.NegotiationView.apply(raw, deal)
+        // CP-N: the user's option labels carry no walk-away or fallback figure in the view ("your ceiling", "your other option").
+        val negotiated = com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(com.drkkr.strategos.domain.negotiation.NegotiationView.apply(raw, deal), deal)
         // Human Layer: the other person's payoffs as a real person would feel them. In memory only, like the lines above.
         val view = com.drkkr.strategos.domain.human.HumanizedView.apply(negotiated)
         // In memory only: the last few things the user said, so text-based detectors (mechanism design) see more than the empty frame.
@@ -318,7 +320,7 @@ class OneShotTurn(
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
         } else null
         val directive = withDelivery(
-            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, raw, gameContext.opponentModel, support, text
+            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(raw, deal), gameContext.opponentModel, support, text
         )
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
         if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
@@ -343,7 +345,7 @@ class OneShotTurn(
             // Negotiation Numbers: the engine's own text and the reflection never offer an option that crosses the walk-away.
             val within = com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal)
             return reflect(cid, turnId, s, within, text)?.takeIf { com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(it), deal) }
-                ?: PlainResult.build(s, within, understood)
+                ?: com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(PlainResult.build(s, within, understood), deal)
         }
         // Quick mode: skip interpret (Call 2) and return the engine badge only.
         if (quickMode) return directive.badge()
@@ -368,7 +370,7 @@ class OneShotTurn(
         else {
             // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.
             DebugLog.d { "FALLBACK structured reply unusable (not parsed, did not echo the engine's pick, or broke the walk-away); showing the engine's text" }
-            PlainResult.build(s, com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal), understood)
+            com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(PlainResult.build(s, com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal), understood), deal)
         }
     }
 
@@ -572,7 +574,22 @@ class OneShotTurn(
      * Phase G.2: answers a question about the assistant's own previous reply, in plain words, without re-running the
      * engine. Returns null on any failure or an unusable (empty/JSON) reply, so the caller falls back to the normal pipeline.
      */
-    private suspend fun answerFollowUp(cid: String, turnId: String, text: String, priorReply: String, reportJson: String?): String? {
+    private suspend fun answerFollowUp(
+        cid: String, turnId: String, text: String, priorReply: String, reportJson: String?,
+        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
+    ): String? {
+        // CP-N: the prior reply and the digest go in masked; an answer that gives the walk-away or the fallback as a line to say is
+        // retried once, and if it still does, it is shown masked ("your ceiling"), never with the figure.
+        val prior = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(priorReply, deal)
+        val digest = reportJson?.let { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) }
+        val first = followUpCall(cid, turnId, text, prior, digest) ?: return null
+        if (com.drkkr.strategos.domain.negotiation.DealCheck.usableAnswer(first, deal)) return first
+        DebugLog.d { "FOLLOWUP answer gave the walk-away or fallback as a line; retrying once" }
+        val second = followUpCall(cid, turnId, text, prior, digest) ?: return com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(first, deal)
+        return if (com.drkkr.strategos.domain.negotiation.DealCheck.usableAnswer(second, deal)) second else com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(second, deal)
+    }
+
+    private suspend fun followUpCall(cid: String, turnId: String, text: String, priorReply: String, reportJson: String?): String? {
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ANSWER_FOLLOWUP_PROMPT) })
             add(buildJsonObject {

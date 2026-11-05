@@ -51,6 +51,8 @@ data class DealFrame(
 
         private val HIGHER_RELATIONSHIPS = setOf("manager", "client")
         private val LOWER_RELATIONSHIPS = setOf("vendor", "landlord")
+        /** "walk away above $45,000", "walking away below 100k": the walk-away itself, not a fallback. */
+        private val walkAwayLine = Regex("""(?i)\bwalk(?:ing|s)?[- ]?away\s+(?:above|below|over|under|beyond|at|if|past)\b""")
         private val stated = Regex("""(?i)\b(?:${StatedFloor.NEED_PHRASES})\s*(?:is\s*)?(\D{0,12}?\d[\d,]*(?:\.\d+)?\s*[a-z%]*)""")
 
         fun build(nc: NegotiationContext?, ctx: HumanContext?, message: String): DealFrame? {
@@ -73,8 +75,13 @@ data class DealFrame(
                 if (currency == null) currency = a.currency
                 return a
             }
-            val target = keep(nc.aspirationPoint, "target")
-            val fallback = keep(nc.batna, "fallback")
+            // CP-N: a target equal to the walk-away is not a separate target (it would make the opening the walk-away), and a
+            // fallback equal to it, or written as a walk-away line ("walk away above $45,000"), is not something to fall back on.
+            val statedTarget = keep(nc.aspirationPoint, "target")
+            val target = statedTarget?.takeUnless { WalkAwayMask.near(it.value, savedWalk.value) }
+            if (statedTarget != null && target == null) notes += "your target is the same as your walk-away, so there is no separate target"
+            val fallback = if (walkAwayLine.containsMatchIn(nc.batna)) null
+                else keep(nc.batna, "fallback")?.takeUnless { WalkAwayMask.near(it.value, savedWalk.value) }
             val theirLimit = keep(nc.counterpartReservation, "estimate of their limit")
             val theirFallback = keep(nc.counterpartBatna, "estimate of their fallback")
             fun cur(a: Amount?) = a?.copy(currency = if (a.unit == Amount.Unit.AMOUNT) currency else null)

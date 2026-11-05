@@ -37,8 +37,9 @@ class HumanPromptTest {
         // BLUEPRINT-QUESTION (resolved by the user): STEPS asks for <= 1,200 chars of growth AND every closed vocabulary spelled
         // out; the vocabularies alone are ~850 chars. The user accepted a larger prompt (1,600), then 1,800 in hl1.5 for short
         // definitions of the ambiguous tags and the "only if the user said it" guards. Restoring the schema keys (below) after the
-        // live replay showed the model had stopped filling them took it to ~1,880, so the limit was 1,900; the safety wording added to rule 9 in HL5.2 (controlling money, cutting you off from friends or family, intimidation) took it to 2,000. hl3.6 added `last_attempt_tags` (one rule sentence and one schema key, +133 chars), so the limit is 2,133 (2,000 + exactly that growth; actual 2,093). hl3.7 added the corrects_them wording for last_attempt_tags and "in any language" in rule 9 (+85 chars), so the limit is 2,218 (actual 2,178).
-        assertTrue("prompt grew by $growth chars", growth in 1..2218)
+        // live replay showed the model had stopped filling them took it to ~1,880, so the limit was 1,900; the safety wording added to rule 9 in HL5.2 (controlling money, cutting you off from friends or family, intimidation) took it to 2,000. hl3.6 added `last_attempt_tags` (one rule sentence and one schema key, +133 chars), so the limit is 2,133 (2,000 + exactly that growth; actual 2,093). hl3.7 added the corrects_them wording for last_attempt_tags and "in any language" in rule 9 (+85 chars), so the limit is 2,218 (actual 2,178). Negotiation Numbers ng5 (CP-N, a Call 1 exception the user allowed) added two
+        // sentences to rule 18 (if_no_deal is never the walk-away line; their_limit is never their current quote) (+224 chars), so the limit is 2,442 (actual 2,402).
+        assertTrue("prompt grew by $growth chars", growth in 1..2442)
     }
 
     @Test
