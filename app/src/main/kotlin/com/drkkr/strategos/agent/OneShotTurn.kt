@@ -128,7 +128,7 @@ class OneShotTurn(
             val prior = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
             if (!prior.isNullOrBlank()) {
                 onActivity("Answering your question…")
-                val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(loaded.negotiationContext, loaded.humanContext, text)
+                val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(loaded.negotiationContext, loaded.humanContext, text, recent = userTexts.takeLast(6).joinToString("\n"))
                 answerFollowUp(cid, turnId, text, prior, previousReportJson, deal)?.let { answer ->
                     conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
                     afterTurn(cid)
@@ -279,7 +279,8 @@ class OneShotTurn(
         val snap = argon?.trajectory?.current(sid)
         val raw = EngineDirectiveBuilder.analysisView(s, snap?.trustScore, snap?.tensionScore)
         // Negotiation Numbers: the walk-away as a limit inside the vote (PLAN §3.3). In memory only; null frame = the same instance (I-N1).
-        val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(raw.negotiationContext, raw.humanContext, text)
+        val recentForDeal = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString("\n") { it.text }
+        val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(raw.negotiationContext, raw.humanContext, text, recent = recentForDeal)
         // CP-N: the user's option labels carry no walk-away or fallback figure in the view ("your ceiling", "your other option").
         val negotiated = com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(com.drkkr.strategos.domain.negotiation.NegotiationView.apply(raw, deal), deal)
         // Human Layer: the other person's payoffs as a real person would feel them. In memory only, like the lines above.

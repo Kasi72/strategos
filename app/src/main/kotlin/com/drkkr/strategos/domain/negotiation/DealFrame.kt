@@ -53,9 +53,15 @@ data class DealFrame(
         private val LOWER_RELATIONSHIPS = setOf("vendor", "landlord")
         /** "walk away above $45,000", "walking away below 100k": the walk-away itself, not a fallback. */
         private val walkAwayLine = Regex("""(?i)\bwalk(?:ing|s)?[- ]?away\s+(?:above|below|over|under|beyond|at|if|past)\b""")
+        private val openingWord = Regex("""(?i)\b(?:quot|asking|priced|listed|offer)""")
+        private val sentenceEnd = Regex("""(?<=[.!?;\n])\s+""")
         private val stated = Regex("""(?i)\b(?:${StatedFloor.NEED_PHRASES})\s*(?:is\s*)?(\D{0,12}?\d[\d,]*(?:\.\d+)?\s*[a-z%]*)""")
 
-        fun build(nc: NegotiationContext?, ctx: HumanContext?, message: String): DealFrame? {
+        /**
+         * [recent] is the user's last few messages (defaults to [message]); a "their limit" figure the user called their quote, asking
+         * price or offer there is their OPENING, not their limit (ng7), so the zone stays unknown instead of reading "no overlap".
+         */
+        fun build(nc: NegotiationContext?, ctx: HumanContext?, message: String, recent: String = message): DealFrame? {
             if (nc == null) return null
             val savedWalk = DealNumbers.parse(nc.reservationPoint) ?: return null
             val notes = mutableListOf<String>()
@@ -82,7 +88,11 @@ data class DealFrame(
             if (statedTarget != null && target == null) notes += "your target is the same as your walk-away, so there is no separate target"
             val fallback = if (walkAwayLine.containsMatchIn(nc.batna)) null
                 else keep(nc.batna, "fallback")?.takeUnless { WalkAwayMask.near(it.value, savedWalk.value) }
-            val theirLimit = keep(nc.counterpartReservation, "estimate of their limit")
+            val theirLimit = keep(nc.counterpartReservation, "estimate of their limit")?.takeUnless { lim ->
+                recent.split(sentenceEnd).any { s ->
+                    openingWord.containsMatchIn(s) && DealNumbers.figures(s).any { it.unit == lim.unit && WalkAwayMask.near(it.value, lim.value) }
+                }.also { if (it) notes += "their figure is what they quoted, not their limit, so the zone is unknown" }
+            }
             val theirFallback = keep(nc.counterpartBatna, "estimate of their fallback")
             fun cur(a: Amount?) = a?.copy(currency = if (a.unit == Amount.Unit.AMOUNT) currency else null)
 

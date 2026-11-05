@@ -183,7 +183,7 @@ class DeepSeekLiveFlowTest {
                 // Negotiation Numbers: the frame this turn's engine built (same inputs as OneShotTurn), what it ruled out, and the reply's figures.
                 out.append("\n(n) NEGOTIATION\n")
                 if (saved == null) out.append("  (no saved scenario)\n") else {
-                    val frame = com.drkkr.strategos.domain.negotiation.DealFrame.build(saved.negotiationContext, saved.humanContext, m)
+                    val frame = com.drkkr.strategos.domain.negotiation.DealFrame.build(saved.negotiationContext, saved.humanContext, m, recent = messages.take(i + 1).takeLast(6).joinToString("\n"))
                     if (frame == null) out.append("  frame: none (no context, no readable walk-away, or no direction)\n") else {
                         fun f(a: com.drkkr.strategos.domain.negotiation.Amount?) = a?.let { com.drkkr.strategos.domain.negotiation.DealNumbers.format(it) } ?: "-"
                         out.append("  frame: direction=${frame.direction} walkAway=${f(frame.walkAway)} target=${f(frame.target)} fallback=${f(frame.fallback)} theirLimit=${f(frame.theirLimit)}\n")

@@ -42,7 +42,8 @@ class WalkAwayMaskTest {
         val s = buyerScenario()
         val v = WalkAwayMask.apply(s, vendor)
         val labels = v.actions.associate { it.id to it.label }
-        assertEquals("Tell Karthik plainly that your ceiling is your hard ceiling", labels["a1"])
+        // ng7: "that your ceiling is your hard ceiling" reads as "that you have a firm ceiling"
+        assertEquals("Tell Karthik plainly that you have a firm ceiling", labels["a1"])
         // ng6: a credible fallback is leverage and stays; a weak one ("another vendor at 48,000", above the ceiling) is masked
         assertEquals("Mention the other vendor at $42,000", labels["a2"])
         val weak = DealFrame.build(vendorNc.copy(batna = "another vendor at 48,000"), vendorCtx, "")!!

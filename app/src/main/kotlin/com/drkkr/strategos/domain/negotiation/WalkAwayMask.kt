@@ -31,17 +31,22 @@ object WalkAwayMask {
     /** The fallback, only when walking away is not credible; a credible (or unknown) one may be said. */
     private fun weakFallback(frame: DealFrame): Amount? = frame.fallback.takeIf { frame.walkAwayCredible == false }
 
+    /** "that your ceiling is your hard ceiling" (what masking makes of "that $45,000 is your hard ceiling") -> "that you have a firm ceiling". */
+    private val doubled = Regex("""(?i)\byour (ceiling|floor)(?: a (?:year|month))? is your (?:\w+ )?\1\b""")
+
     fun text(t: String, frame: DealFrame?): String {
         val walk = frame?.walkAway ?: return t
-        return DealNumbers.replaceFigures(t) { a ->
+        return firm(DealNumbers.replaceFigures(t) { a ->
             when {
                 !frame.compatible(a) -> null
                 near(a.value, walk.value) -> if (frame.direction == Direction.LOWER_IS_BETTER) CEILING else FLOOR
                 weakFallback(frame)?.let { near(a.value, it.value) } == true -> OTHER_OPTION
                 else -> null
             }
-        }
+        })
     }
+
+    private fun firm(t: String) = doubled.replace(t) { m -> "you have a firm ${m.groupValues[1].lowercase()}" }
 
     /** The user's option labels, masked. Null frame, or nothing to mask = the same instance (I-N1). */
     fun apply(view: Scenario, frame: DealFrame?): Scenario {

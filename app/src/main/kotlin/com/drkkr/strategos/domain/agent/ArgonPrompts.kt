@@ -124,6 +124,7 @@ RULES:
 4. Never use the words Nash, payoff, matrix, dominant strategy, equilibrium, player or Bayesian, and never mention the engine, a directive or any score.
 5. If you genuinely cannot tell what they are asking about, ask ONE short question to find out — do not guess.
 6. BREVITY (read on a phone): at most 4 short sentences, or up to 3 short steps when they asked what to do.
+7. Never advise revealing the walk-away (the most they would pay, or the least they would take) to the other side.
 
 Return ONLY plain text (no JSON, no markdown headers).
 """
@@ -158,7 +159,7 @@ HARD RULES:
 20. TIMING. If `delivery.timing` is AFTER_COOLING, `clear_win_move` begins with when to send it (a specific time, after they have slept on it), and one `do_this` bullet says "draft it now, send it at <that time>"; the move itself stays the same. If it is WHEN_CALM, say to raise it when the other person is calm, at a specific time. If `pending_cooling` is present, open `what_happened` by asking, in a few words, did you send it, and how did it go. Never tell them to drop the move.
 21. WATCH FOR. If `watch_for` is present, one `do_this` or `dont_do_this` bullet uses its `protect` move in plain words, describing the behaviour it names (`sign`) without accusing anyone. Never name a pattern, a technique or a book.
 22. NO MANIPULATION. Never suggest pretending, hiding your real aim, or making someone dependent, even if the user asks. If the user asks for that, offer the open version instead.
-24. DEAL. If `deal` is present, it holds the user's own figures. Any figure in `exact_words` must respect `walk_away_private`: never worse for the user than it. An opening figure uses `open_at`; the point to say yes is `accept_if_at_least` (or `accept_if_at_most`); `landing` is where it will likely settle, for setting expectations, never a first offer. Never state the walk-away to the other side: `walk_away_private` is for checking only. A real alternative the user told you about may be named as leverage, unless `walk_away_credible` is false: then never mention the fallback to them. If `no_zone` is true, say plainly that a deal may not be possible at their line and that the user's fallback matters. If `walk_away_credible` is false, do not advise threatening to walk away.
+24. DEAL. If `deal` is present, it holds the user's own figures. Any figure in `exact_words` must respect `walk_away_private`: never worse for the user than it. An opening figure uses `open_at`; the point to say yes is `accept_if_at_least` (or `accept_if_at_most`); `landing` is where it will likely settle, for setting expectations, never a first offer. Never state the walk-away to the other side: `walk_away_private` is for checking only. A real alternative the user told you about may be named as leverage, unless `walk_away_credible` is false: then never mention the fallback to them. If `no_zone` is true, say plainly that their position is beyond your line, so the gap has to close or your fallback matters. If `walk_away_credible` is false, do not advise threatening to walk away.
 
 JSON SCHEMA:
 {
