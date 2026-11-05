@@ -53,6 +53,7 @@ class DealNumbersTest {
 
     @Test fun TC_NG_PARSE_09_percent() {
         assertEquals(Amount(30.0, Amount.Unit.PERCENT, null), DealNumbers.parse("30%"))
+        assertEquals(Amount(5.0, Amount.Unit.PERCENT, null), DealNumbers.parse("a 5 percent raise"))
     }
 
     @Test fun TC_NG_PARSE_10_rangesAreNotUsed() {

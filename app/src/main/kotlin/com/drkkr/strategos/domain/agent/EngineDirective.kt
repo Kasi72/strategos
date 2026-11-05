@@ -192,6 +192,8 @@ object EngineDirectiveBuilder {
     private const val COMPLEMENT_WITHIN = 1.0
     private const val MIN_DYNAMIC_SCORE = 0.5
     private const val MAX_KNOWN_FACTS = 8
+    private const val WALK_AWAY_REASON = "it crosses your walk-away"
+    private const val WALK_AWAY_WHY = "The strongest of your options that stays within your walk-away."
 
     /** Archetypes with dominant-strategy (or minimax) solutions — high analytical confidence. */
     private val HIGH_CONFIDENCE_LABELS = setOf(
@@ -243,7 +245,9 @@ object EngineDirectiveBuilder {
         /** Human Layer (I-H6): the pick changes when the Human Layer's constants are halved or doubled, so it is not a safe pick. */
         humanFragile: Boolean = false,
         /** How noisy the other side is; sets how sharply the Human Layer expects them to pick their best reply. */
-        opponentModel: com.drkkr.strategos.domain.game.OpponentModel? = null
+        opponentModel: com.drkkr.strategos.domain.game.OpponentModel? = null,
+        /** Negotiation Numbers: the user's figures, read in one unit and direction. Null keeps the human-layer directive exactly (I-N1). */
+        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -253,7 +257,11 @@ object EngineDirectiveBuilder {
         val cov = PayoffCoverage.of(s)
         val clarification = if (cov.missingProfiles.isNotEmpty()) EvsiClarifier.clarify(s) else null
         val rankedPick = pathways.firstOrNull { it.label == RECOMMENDED && !it.excluded }
-        if (report == null || owner == null || cov.filled == 0 || rankedPick == null) return notReady(s, clarification)
+        // Negotiation Numbers: when the walk-away rules out the user's top option, the report's next pick can be the OTHER side's
+        // move, which leaves the user no ranked pick. Then the best calm option within the walk-away is taken (as for a reactive pick).
+        val walkAwayPick = deal != null && rankedPick == null &&
+            pathways.any { p -> p.excluded && p.constraintViolations.any { com.drkkr.strategos.domain.negotiation.NegotiationView.CONSTRAINT_ID in it } }
+        if (report == null || owner == null || cov.filled == 0 || (rankedPick == null && !walkAwayPick)) return notReady(s, clarification)
 
         fun posture(a: Action?) = a?.let { Postures.of(it) }
         fun reactive(a: Action?) = posture(a) == Postures.REACTIVE
@@ -264,11 +272,14 @@ object EngineDirectiveBuilder {
         fun value(a: Action) =
             (if (human) com.drkkr.strategos.domain.human.ResponseModel.expectedValue(s, owner.id, a.id, beta) else null)
                 ?: replies[a.id]?.ownerValue ?: Double.NEGATIVE_INFINITY
-        fun belowFloor(a: Action?) = a != null && StatedFloor.leadsBelow(a.label, statedFloor)
+        // With a deal frame the walk-away is read in full and in its direction; without one, exactly as before (I-N1).
+        val walk = deal?.walkAway
+        fun belowFloor(a: Action?) = a != null &&
+            if (deal != null && walk != null) StatedFloor.leadsBelow(a.label, walk.value, deal.direction, walk.unit) else StatedFloor.leadsBelow(a.label, statedFloor)
         val calmActions = ownerActions.filter { !reactive(it) && !belowFloor(it) }
 
         // The recommendation. A reactive move can never be it: if the ranking put one first, take the best calm move instead.
-        val rankedAction = rankedPick.actionId?.let { byId[it] }
+        val rankedAction = rankedPick?.actionId?.let { byId[it] }
         val recommended: Action = (rankedAction?.takeIf { !reactive(it) && !belowFloor(it) } ?: calmActions.maxByOrNull { value(it) }) ?: return notReady(s)
         val recommendedPathway = pathways.firstOrNull { it.actionId == recommended.id }
 
@@ -314,7 +325,10 @@ object EngineDirectiveBuilder {
                 val pathway = pathways.firstOrNull { it.actionId == a.id }
                 val reason = when {
                     reactive(a) -> "a reactive move; in a relationship that continues it costs trust later"
-                    a.id in excludedIds -> pathway?.constraintViolations?.firstOrNull()?.let { "it breaks \"$it\"" } ?: "ruled out by a limit"
+                    // the walk-away's figure is never named here: it reaches the coach only as walk_away_private (PLAN §3.4)
+                    a.id in excludedIds -> pathway?.constraintViolations?.firstOrNull()?.let {
+                        if (com.drkkr.strategos.domain.negotiation.NegotiationView.CONSTRAINT_ID in it) WALK_AWAY_REASON else "it breaks \"$it\""
+                    } ?: "ruled out by a limit"
                     else -> pathway?.rationale?.take(MAX_TEXT) ?: "ranks below the recommended move"
                 }
                 val likely = if (human) com.drkkr.strategos.domain.human.ResponseModel.likelyReply(s, owner.id, a.id, beta) else null
@@ -357,7 +371,7 @@ object EngineDirectiveBuilder {
         }
 
         return EngineDirective(
-            ready = true, recommendedMove = recommended.label, recommendedWhy = cleanWhy(recommendedPathway?.rationale ?: rankedPick.rationale).take(MAX_TEXT),
+            ready = true, recommendedMove = recommended.label, recommendedWhy = cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY).take(MAX_TEXT),
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
             blockedOrDominatedMoves = blocked, dominantDynamic = dynamicTexts, dynamicLabel = dynamicLabel,
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
@@ -387,7 +401,7 @@ object EngineDirectiveBuilder {
             p.fears.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} fears: $it") }
             p.goals.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} wants: $it") }
         }
-        s.constraints.forEach { c -> add("Limit: ${c.label}") }
+        s.constraints.filter { it.id != com.drkkr.strategos.domain.negotiation.NegotiationView.CONSTRAINT_ID }.forEach { c -> add("Limit: ${c.label}") }
         if (previousMove != null && previousMove != recommendedLabel) add("Last turn's recommended move: $previousMove")
     }.take(MAX_KNOWN_FACTS)
 
@@ -483,6 +497,20 @@ object StatedFloor {
         val saved = reservationPoint?.let { number.find(it)?.value?.toDoubleOrNull() }
         val said = need.findAll(message).mapNotNull { it.groupValues[1].toDoubleOrNull() }.maxOrNull()
         return listOfNotNull(saved, said).maxOrNull()
+    }
+
+    /**
+     * Negotiation Numbers: the same test, aware of direction. For a buyer (LOWER_IS_BETTER) the violation is a figure ABOVE the
+     * walk-away; the old two-argument form read every lower figure as "below the floor" and so blocked a buyer's lower offer.
+     * Figures are read in full ("48,000", "95k") with [com.drkkr.strategos.domain.negotiation.DealNumbers], in [unit] only.
+     */
+    fun leadsBelow(
+        label: String, floor: Double?, direction: com.drkkr.strategos.domain.negotiation.Direction,
+        unit: com.drkkr.strategos.domain.negotiation.Amount.Unit = com.drkkr.strategos.domain.negotiation.Amount.Unit.AMOUNT
+    ): Boolean {
+        if (floor == null) return false
+        val lead = com.drkkr.strategos.domain.negotiation.DealNumbers.figures(label).firstOrNull { it.unit == unit }?.value ?: return false
+        return if (direction == com.drkkr.strategos.domain.negotiation.Direction.LOWER_IS_BETTER) lead > floor else lead < floor
     }
 
     /** True when the label's first figure is below [floor]. Labels with no figure are never judged. */

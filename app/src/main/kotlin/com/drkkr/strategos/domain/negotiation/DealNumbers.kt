@@ -21,7 +21,7 @@ object DealNumbers {
     // A figure: Western (45,000) or Indian (1,20,000) digit groups, or plain digits; an optional decimal part; an optional suffix.
     // The suffix must end the word ("45 months" is 45, not 45 million).
     private val figure = Regex(
-        """(?<![\d.,])(\d{1,3}(?:,\d{2,3})+|\d+)(\.\d+)?\s*(%|k|thousand|lakhs?|lacs?|l|crores?|cr|millions?|mn|m)?(?![a-z\d])""",
+        """(?<![\d.,])(\d{1,3}(?:,\d{2,3})+|\d+)(\.\d+)?\s*(%|percent|per cent|k|thousand|lakhs?|lacs?|l|crores?|cr|millions?|mn|m)?(?![a-z\d])""",
         RegexOption.IGNORE_CASE
     )
     // "40-45k", "40 – 45k", "40 to 45k" and "between 40 and 45k".
@@ -34,6 +34,8 @@ object DealNumbers {
         "GBP" to Regex("""£|\bgbp\b|\bpounds?\b""", RegexOption.IGNORE_CASE)
     )
     private val symbol = mapOf("INR" to "₹", "USD" to "$", "EUR" to "€", "GBP" to "£")
+
+    private fun percent(suffix: String) = suffix == "%" || suffix.lowercase().startsWith("per")
 
     private fun multiplier(suffix: String): Double = when (suffix.lowercase()) {
         "k", "thousand" -> 1e3
@@ -49,7 +51,7 @@ object DealNumbers {
             val digits = m.groupValues[1].replace(",", "") + m.groupValues[2]
             val suffix = m.groupValues[3]
             val n = digits.toDoubleOrNull() ?: return null
-            val unit = if (suffix == "%") Amount.Unit.PERCENT else Amount.Unit.AMOUNT
+            val unit = if (percent(suffix)) Amount.Unit.PERCENT else Amount.Unit.AMOUNT
             unit to n * multiplier(suffix)
         }.toSet()
         if (found.size != 1) return null
@@ -65,7 +67,7 @@ object DealNumbers {
         return figure.findAll(text).mapNotNull { m ->
             val n = (m.groupValues[1].replace(",", "") + m.groupValues[2]).toDoubleOrNull() ?: return@mapNotNull null
             val suffix = m.groupValues[3]
-            if (suffix == "%") Amount(n, Amount.Unit.PERCENT, null) else Amount(n * multiplier(suffix), Amount.Unit.AMOUNT, named)
+            if (percent(suffix)) Amount(n, Amount.Unit.PERCENT, null) else Amount(n * multiplier(suffix), Amount.Unit.AMOUNT, named)
         }.toList()
     }
 
