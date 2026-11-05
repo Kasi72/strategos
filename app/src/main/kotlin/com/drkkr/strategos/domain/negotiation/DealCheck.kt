@@ -7,7 +7,8 @@ import com.drkkr.strategos.domain.agent.CoachReply
  * masking ([WalkAwayMask]) keeps the figures out of what the coach is given; this is the safety net. A reply is unusable (and the
  * engine's own, masked text is shown instead) when:
  *  - its advice carries a figure on the wrong side of the walk-away;
- *  - `exact_words` (said to the other side) carries the walk-away or the fallback at all;
+ *  - `exact_words` (said to the other side) carries the walk-away at all, or a fallback that is not credible (a real, strong
+ *    alternative may be named: it is leverage, CP-N ng6);
  *  - `clear_win_move`, `do_this` or `follow_up` carries one in a sentence with a speech cue ("tell", "write", "email", ...) or in
  *    quoted speech. Private advice ("don't go above $45,000") stays allowed.
  *

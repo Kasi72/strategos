@@ -7,7 +7,9 @@ import kotlin.math.abs
 /**
  * Negotiation Numbers, CP-N decision (B): the walk-away and the fallback never reach the coach, or the engine's own text, as a
  * figure to say. Call 1 often writes the walk-away into an option ("Tell Karthik plainly that $45,000 is your hard ceiling"); the
- * engine's pick stays, only the number goes: "your ceiling" (buyer) / "your floor" (seller), and the fallback is "your other option".
+ * engine's pick stays, only the number goes: "your ceiling" (buyer) / "your floor" (seller). The fallback is masked ("your other
+ * option") only when walking away is NOT credible (a weak fallback reveals weakness); a real, strong alternative is legitimate
+ * leverage and may be named (CP-N, ng6).
  * The analysis view and outgoing text only; nothing saved is changed.
  */
 object WalkAwayMask {
@@ -19,12 +21,15 @@ object WalkAwayMask {
 
     fun near(v: Double, ref: Double): Boolean = abs(v - ref) <= CLOSE * abs(ref)
 
-    /** True when [a] is the walk-away or the fallback (same unit, no conflicting currency, within ±1%). */
+    /** True when [a] must stay private: the walk-away, or a fallback that is not credible (same unit, no conflicting currency, within ±1%). */
     fun secret(a: Amount, frame: DealFrame): Boolean {
         val walk = frame.walkAway ?: return false
         if (!frame.compatible(a)) return false
-        return near(a.value, walk.value) || frame.fallback?.let { near(a.value, it.value) } == true
+        return near(a.value, walk.value) || weakFallback(frame)?.let { near(a.value, it.value) } == true
     }
+
+    /** The fallback, only when walking away is not credible; a credible (or unknown) one may be said. */
+    private fun weakFallback(frame: DealFrame): Amount? = frame.fallback.takeIf { frame.walkAwayCredible == false }
 
     fun text(t: String, frame: DealFrame?): String {
         val walk = frame?.walkAway ?: return t
@@ -32,7 +37,7 @@ object WalkAwayMask {
             when {
                 !frame.compatible(a) -> null
                 near(a.value, walk.value) -> if (frame.direction == Direction.LOWER_IS_BETTER) CEILING else FLOOR
-                frame.fallback?.let { near(a.value, it.value) } == true -> OTHER_OPTION
+                weakFallback(frame)?.let { near(a.value, it.value) } == true -> OTHER_OPTION
                 else -> null
             }
         }

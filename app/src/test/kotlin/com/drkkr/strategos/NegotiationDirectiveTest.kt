@@ -98,7 +98,10 @@ class NegotiationDirectiveTest {
 
     @Test fun TC_NG_CHECK_02_statingTheWalkAwayOrTheFallbackIsUnusable() {
         assertFalse(DealCheck.usable(reply("Tell them your bottom line is 100k."), sellerFrame))
-        assertFalse(DealCheck.usable(reply("Say you already have 105k elsewhere."), sellerFrame))
+        // ng6: a credible fallback (105k >= the 100k walk-away) is real leverage and may be said; a weak one (90k) may not
+        assertTrue(DealCheck.usable(reply("Say you already have 105k elsewhere."), sellerFrame))
+        val weakSeller = DealFrame.build(NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k", batna = "90k"), null, "")!!
+        assertFalse(DealCheck.usable(reply("Say you already have 90k elsewhere."), weakSeller))
         // the same figure, not as something to tell them, is fine (it is not on the wrong side)
         assertTrue(DealCheck.usable(reply("Let's talk.").copy(doThis = listOf("Keep 100k in mind as your line")), sellerFrame))
     }

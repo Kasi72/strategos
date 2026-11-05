@@ -43,7 +43,11 @@ class WalkAwayMaskTest {
         val v = WalkAwayMask.apply(s, vendor)
         val labels = v.actions.associate { it.id to it.label }
         assertEquals("Tell Karthik plainly that your ceiling is your hard ceiling", labels["a1"])
-        assertEquals("Mention the other vendor at your other option", labels["a2"])
+        // ng6: a credible fallback is leverage and stays; a weak one ("another vendor at 48,000", above the ceiling) is masked
+        assertEquals("Mention the other vendor at $42,000", labels["a2"])
+        val weak = DealFrame.build(vendorNc.copy(batna = "another vendor at 48,000"), vendorCtx, "")!!
+        assertEquals(false, weak.walkAwayCredible)
+        assertEquals("Mention the other vendor at your other option", WalkAwayMask.text("Mention the other vendor at $48,000", weak))
         assertEquals("Accept the $60,000 quote", labels["a3"])
         assertEquals("the other side's options are not masked", "Come back near $45,000", labels["r1"])
         // the saved scenario is never changed: the view is a copy
@@ -57,7 +61,18 @@ class WalkAwayMaskTest {
 
     @Test fun exactWordsWithTheWalkAwayAreUnusableWithNoVerbNeeded() {
         assertFalse(DealCheck.usable(reply(exact = "Karthik, $45,000 a year is our hard ceiling."), vendor))
-        assertFalse(DealCheck.usable(reply(exact = "We have another quote around $42,000."), vendor))
+    }
+
+    @Test fun aCredibleFallbackMayBeSaid_aWeakOneMayNot() {
+        assertEquals(true, vendor.walkAwayCredible)
+        assertTrue(DealCheck.usable(reply(exact = "I have another offer at $42,000."), vendor))
+        val weak = DealFrame.build(vendorNc.copy(batna = "another vendor at 48,000"), vendorCtx, "")!!
+        assertEquals(false, weak.walkAwayCredible)
+        assertFalse(DealCheck.usable(reply(exact = "I have another offer at $48,000."), weak))
+        // credible unknown (no figure for the fallback): nothing to block
+        val unknown = DealFrame.build(vendorNc.copy(batna = "keep the old system"), vendorCtx, "")!!
+        assertNull(unknown.walkAwayCredible)
+        assertTrue(DealCheck.usable(reply(exact = "We could keep our old system."), unknown))
     }
 
     @Test fun privateAdviceWithTheWalkAwayIsUsable_aSpeechCueOrAQuoteIsNot() {
