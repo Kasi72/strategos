@@ -9,7 +9,10 @@ import com.drkkr.strategos.domain.model.Scenario
  */
 enum class Ethics { BENIGN, CONTEXT, STRATEGIC, MANIPULATIVE }
 
-enum class TacticId {
+/** A tactic's id: the Human Layer's [TacticId], or Power Mode's `StrategicId` (kept apart so the Human Layer's counts never change). */
+interface TacticKey { val name: String }
+
+enum class TacticId : TacticKey {
     DEFAULT_WITH_DEADLINE, TWO_GOOD_OPTIONS, FUTURE_COMMITMENT, WHEN_AND_HOW, MAKE_IT_CONCRETE, THEIR_INTEREST_FRAME,
     PRIVATE_AND_CREDIT, SHOW_DONT_ARGUE, SAY_LESS, STEP_BACK, CONCEDE_SMALL_FIRST, NAME_YOUR_LEVERAGE, POSITIVE_NORM,
     SHARED_OUTSIDE_YARDSTICK, CHANGE_IN_STEPS, PUT_IT_IN_WRITING, ASK_IF_OPEN_FIRST, STOP_AT_THE_MARK, APOLOGISE_FOR_YOUR_PART
@@ -23,7 +26,7 @@ enum class TacticId {
  * [coachHint] is all the coach ever hears about it: plain words, never a law, a book or the tactic's name.
  */
 data class Tactic(
-    val id: TacticId,
+    val id: TacticKey,
     val source: String,
     val ethics: Ethics,
     val publicityPass: Boolean,

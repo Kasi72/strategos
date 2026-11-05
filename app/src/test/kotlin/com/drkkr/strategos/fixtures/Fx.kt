@@ -147,6 +147,30 @@ object Fx {
         humanContext = HumanContext(relationship = "spouse", yourStateLevel = 3.0)
     )
 
+    // ── Power Mode fixtures (docs/power-mode/TEST_CASES.md); trust 50 is passed to the planner by each test ──────────────
+
+    /** A vendor price negotiation: walk-away 40000, no opening yet, a strong alternative against their weak one. */
+    fun pmVendor(): Scenario = hlRaise().copy(
+        id = "pm-vendor", title = "Vendor price",
+        negotiationContext = NegotiationContext(reservationPoint = "40000"),
+        humanContext = HumanContext(relationship = "vendor", yourAlternative = "strong", theirAlternative = "weak")
+    )
+
+    /** A co-founder who depends on the user somewhat (WORK_PEER, continuing). */
+    fun pmCofounder(): Scenario = hlRaise().copy(
+        id = "pm-cofounder", title = "Co-founder split",
+        humanContext = HumanContext(relationship = "cofounder", theyDependOnYou = "some")
+    )
+
+    /** A manager who depends on the user a lot (WORK_HIERARCHY, continuing); add `probes_you` where a test says so. */
+    fun pmManager(probes: Boolean = false): Scenario = hlRaise().copy(
+        id = "pm-manager", title = "Raise",
+        humanContext = HumanContext(relationship = "manager", theyDependOnYou = "high", theirTactics = if (probes) listOf("probes_you") else emptyList())
+    )
+
+    /** A spouse (INTIMATE). */
+    fun pmSpouse(): Scenario = hlSpouse().copy(id = "pm-spouse")
+
     /** The 4 built-in templates. */
     fun templates(): List<Scenario> = listOf(
         CrisisManagementTemplate.create(), InstitutionalHealthcareTemplate.create(),

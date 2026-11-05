@@ -10,7 +10,7 @@ enum class Timing { NOW, AFTER_COOLING, WHEN_CALM }
 enum class Channel { PRIVATE, WRITTEN }
 
 /** A chosen way of delivering the pick. [hint] is all the coach hears about it; [deltaP] is how much it raises the chance they say yes. */
-data class PlannedTactic(val id: TacticId, val hint: String, val deltaP: Double)
+data class PlannedTactic(val id: TacticKey, val hint: String, val deltaP: Double)
 
 data class Delivery(
     val tactics: List<PlannedTactic> = emptyList(),
@@ -49,7 +49,7 @@ object DeliveryPlanner {
     internal fun carrying(hc: HumanContext, recommended: Action): Action =
         hc.lastAttemptTags.filter { it in HABIT }.toSet().let { if (it.isEmpty()) recommended else DeliveryTags.with(recommended, it, emptySet()) }
 
-    private fun conflicts(a: TacticId, b: TacticId) = CONFLICTS.any { (x, y) -> (a == x && b == y) || (a == y && b == x) }
+    private fun conflicts(a: TacticKey, b: TacticKey) = CONFLICTS.any { (x, y) -> (a == x && b == y) || (a == y && b == x) }
 
     /** [raw] is the analysis view BEFORE the humanised view; [second] is the other calm move (complement, else fallback). */
     fun plan(
@@ -84,7 +84,7 @@ object DeliveryPlanner {
     }
 
     /** One row of the diagnostic table: why a tactic was or was not offered. [deltaP] is null for a precondition-only tactic or a flag. */
-    data class Diagnosis(val id: TacticId, val gatePass: Boolean, val preconditionPass: Boolean, val deltaP: Double?, val preconditionOnly: Boolean)
+    data class Diagnosis(val id: TacticKey, val gatePass: Boolean, val preconditionPass: Boolean, val deltaP: Double?, val preconditionOnly: Boolean)
 
     /** For the live replay and for tuning: every tactic, whether it passed the ethics gate and its own condition, and its gain. */
     fun diagnose(raw: Scenario, hc: HumanContext, recommended: Action, support: Boolean, beta: Double = 1.0): List<Diagnosis> {
