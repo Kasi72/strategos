@@ -180,6 +180,24 @@ class DeepSeekLiveFlowTest {
                     out.append("  coalition=${ctx.coalitionResult?.values ?: "-"} mechanism=${ctx.mechanismHint?.type ?: "-"}\n")
                 }
 
+                // Negotiation Numbers: the frame this turn's engine built (same inputs as OneShotTurn), what it ruled out, and the reply's figures.
+                out.append("\n(n) NEGOTIATION\n")
+                if (saved == null) out.append("  (no saved scenario)\n") else {
+                    val frame = com.drkkr.strategos.domain.negotiation.DealFrame.build(saved.negotiationContext, saved.humanContext, m)
+                    if (frame == null) out.append("  frame: none (no context, no readable walk-away, or no direction)\n") else {
+                        fun f(a: com.drkkr.strategos.domain.negotiation.Amount?) = a?.let { com.drkkr.strategos.domain.negotiation.DealNumbers.format(it) } ?: "-"
+                        out.append("  frame: direction=${frame.direction} walkAway=${f(frame.walkAway)} target=${f(frame.target)} fallback=${f(frame.fallback)} theirLimit=${f(frame.theirLimit)}\n")
+                        out.append("  zone=${frame.zone?.let { "[${f(it.low)}, ${f(it.high)}]" } ?: "-"} noZone=${frame.noZone} landing=${f(frame.landing)} openAt=${f(frame.openAt)} acceptIf=${f(frame.acceptIf)} credible=${frame.walkAwayCredible} notes=${frame.notes}\n")
+                        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(saved)
+                        val excluded = owner?.let { o -> saved.actionsFor(o.id).filter { com.drkkr.strategos.domain.negotiation.NegotiationView.crosses(it.label, frame) }.map { it.label } }.orEmpty()
+                        out.append("  excluded by the walk-away: ${excluded.ifEmpty { listOf("none") }}\n")
+                    }
+                    out.append("  deal block sent to the coach: ${d?.get("deal") ?: "none"}\n")
+                    val figs = com.drkkr.strategos.domain.negotiation.DealNumbers.figures(shown).map { com.drkkr.strategos.domain.negotiation.DealNumbers.format(it) }
+                    out.append("  figures in what the user saw: ${figs.ifEmpty { listOf("none") }}\n")
+                    out.append("  walk-away/fallback check on what the user saw: ${if (frame == null || com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(shown), frame)) "clean" else "FLAGGED"}\n")
+                }
+
                 out.append("\n(c) CALL 2 translation\n")
                 val reply = turnCalls.lastOrNull { it.purpose == "COACH" }?.let { CoachReply.parse(it.text) }
                 if (reply == null) out.append("  (no usable interpret reply; the app showed its own engine text)\n") else {
