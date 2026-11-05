@@ -33,10 +33,13 @@ class ManipulationRadarTest {
             assertEquals(tag, w.pattern)
             assertTrue("$tag sign", w.sign.isNotBlank()); assertTrue("$tag protect", w.protect.isNotBlank()); assertTrue("$tag source", w.source.isNotBlank())
             if (tag in EthicsGate.COERCIVE) {
-                for (d in listOf(RelationshipDomain.INTIMATE, RelationshipDomain.FAMILY, RelationshipDomain.FRIENDSHIP)) {
+                for (d in listOf(RelationshipDomain.INTIMATE, RelationshipDomain.FAMILY)) {
                     val home = ManipulationRadar.scan(ctx(tag), d)
                     assertTrue("$tag in $d", home.routeToSupport); assertTrue(home.watchFor.isEmpty())
                 }
+                // decided at the CP-C review: in a friendship these are ordinary watch-for items
+                val friend = ManipulationRadar.scan(ctx(tag), RelationshipDomain.FRIENDSHIP)
+                assertFalse("$tag in a friendship", friend.routeToSupport); assertEquals(1, friend.watchFor.size)
             } else {
                 val family = ManipulationRadar.scan(ctx(tag), RelationshipDomain.FAMILY)
                 assertFalse("$tag in a family is an ordinary watch-for", family.routeToSupport)
@@ -46,9 +49,12 @@ class ManipulationRadarTest {
     }
 
     @Test
-    fun TC_HL_RADAR_02_hotAndColdInAClosePartnershipGoesToSupport_theFirstTimeItAppears() {
-        val r = ManipulationRadar.scan(ctx("hot_cold", turns = 1), RelationshipDomain.INTIMATE)
-        assertTrue(r.routeToSupport); assertTrue(r.watchFor.isEmpty())
+    fun TC_HL_RADAR_02_hotAndColdInAPartnershipGoesToSupportOnTheSecondTurn_isolationOnTheFirst() {
+        val once = ManipulationRadar.scan(ctx("hot_cold", turns = 1), RelationshipDomain.INTIMATE)
+        assertFalse("hot_cold alone, once", once.routeToSupport); assertTrue(once.watchFor.isEmpty())
+        val twice = ManipulationRadar.scan(ctx("hot_cold", turns = 2), RelationshipDomain.INTIMATE)
+        assertTrue(twice.routeToSupport); assertTrue(twice.watchFor.isEmpty())
+        assertTrue(ManipulationRadar.scan(ctx("isolates_you", turns = 1), RelationshipDomain.INTIMATE).routeToSupport)
     }
 
     @Test

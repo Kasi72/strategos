@@ -11,15 +11,15 @@ package com.drkkr.strategos.domain.human
  *    offered (the user gets support, not tactics).
  */
 object EthicsGate {
-    /** Patterns that, in a close relationship, are signs of coercive control rather than ordinary power dynamics. */
-    val COERCIVE = setOf("isolates_you", "keeps_you_dependent", "hot_cold")
+    /** Patterns that, in an intimate or family relationship, are signs of coercive control rather than ordinary power dynamics. */
+    val COERCIVE = CoerciveControl.TAGS
 
     /** True when no tactic at all may be offered. */
     fun nothingAllowed(ctx: HumanContext?, domain: RelationshipDomain, support: Boolean): Boolean {
         if (support) return true
         val vulnerable = ctx?.theirVulnerable
         if (vulnerable != null && vulnerable != "none") return true
-        return domain.isClose && ctx?.theirTactics.orEmpty().any { it in COERCIVE }
+        return CoerciveControl.routes(ctx, domain)
     }
 
     fun allowed(t: Tactic, ctx: HumanContext?, domain: RelationshipDomain, support: Boolean): Boolean {

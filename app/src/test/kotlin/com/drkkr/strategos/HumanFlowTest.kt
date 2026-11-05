@@ -229,7 +229,7 @@ class HumanFlowTest {
     @Test
     fun TC_HL_RADAR_05b_aSafetyReplyThatGivesStrategyIsReplacedByTheFixedWarmOne() = runBlocking {
         val gateway = CommittingGateway(start)
-        val llm = EngineEchoLlm(listOf(withTactics("hot_cold", relationship = "partner"), "You should stand firm and confront him."))
+        val llm = EngineEchoLlm(listOf(withTactics("keeps_you_dependent", relationship = "partner"), "You should stand firm and confront him."))
         val controller = controllerWith(llm, gateway)
         controller.bindScenario("raise").join()
         controller.send("Some days he's sweet, other days he won't speak to me.")!!.join(); controller.awaitIdle()

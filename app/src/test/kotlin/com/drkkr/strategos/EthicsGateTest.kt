@@ -63,8 +63,10 @@ class EthicsGateTest {
     @Test
     fun TC_HL_ETH_05_coerciveBehaviourInACloseRelationshipAllowsNothing_atWorkItIsOrdinary() {
         for (tag in listOf("isolates_you", "keeps_you_dependent", "hot_cold")) {
-            val c = HumanContext(theirTactics = listOf(tag))
-            for (t in offered) for (d in closeDomains) assertFalse("$tag ${t.id} $d", EthicsGate.allowed(t, c, d, false))
+            val c = HumanContext(theirTactics = listOf(tag), tacticTurns = mapOf(tag to 2))
+            // intimate and family only (CP-C review); a friendship gets the ordinary gating
+            for (t in offered) for (d in listOf(RelationshipDomain.INTIMATE, RelationshipDomain.FAMILY)) assertFalse("$tag ${t.id} $d", EthicsGate.allowed(t, c, d, false))
+            assertTrue(EthicsGate.allowed(offered.single { it.id == TacticId.DEFAULT_WITH_DEADLINE }, c, RelationshipDomain.FRIENDSHIP, false))
             // the same behaviour at work is ordinary power dynamics: normal gating
             assertTrue(EthicsGate.allowed(offered.single { it.id == TacticId.DEFAULT_WITH_DEADLINE }, c, RelationshipDomain.WORK_PEER, false))
         }

@@ -316,7 +316,7 @@ class CounselController(
     private fun showSupport() {
         _state.value.conversationId?.let { supportShownIn += it }
         _state.update { it.copy(supportVisible = true) }
-        scope.launch { _state.update { it.copy(supportText = deps.settings.supportText()) } }
+        scope.launch { _state.update { it.copy(supportText = deps.settings.supportTextFor(java.util.Locale.getDefault().country)) } }
     }
 
     fun dismissSupport() = _state.update { it.copy(supportVisible = false) }

@@ -41,6 +41,9 @@ class SettingsRepository(private val db: StrategosDatabase) {
     suspend fun setExpertPin(ciphertext: String?) = if (ciphertext == null) dao.remove(UI_EXPERT_PIN) else put(UI_EXPERT_PIN, ciphertext)
 
     suspend fun supportText(): String = dao.get(SAFETY_SUPPORT_TEXT) ?: DEFAULT_SUPPORT_TEXT
+
+    /** The text for the phone's region: a saved override wins; otherwise the India text only in India. */
+    suspend fun supportTextFor(country: String?): String = dao.get(SAFETY_SUPPORT_TEXT) ?: defaultSupportText(country)
     suspend fun setSupportText(v: String) = put(SAFETY_SUPPORT_TEXT, v)
 
     suspend fun quickMode(): Boolean = dao.get(QUICK_MODE) == "true"
@@ -86,5 +89,10 @@ class SettingsRepository(private val db: StrategosDatabase) {
         const val DEFAULT_SUPPORT_TEXT =
             "If you're in danger or thinking about harming yourself, reach out to someone you trust or local emergency services now. " +
                 "In India you can call Tele-MANAS on 14416."
+
+        /** The India text (with the helpline) only for India; everywhere else it points to the local emergency number, with no specific number. */
+        fun defaultSupportText(country: String?): String =
+            if (country.equals("IN", ignoreCase = true)) DEFAULT_SUPPORT_TEXT
+            else "If you're in danger or thinking about harming yourself, reach out to someone you trust or your local emergency number now."
     }
 }

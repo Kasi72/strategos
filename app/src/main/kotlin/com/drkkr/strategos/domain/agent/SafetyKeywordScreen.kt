@@ -5,7 +5,7 @@ package com.drkkr.strategos.domain.agent
  * A match shows the support card at once; the message is still sent.
  *
  * SAFETY REVIEW REQUIRED (§17.6): the default phrases below are a starting list written by the implementer.
- * They must be reviewed (English and Tamil) before release.
+ * They must be reviewed (English and Tamil) before release. The Tamil phrases below are UNCHANGED and still need a NATIVE SPEAKER's review.
  */
 object SafetyKeywordScreen {
     val DEFAULT_PHRASES: List<String> = listOf(
@@ -16,6 +16,9 @@ object SafetyKeywordScreen {
         "kill him", "kill her", "kill them", "hurt someone", "hurt him", "hurt her",
         // Abuse and danger
         "hits me", "beats me", "abusing me", "being abused", "not safe at home", "afraid for my life", "threatened to kill",
+        // Coercive control (added at the CP-C safety review)
+        "controls my money", "takes my money", "won't let me see my friends", "won't let me go out", "checks my phone", "tracks my location",
+        "afraid of him", "afraid of her",
         // Tamil (தமிழ்)
         "தற்கொலை", "சாக வேண்டும்", "சாகணும்", "உயிரை மாய்த்து", "என்னை நானே காயப்படுத்த", "கொன்று விடுவேன்", "அடிக்கிறார்", "அடிக்கிறான்"
     )

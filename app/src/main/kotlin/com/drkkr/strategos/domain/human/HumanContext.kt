@@ -46,7 +46,9 @@ data class HumanContext(
      */
     val pendingCooling: String? = null,
     /** How many turns each of [theirTactics] was described on. A pattern is only shown to the user once it has been seen twice. */
-    val tacticTurns: Map<String, Int> = emptyMap()
+    val tacticTurns: Map<String, Int> = emptyMap(),
+    /** Messages in a row with no coercive tag since one was last described; routing to support expires at [CoerciveControl.EXPIRES_AFTER]. Null = not counting. */
+    val routingQuietTurns: Int? = null
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -98,7 +100,8 @@ data class HumanContext(
         tacticSuccess = tacticSuccess + newer.tacticSuccess,
         pending = pend,
         pendingCooling = if (newer.pendingCooling == "") null else newer.pendingCooling ?: pendingCooling,
-        tacticTurns = tacticTurns + newer.theirTactics.distinct().associateWith { (tacticTurns[it] ?: 0) + 1 }
+        tacticTurns = tacticTurns + newer.theirTactics.distinct().associateWith { (tacticTurns[it] ?: 0) + 1 },
+        routingQuietTurns = newer.routingQuietTurns ?: routingQuietTurns
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {

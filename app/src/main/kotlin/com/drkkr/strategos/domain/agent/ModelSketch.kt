@@ -282,9 +282,19 @@ object SketchConverter {
         // Human Layer: what the model read about power, status quo and state (closed vocabularies only; AI_INFERRED).
         val reported = sketch.counterpartObservedReaction in setOf("softened", "stayed_neutral", "withdrew_or_escalated")
         // They have reported how the held move went: stop asking "did you send it?".
-        val humanCtx = if (humanFields) SketchHuman.context(sketch).let { c ->
+        val humanReading = if (humanFields) SketchHuman.context(sketch).let { c ->
             if (reported && s.humanContext?.pendingCooling != null) (c ?: HumanContext()).copy(pendingCooling = "") else c
         } else null
+        // Routing to support expires after a run of messages with no coercive tag (see CoerciveControl). Only a real reading counts.
+        val coerciveNow = humanReading?.theirTactics.orEmpty().any { it in com.drkkr.strategos.domain.human.CoerciveControl.TAGS }
+        val coerciveSaved = s.humanContext?.theirTactics.orEmpty().any { it in com.drkkr.strategos.domain.human.CoerciveControl.TAGS }
+        val quiet = when {
+            !humanFields -> null
+            coerciveNow -> 0
+            coerciveSaved -> (s.humanContext?.routingQuietTurns ?: 0) + 1
+            else -> null
+        }
+        val humanCtx = quiet?.let { q -> (humanReading ?: HumanContext()).copy(routingQuietTurns = q) } ?: humanReading
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(
