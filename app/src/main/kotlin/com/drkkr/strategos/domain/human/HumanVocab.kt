@@ -38,6 +38,13 @@ object HumanVocab {
         "reaches_you_through_others", "hot_cold", "none"
     )
 
+    /**
+     * Power Mode's addition to [THEIR_TACTICS]: `probes_you` ("unusually curious about your plans or limits", 48 Laws L14, defensive).
+     * Kept as its own set so the Human Layer's vocabulary (and its counts, radar and prompt tests) stays exactly as it was; Call 1's
+     * reader accepts both.
+     */
+    val POWER_THEIR_TACTICS = setOf("probes_you")
+
     /** Smoothed-state scale: 0 = calm … 3 = furious. */
     fun stateLevel(state: String?): Double? = when (state) {
         "calm" -> 0.0; "tense" -> 1.0; "upset" -> 2.0; "furious" -> 3.0
