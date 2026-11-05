@@ -28,7 +28,11 @@ data class CounselUiState(
     // Argon, Space 2: the decrypted journal, newest first. Never log or persist this.
     val journalEntries: List<JournalEntryView> = emptyList(),
     /** "Recorded privately 🍃" after a save; the Journal tab shows it and clears it. */
-    val journalAck: String? = null
+    val journalAck: String? = null,
+    /** Power Mode for the open conversation (I-P1); [powerModeAvailable] is false under the Power Mode lock (I-P4). */
+    val powerMode: Boolean = false,
+    val powerModeAvailable: Boolean = true,
+    val powerExplained: Boolean = false
 )
 
 data class ThreadUi(val id: String, val title: String, val topicTag: String, val pinned: Boolean, val updatedAt: Long)

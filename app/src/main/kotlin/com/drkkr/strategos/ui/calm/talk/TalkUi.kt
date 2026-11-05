@@ -36,6 +36,8 @@ sealed class TalkTurn {
     data class Ask(override val id: String, val question: String, val options: List<String>, val answered: Boolean) : TalkTurn()
     data class Note(override val id: String, val text: String) : TalkTurn()
     data class Support(override val id: String, val text: String) : TalkTurn()
+    /** Power Mode: the Kotlin-built Power Read card, shown above the reply it belongs to. */
+    data class PowerRead(override val id: String, val read: com.drkkr.strategos.domain.human.power.PowerRead) : TalkTurn()
 }
 
 data class TopicUi(val id: String, val name: String, val lastLine: String, val whenLabel: String, val isOpen: Boolean)
@@ -53,7 +55,11 @@ data class TalkUiState(
     val offline: Boolean = false,
     val reveal: RevealMath = RevealMath.ON_TAP,
     val canRetry: Boolean = false,
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    /** Power Mode for this conversation (I-P1), whether it may be offered at all (false under the lock, I-P4), and whether its explainer was shown here. */
+    val powerMode: Boolean = false,
+    val powerAvailable: Boolean = false,
+    val powerExplained: Boolean = false
 )
 
 data class TalkActions(
@@ -65,7 +71,11 @@ data class TalkActions(
     val onNewTopic: (String) -> Unit = {},
     val onOpenXRay: () -> Unit = {},
     val onOpenSettings: () -> Unit = {},
-    val onOpenMemory: () -> Unit = {}
+    val onOpenMemory: () -> Unit = {},
+    val onSetPowerMode: (Boolean) -> Unit = {},
+    val onPowerExplained: () -> Unit = {},
+    /** The user's own word on the Power Read card ("yourAlternative" / "theyDependOnYou"). */
+    val onSetLeverage: (key: String, value: String) -> Unit = { _, _ -> }
 )
 
 /** Pure mapping from stored chat items to what the Talk screen draws, kept out of the composables for testing. */
@@ -84,6 +94,7 @@ object TalkUi {
                 out += TalkTurn.Ask(item.id, q.text, q.options, item.answered)
             }
             is ChatItem.EventNote -> out += TalkTurn.Note(item.id, item.text)
+            is ChatItem.PowerRead -> out += TalkTurn.PowerRead(item.id, item.payload)
             else -> Unit   // activity, change sets and the expert cards stay out of the calm conversation
         }
         queued.forEachIndexed { i, t -> out += TalkTurn.User("queued-$i", t, queued = true) }

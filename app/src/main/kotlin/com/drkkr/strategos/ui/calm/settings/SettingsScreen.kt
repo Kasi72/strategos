@@ -137,6 +137,20 @@ fun SettingsScreen(ui: SettingsUiState, actions: SettingsActions, modifier: Modi
                 }
             }
 
+            if (ui.powerLockVisible) {
+                Header("Developer")
+                Column(Modifier.padding(horizontal = 16.dp).calmCard(c)) {
+                    Row(Modifier.heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Power Mode lock", color = c.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            Text("Hides Power Mode and keeps it off in every conversation.", color = c.ink3, fontSize = 13.sp, lineHeight = 19.sp)
+                        }
+                        Switch(checked = ui.powerLock, onCheckedChange = actions.onPowerLock,
+                            colors = SwitchDefaults.colors(checkedTrackColor = c.action, checkedThumbColor = Color.White))
+                    }
+                }
+            }
+
             Header("Privacy")
             Column(Modifier.padding(horizontal = 16.dp).calmCard(c)) {
                 InfoRow(TileSlate, Icons.Outlined.Lock, "What stays on this phone", "Your projects, memory and journal.", privacy == "phone") { privacy = if (privacy == "phone") null else "phone" }

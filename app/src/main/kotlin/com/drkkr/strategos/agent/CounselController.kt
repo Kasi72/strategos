@@ -130,6 +130,13 @@ class CounselController(
 
     private var scenarioId: String? = null
     private var observeJob: Job? = null
+    private var powerJob: Job? = null
+
+    /** Power Mode for the open conversation (blueprint §5). Ignored under the lock, which `isPowerMode` enforces anyway. */
+    fun setPowerMode(on: Boolean): Job = scope.launch { _state.value.conversationId?.let { deps.settings.setPowerMode(it, on) } }
+
+    /** The one-time Power Mode explainer has been shown in the open conversation. */
+    fun markPowerExplained(): Job = scope.launch { _state.value.conversationId?.let { deps.settings.setPowerExplained(it) } }
     private var turnJob: Job? = null
     private val undoStack = ArrayDeque<Scenario>()
 
@@ -170,6 +177,15 @@ class CounselController(
         observeProject(sid)
         _state.update { it.copy(conversationId = cid) }
         observeJob?.cancel()
+        powerJob?.cancel()
+        // Power Mode: this conversation's switch, the lock, and whether its explainer was shown.
+        powerJob = scope.launch {
+            safeCollect {
+                combine(deps.settings.observePowerMode(cid), deps.settings.observePowerLock(), deps.settings.observePowerExplained(cid)) { on, lock, explained ->
+                    Triple(on, !lock, explained)
+                }.collect { (on, available, explained) -> _state.update { it.copy(powerMode = on, powerModeAvailable = available, powerExplained = explained) } }
+            }
+        }
         observeJob = scope.launch {
             safeCollect {
                 combine(

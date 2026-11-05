@@ -5,6 +5,7 @@ import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.SettingEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class SettingsRepository(private val db: StrategosDatabase) {
 
@@ -60,6 +61,10 @@ class SettingsRepository(private val db: StrategosDatabase) {
         combine(dao.observe(powerModeKey(cid)), dao.observe(POWER_MODE_LOCK)) { on, lock -> on == "1" && lock != "1" }
     suspend fun powerLock(): Boolean = dao.get(POWER_MODE_LOCK) == "1"
     suspend fun setPowerLock(on: Boolean) = put(POWER_MODE_LOCK, if (on) "1" else "0")
+    fun observePowerLock(): Flow<Boolean> = dao.observe(POWER_MODE_LOCK).map { it == "1" }
+    /** The one-time explainer was shown in this conversation (STEPS PM5.1). */
+    suspend fun setPowerExplained(cid: String) = put("power_mode_explained:$cid", "1")
+    fun observePowerExplained(cid: String): Flow<Boolean> = dao.observe("power_mode_explained:$cid").map { it == "1" }
 
     suspend fun get(key: String): String? = dao.get(key)
 

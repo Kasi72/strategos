@@ -109,7 +109,10 @@ fun TalkRoute(
         offline = !online,
         reveal = reveal,
         canRetry = lastError?.retryable == true || counselUi.canRetry,
-        loading = scenario == null
+        loading = scenario == null,
+        powerMode = counselUi.powerMode,
+        powerAvailable = counselUi.powerModeAvailable && counselUi.conversationId != null,
+        powerExplained = counselUi.powerExplained
     )
     TalkScreen(state, TalkActions(
         onBack = onBack,
@@ -125,7 +128,13 @@ fun TalkRoute(
         },
         onOpenXRay = onOpenXRay,
         onOpenSettings = onOpenSettings,
-        onOpenMemory = onOpenMemory
+        onOpenMemory = onOpenMemory,
+        onSetPowerMode = { on -> counsel?.setPowerMode(on) },
+        onPowerExplained = { counsel?.markPowerExplained() },
+        // The user's word on the Power Read card: saved through the same userFixed path as the Review sheet (I-H8).
+        onSetLeverage = { key, value ->
+            Unit                                            // saved in PM5.2
+        }
     ))
 }
 

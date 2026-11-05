@@ -90,6 +90,7 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     var explaining by remember { mutableStateOf<EngineTagUi?>(null) }
     var newTopic by remember { mutableStateOf(false) }
     var allTopics by remember { mutableStateOf(false) }
+    var powerExplainer by remember { mutableStateOf(false) }
 
     // The conversation fills the whole screen; the header and the composer float over it and the text scrolls underneath.
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -99,7 +100,16 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
         Conversation(ui, actions, Modifier.fillMaxSize(), onExplain = { explaining = it },
             topPad = with(density) { headerPx.toDp() }, bottomPad = with(density) { footerPx.toDp() })
         Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }.statusBarsPadding()) {
-            TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true })
+            TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true },
+                power = if (ui.powerAvailable) ui.powerMode else null,
+                onPower = {
+                    when {
+                        ui.powerMode -> actions.onSetPowerMode(false)
+                        !ui.powerExplained -> powerExplainer = true      // first time in this conversation: say what it does first
+                        else -> actions.onSetPowerMode(true)
+                    }
+                })
+            if (ui.powerAvailable && ui.powerMode) PowerBanner()
             if (ui.offline) OfflineBanner()
             // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
             if (ui.topics.size > 1) TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true })
@@ -108,18 +118,64 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     }
 
     explaining?.let { tag -> PillExplainer(tag, onXRay = { explaining = null; actions.onOpenXRay() }, onClose = { explaining = null }) }
+    if (powerExplainer) PowerExplainer(
+        onTurnOn = { powerExplainer = false; actions.onPowerExplained(); actions.onSetPowerMode(true) },
+        onClose = { powerExplainer = false; actions.onPowerExplained() }
+    )
     if (newTopic) NewTopicSheet(onStart = { actions.onNewTopic(it); newTopic = false }, onClose = { newTopic = false })
     if (allTopics) AllTopicsSheet(ui.topics, onPick = { actions.onSelectTopic(it); allTopics = false }, onNew = { allTopics = false; newTopic = true }, onClose = { allTopics = false })
 }
 
 @Composable
-private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit) {
+private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit, power: Boolean? = null, onPower: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(44.dp).clip(CircleShape).background(Calm.colors.card.copy(alpha = 0.94f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to overview", tint = Calm.colors.ink)
         }
         Spacer(Modifier.weight(1f))
+        // Power Mode: off by default, per conversation, and visible (I-P1). Hidden under the Power Mode lock (I-P4).
+        if (power != null) { PowerChip(power, onPower); Spacer(Modifier.width(8.dp)) }
         Chip("+ Topic", onNewTopic, dashed = true)
+    }
+}
+
+@Composable
+private fun PowerChip(on: Boolean, onClick: () -> Unit) {
+    val c = Calm.colors
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        Modifier.height(32.dp).clip(shape).background(if (on) c.rigor.copy(alpha = 0.18f) else c.card.copy(alpha = 0.94f))
+            .border(1.dp, if (on) c.rigor else c.line, shape).clickable(onClick = onClick).padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) { Text("⚡ Power", color = if (on) c.rigor else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+}
+
+@Composable
+private fun PowerBanner() {
+    val c = Calm.colors
+    Text("Power Mode — hardball moves for work and negotiations.", color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp).clip(RoundedCornerShape(10.dp))
+            .background(c.rigor.copy(alpha = 0.12f)).padding(horizontal = 12.dp, vertical = 6.dp))
+}
+
+/** Shown the first time Power Mode is turned on in a conversation: what it does, what it never does (blueprint §1), where it is off. */
+@Composable
+private fun PowerExplainer(onTurnOn: () -> Unit, onClose: () -> Unit) {
+    val c = Calm.colors
+    Dialog(onDismissRequest = onClose) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(c.paper).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("⚡ Power Mode", color = c.ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("Plays harder in work and negotiations: hold your number, a firm posture, real competition, timing. Each reply gets a Power Read: the leverage, the plays being used on you, and the moves that pay, with where they come from.",
+                color = c.ink, fontSize = 15.sp, lineHeight = 22.sp)
+            Text("It never helps with false claims or fake offers, exploiting someone's weak spots, isolating someone, making them depend on you, or pinning blame on someone innocent.",
+                color = c.ink2, fontSize = 15.sp, lineHeight = 22.sp)
+            Text("It's off for partners, family and friends: there you see how the dynamics look, not hardball moves.", color = c.ink2, fontSize = 15.sp, lineHeight = 22.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Chip("Not now", onClose)
+                Box(Modifier.height(32.dp).clip(RoundedCornerShape(16.dp)).background(c.action).clickable(onClick = onTurnOn).padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center) { Text("Turn on", color = c.onAction, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+            }
+        }
     }
 }
 
@@ -204,6 +260,7 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
                 is TalkTurn.Ask -> AskCard(turn, onAnswer = actions.onSend)
                 is TalkTurn.Note -> Text(turn.text, color = c.ink3, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 is TalkTurn.Support -> ErrorLike("Support is available", turn.text, null, null)
+                is TalkTurn.PowerRead -> Unit                // the card arrives in PM5.2
             }
         }
         if (ui.thinking) item("thinking") { Thinking(ui.activity) }

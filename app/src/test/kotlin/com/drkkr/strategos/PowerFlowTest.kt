@@ -166,4 +166,18 @@ class PowerFlowTest {
         assertTrue(reply, reply.startsWith(DeclineNotes.of("false_facts")!!))
         assertTrue(reply, reply.contains("Before I call it"))
     }
+
+    @Test
+    fun theControllerSwitchesPowerModeForTheOpenConversationAndReportsTheLock() = runBlocking {
+        val controller = controllerWith(EngineEchoLlm(listOf(sketch())), CommittingGateway(start))
+        controller.bindScenario("deal").join()
+        val cid = controller.state.value.conversationId!!
+        controller.setPowerMode(true).join()
+        assertTrue(settings.isPowerMode(cid))
+        kotlinx.coroutines.withTimeout(5_000) { while (!controller.state.value.powerMode) kotlinx.coroutines.delay(20) }
+        settings.setPowerLock(true)
+        kotlinx.coroutines.withTimeout(5_000) { while (controller.state.value.powerModeAvailable || controller.state.value.powerMode) kotlinx.coroutines.delay(20) }
+        controller.markPowerExplained().join()
+        kotlinx.coroutines.withTimeout(5_000) { while (!controller.state.value.powerExplained) kotlinx.coroutines.delay(20) }
+    }
 }

@@ -18,7 +18,10 @@ data class SettingsUiState(
     val model: String = "",
     val models: List<ModelRow> = emptyList(),
     val modelMessage: String? = null,
-    val reveal: RevealMath = RevealMath.ON_TAP
+    val reveal: RevealMath = RevealMath.ON_TAP,
+    /** Debug builds only: the Power Mode lock for managed or age-restricted deployments (blueprint §5, I-P4). */
+    val powerLockVisible: Boolean = false,
+    val powerLock: Boolean = false
 )
 
 data class SettingsActions(
@@ -31,7 +34,8 @@ data class SettingsActions(
     val onRefreshModels: () -> Unit = {},
     val onReveal: (RevealMath) -> Unit = {},
     val onOpenKeyHelp: () -> Unit = {},
-    val onDeleteEverything: () -> Unit = {}
+    val onDeleteEverything: () -> Unit = {},
+    val onPowerLock: (Boolean) -> Unit = {}
 )
 
 object SettingsUi {
