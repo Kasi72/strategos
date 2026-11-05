@@ -1,6 +1,8 @@
 package com.drkkr.strategos
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -132,4 +134,35 @@ class PowerReadCardTest {
         assertEquals("Don't show your hand", PowerRead.nameOf(StrategicId.DONT_SHOW_YOUR_HAND))
         assertEquals("Credible walk-away", PowerRead.nameOf(StrategicId.CREDIBLE_WALKAWAY))
     }
+
+    @Test fun inTheConversation_settingYourFallbackStrongBringsRealCompetitionOnTheNextTurn() {
+        // the salary story as Call 1 read it live: the offer only as if_no_deal, the dependency on the wrong side, no your_alternative
+        var scenario = Fx.pmManager().let { it.copy(humanContext = it.humanContext!!.copy(theyDependOnYou = null, youDependOnThem = "high"),
+            negotiationContext = com.drkkr.strategos.domain.model.NegotiationContext(batna = "take the other company's offer")) }
+        fun read(s: Scenario) = PowerRead.build(s, plan(s))
+        assertFalse(read(scenario).yourMoves.any { it.name == "Real competition" })
+        compose.setContent {
+            var card by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(read(scenario)) }
+            var turn by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+            NextTurn.go = { turn++ }
+            androidx.compose.runtime.LaunchedEffect(turn) { if (turn > 0) card = read(scenario) }
+            StrategosTheme(darkTheme = false) {
+                com.drkkr.strategos.ui.calm.talk.TalkScreen(
+                    com.drkkr.strategos.ui.calm.talk.TalkUiState(projectName = "Raise", loading = false, powerAvailable = true, powerExplained = true, powerMode = true,
+                        turns = listOf(com.drkkr.strategos.ui.calm.talk.TalkTurn.PowerRead("p$turn", card))),
+                    com.drkkr.strategos.ui.calm.talk.TalkActions(onSetLeverage = { k, v -> scenario = scenario.copy(humanContext = scenario.humanContext!!.setByUser(k, v)) }),
+                    androidx.compose.ui.Modifier.fillMaxSize())
+            }
+        }
+        compose.onNodeWithText("1. Real competition").assertDoesNotExist()
+        compose.onNodeWithText("Your fallback: not set").performClick()
+        compose.onNodeWithText("strong").performClick()
+        // the next turn: Call 1 again says nothing about the fallback
+        scenario = apply("""{"people":[{"name":"You","role":"player"}],"options":[{"who":"You","do":"Ask with a plan","posture":"repair"}],"relationship":"manager"}""", scenario)
+        compose.runOnIdle { NextTurn.go() }
+        compose.waitForIdle()
+        compose.onNodeWithText("1. Real competition").assertExists()
+    }
+
+    private object NextTurn { var go: () -> Unit = {} }
 }

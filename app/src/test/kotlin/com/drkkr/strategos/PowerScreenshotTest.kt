@@ -43,7 +43,7 @@ import java.io.File
 /**
  * CP-P3: screenshots of the Talk header switch, the banner and the Power Read card (light and dark), and the salary sequence
  * (tap "Your fallback" -> strong, the next turn's card shows Real competition). The domain is real (converter, planner, card); the
- * Call 1 readings are scripted. PNGs are written only when SCREENSHOT_OUT names a folder; the assertions always run.
+ * Call 1 readings are scripted. Runs only when SCREENSHOT_OUT names a folder.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
@@ -51,6 +51,13 @@ import java.io.File
 class PowerScreenshotTest {
     @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val out = System.getenv("SCREENSHOT_OUT")?.let { File(it).apply { mkdirs() } }
+
+    /**
+     * A screenshot generator, like the live replay: drawing the window natively crashes Robolectric's native runtime when it shares a
+     * JVM with the rest of the suite, so it runs only when SCREENSHOT_OUT is set (run it on its own). The same sequence is asserted,
+     * without drawing, in PowerReadCardTest.
+     */
+    @org.junit.Before fun onlyWhenAsked() = org.junit.Assume.assumeTrue("set SCREENSHOT_OUT to write the CP-P3 screenshots", out != null)
 
     private fun shot(name: String) {
         compose.waitForIdle()
