@@ -104,8 +104,12 @@ class DeepSeekLiveFlowTest {
             Json { ignoreUnknownKeys = true }.decodeFromString(com.drkkr.strategos.domain.model.NegotiationContext.serializer(), java.io.File(it).readText())
         }
         val r = rig(key!!, "s1", "New scenario", nc)
-        val out = StringBuilder()
+        // Power Mode (PM4.4): FLOW_POWER_MODE=1 turns it on for this conversation before the first message.
+        val powerMode = System.getenv("FLOW_POWER_MODE") == "1"
+        if (powerMode) SettingsRepository(r.db).setPowerMode(r.controller.state.value.conversationId!!, true)
+        val out = StringBuilder(if (powerMode) "POWER MODE: on\n\n" else "")
         try {
+            var powerReadsBefore = 0
             for ((i, m) in messages.withIndex()) {
                 val callsBefore = r.llm.calls.size
                 val dirsBefore = r.directives.size
@@ -197,6 +201,16 @@ class DeepSeekLiveFlowTest {
                     out.append("  figures in what the user saw: ${figs.ifEmpty { listOf("none") }}\n")
                     out.append("  walk-away/fallback check on what the user saw: ${if (frame == null || com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(shown), frame)) "clean" else "FLAGGED"}\n")
                 }
+
+                // Power Mode: the decline note sent to the coach, and the Power Read card saved this turn (Kotlin-built).
+                out.append("\n(p) POWER MODE\n")
+                out.append("  power_mode in directive: ${d?.get("power_mode") ?: "-"} | decline_note: ${(d?.get("decline_note") as? JsonPrimitive)?.contentOrNull ?: "none"}\n")
+                out.append("  delivery tactics: ${d?.get("delivery")?.jsonObject?.get("tactics") ?: "none"}\n")
+                val cidNow = r.controller.state.value.conversationId!!
+                val reads = ConversationRepository(r.db).messages(cidNow).filter { it.uiKind == com.drkkr.strategos.data.repo.UiKind.POWER_READ.name }
+                val read = reads.lastOrNull()?.takeIf { reads.size > powerReadsBefore }?.payloadJson
+                out.append("  POWER READ: ${read ?: "none this turn"}\n")
+                powerReadsBefore = reads.size
 
                 out.append("\n(c) CALL 2 translation\n")
                 val reply = turnCalls.lastOrNull { it.purpose == "COACH" }?.let { CoachReply.parse(it.text) }
