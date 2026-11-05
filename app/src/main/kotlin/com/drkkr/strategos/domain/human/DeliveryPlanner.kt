@@ -3,7 +3,7 @@ package com.drkkr.strategos.domain.human
 import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.Scenario
 
-/** When to say it. HL3 only ever plans NOW; the hot-state gate (HL4) adds the other two. */
+/** When to say it. NOW unless [HotStateGate] says to let them cool off (the user) or wait for calm (the other person). */
 enum class Timing { NOW, AFTER_COOLING, WHEN_CALM }
 
 /** Where to say it. */
@@ -44,13 +44,13 @@ object DeliveryPlanner {
     /** [raw] is the analysis view BEFORE the humanised view; [second] is the other calm move (complement, else fallback). */
     fun plan(
         raw: Scenario, hc: HumanContext, recommended: Action, second: Action? = null, support: Boolean = false,
-        beta: Double = 1.0, c: HumanConstants = HumanConstants.DEFAULT
+        beta: Double = 1.0, c: HumanConstants = HumanConstants.DEFAULT, userSaysNow: Boolean = false
     ): Delivery {
         val domain = RelationshipDomains.of(hc.relationship, null)
         if (EthicsGate.nothingAllowed(hc, domain, support)) return Delivery()
         val scored = candidates(raw, hc, recommended, support, beta)
         val chosen = resolve(scored, c)
-        return assemble(raw, hc, recommended, second, chosen, support, c)
+        return assemble(raw, hc, recommended, second, chosen, support, c, userSaysNow)
     }
 
     private fun gainOf(withCtx: Scenario, recommended: Action, t: Tactic, beta: Double, baseP: Double?): Double =
@@ -106,7 +106,7 @@ object DeliveryPlanner {
     /** Turns the chosen tactics into the delivery block: channel, offers, and the say-less flag. */
     fun assemble(
         raw: Scenario, hc: HumanContext, recommended: Action, second: Action?, chosen: List<Pair<Tactic, Double>>,
-        support: Boolean = false, c: HumanConstants = HumanConstants.DEFAULT
+        support: Boolean = false, c: HumanConstants = HumanConstants.DEFAULT, userSaysNow: Boolean = false
     ): Delivery {
         val domain = RelationshipDomains.of(hc.relationship, null)
         if (EthicsGate.nothingAllowed(hc, domain, support)) return Delivery()
@@ -125,7 +125,7 @@ object DeliveryPlanner {
         } && TacticId.MAKE_IT_CONCRETE !in ids
         return Delivery(
             tactics = chosen.map { (t, gain) -> PlannedTactic(t.id, t.coachHint, gain) },
-            timing = Timing.NOW, channel = channel, sayLess = sayLess,
+            timing = HotStateGate.timing(hc, recommended, support, userSaysNow), channel = channel, sayLess = sayLess,
             defaultOffer = recommended.label.takeIf { TacticId.DEFAULT_WITH_DEADLINE in ids },
             optionsToOffer = if (TacticId.TWO_GOOD_OPTIONS in ids) listOfNotNull(recommended.label, second?.label) else emptyList()
         )

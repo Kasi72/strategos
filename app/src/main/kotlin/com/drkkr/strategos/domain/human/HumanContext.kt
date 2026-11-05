@@ -39,7 +39,12 @@ data class HumanContext(
      * Readings of the soft fields (and of a relationship in a new domain) that have been seen once and are waiting for a
      * second turn to repeat them, keyed by field name. See [merge].
      */
-    val pending: Map<String, String> = emptyMap()
+    val pending: Map<String, String> = emptyMap(),
+    /**
+     * The move that was held back for the user to cool off ([Timing.AFTER_COOLING]). The next turns ask "did you send it?" until
+     * they report how it went. An empty string in a patch clears it.
+     */
+    val pendingCooling: String? = null
 ) {
     /**
      * Folds a newer reading into this one. A non-null newer value replaces the old; a null never erases it. The two
@@ -86,7 +91,8 @@ data class HumanContext(
         stepsForThemToSayYes = newer.stepsForThemToSayYes ?: stepsForThemToSayYes,
         goalIs = newer.goalIs ?: goalIs,
         tacticSuccess = tacticSuccess + newer.tacticSuccess,
-        pending = pend
+        pending = pend,
+        pendingCooling = if (newer.pendingCooling == "") null else newer.pendingCooling ?: pendingCooling
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {

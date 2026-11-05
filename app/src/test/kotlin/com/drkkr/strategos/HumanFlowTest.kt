@@ -37,6 +37,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -158,5 +159,41 @@ class HumanFlowTest {
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
         assertFalse(reply, reply.contains("Law 31"))
         assertTrue("falls back to the engine's own text: $reply", reply.contains("Options to consider"))
+    }
+
+    /** A furious first message where every calm move is irreversible, so whichever the engine picks must wait. */
+    private val hotSketch = sketch.replace(
+        "\"option_tags\":{\"Ask with a plan and a date\":[\"asks_them_to_give_up\",\"public\",\"corrects_them\"]}",
+        "\"your_state\":\"furious\",\"option_tags\":{\"Ask with a plan and a date\":[\"irreversible\"],\"Hold the line until the review\":[\"irreversible\"]}"
+    )
+
+    @Test
+    fun TC_HL_HOT_06_aHeldMoveIsRememberedUntilTheyReportHowItWent() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val reported = hotSketch.replace("\"your_state\":\"furious\"", "\"your_state\":\"calm\"").dropLast(1) + ""","counterpart_observed_reaction":"softened","user_last_move_posture":"repair"}"""
+        // the stand-in model answers EVERY non-coach call from this list in order, the short red-team check included
+        val llm = EngineEchoLlm(listOf(hotSketch, "Is that fair?", hotSketch, "Is that fair?", reported, "Is that fair?"))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+
+        controller.send("I'm furious. I want to tell my manager Priya exactly what I think about the raise.")!!.join(); controller.awaitIdle()
+        val first = llm.lastDirective!!
+        assertEquals("AFTER_COOLING", first["delivery"]!!.jsonObject.getValue("timing").jsonPrimitive.content)
+        assertNull("nothing pending yet when the turn starts", first["pending_cooling"])
+        val held = gateway.inner.scenario!!.humanContext!!.pendingCooling
+        assertEquals(first.getValue("move_to_implement").jsonPrimitive.content, held)
+
+        // next message, no reaction reported: the live context carries it and so does the coach's directive
+        controller.send("Still thinking about it.")!!.join(); controller.awaitIdle()
+        val secondTurn = llm.requests.filter { it.purpose == "TURN" }[1].input.toString()
+        assertTrue("the live context says what is pending", secondTurn.contains("pending_cooling"))
+        assertEquals("the coach is told what was held last time", held, llm.lastDirective!!["pending_cooling"]?.jsonPrimitive?.content)
+        // still hot and the pick changed, so the newer held move replaces it; something is still pending
+        assertNotNull(gateway.inner.scenario!!.humanContext!!.pendingCooling)
+
+        // a turn that reports how it went clears it
+        controller.send("I sent it the next morning and she softened.")!!.join(); controller.awaitIdle()
+        assertNull(gateway.inner.scenario!!.humanContext!!.pendingCooling)
+        assertNull(llm.lastDirective!!["pending_cooling"])
     }
 }

@@ -278,7 +278,11 @@ object SketchConverter {
         fun youExists() = s.stakeholders.any { key(it.name) == "you" } || sketch.people.any { key(it.name) == "you" }
         val people = if (youExists()) sketch.people else listOf(SketchPerson("You", "PLAYER")) + sketch.people
         // Human Layer: what the model read about power, status quo and state (closed vocabularies only; AI_INFERRED).
-        val humanCtx = if (humanFields) SketchHuman.context(sketch) else null
+        val reported = sketch.counterpartObservedReaction in setOf("softened", "stayed_neutral", "withdrew_or_escalated")
+        // They have reported how the held move went: stop asking "did you send it?".
+        val humanCtx = if (humanFields) SketchHuman.context(sketch).let { c ->
+            if (reported && s.humanContext?.pendingCooling != null) (c ?: HumanContext()).copy(pendingCooling = "") else c
+        } else null
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(

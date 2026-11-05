@@ -90,7 +90,9 @@ data class EngineDirective(
     /** Human Layer: patterns being used on the user, with the protective move. Filled by the radar. */
     val watchFor: List<com.drkkr.strategos.domain.human.WatchFor> = emptyList(),
     /** Human Layer: one plain line for the X-ray sheet. Never sent to the coach. */
-    val humanLens: String? = null
+    val humanLens: String? = null,
+    /** Human Layer: the move that was held back last time; the coach opens by asking how it went. */
+    val pendingCooling: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -135,6 +137,7 @@ data class EngineDirective(
                 if (d.optionsToOffer.isNotEmpty()) putJsonArray("options_to_offer") { d.optionsToOffer.forEach { add(JsonPrimitive(it)) } }
             }
         }
+        pendingCooling?.let { put("pending_cooling", it) }
         if (watchFor.isNotEmpty()) putJsonArray("watch_for") { watchFor.forEach { w -> addJsonObject { put("sign", w.sign); put("protect", w.protect) } } }
     }
 

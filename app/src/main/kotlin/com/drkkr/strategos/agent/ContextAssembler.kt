@@ -149,6 +149,8 @@ class ContextAssembler(
                 gaps.forEach { g -> addJsonObject { put("id", g.id); put("about", g.about); put("hint", g.hint) } }
             }
             put("scenario", scenario?.let(LiveDigest::build) ?: JsonNull)
+            // Human Layer: a move was held back for them to cool off; ask how it went.
+            scenario?.humanContext?.pendingCooling?.let { put("pending_cooling", it) }
             put("scenario_changed_since_last_turn", changed)
             putJsonArray("pending_change_sets") {
                 pending.forEach { cs ->

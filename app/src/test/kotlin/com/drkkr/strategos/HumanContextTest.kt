@@ -162,4 +162,13 @@ class HumanContextTest {
         assertEquals(mapOf("theirAlternative" to "strong"), once.pending)
         assertEquals("strong", once.merge(HumanContext(theirAlternative = "strong")).theirAlternative)
     }
+
+    @Test
+    fun TC_HL_COOL_01_pendingCoolingSurvivesMergesAndIsClearedOnlyByAnEmptyPatch() {
+        val held = HumanContext(pendingCooling = "Send the message")
+        assertEquals("Send the message", held.merge(HumanContext(yourStateLevel = 1.0, theirTactics = listOf("hot_cold"))).pendingCooling)
+        assertEquals("Send it later", held.merge(HumanContext(pendingCooling = "Send it later")).pendingCooling)
+        assertNull(held.merge(HumanContext(pendingCooling = "")).pendingCooling)
+        assertNull(HumanContext().merge(HumanContext(pendingCooling = "")).pendingCooling)
+    }
 }

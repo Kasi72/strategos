@@ -299,8 +299,17 @@ class OneShotTurn(
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
         } else null
         val directive = withDelivery(
-            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, raw, gameContext.opponentModel, support
+            if (challenge != null) baseDirective.copy(redTeamChallenge = challenge) else baseDirective, raw, gameContext.opponentModel, support, text
         )
+        // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
+        if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
+            s.humanContext?.pendingCooling != directive.moveToImplement) {
+            apply(cid, sid, s, listOf(com.drkkr.strategos.domain.agent.ChangeOp(
+                com.drkkr.strategos.domain.agent.OpType.SET_SCENARIO_FIELDS, rationale = "A reminder to ask how it went",
+                source = com.drkkr.strategos.domain.agent.OpSource.AI_INFERRED,
+                scenarioFields = com.drkkr.strategos.domain.agent.ScenarioFieldsPatch(humanContext = com.drkkr.strategos.domain.human.HumanContext(pendingCooling = directive.moveToImplement))
+            )))
+        }
         if (gameResult is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved) {
             certificates?.persist(s.id, s.version, gameResult, directive)
         }
@@ -350,16 +359,18 @@ class OneShotTurn(
      */
     private fun withDelivery(
         d: EngineDirective, raw: com.drkkr.strategos.domain.model.Scenario,
-        opponent: com.drkkr.strategos.domain.game.OpponentModel?, support: Boolean
+        opponent: com.drkkr.strategos.domain.game.OpponentModel?, support: Boolean, userText: String
     ): EngineDirective {
         val hc = raw.humanContext ?: return d
+        val d = d.copy(pendingCooling = hc.pendingCooling)
         if (!d.ready) return d
         val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(raw) ?: return d
         val mine = raw.actionsFor(owner.id)
         val move = mine.firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } ?: return d
         val second = listOfNotNull(d.complementaryMove, d.safeFallbackMove)
             .firstNotNullOfOrNull { l -> mine.firstOrNull { it.label.equals(l, ignoreCase = true) && it.id != move.id } }
-        val plan = com.drkkr.strategos.domain.human.DeliveryPlanner.plan(raw, hc, move, second, support, com.drkkr.strategos.domain.human.ResponseModel.betaFrom(opponent))
+        val plan = com.drkkr.strategos.domain.human.DeliveryPlanner.plan(raw, hc, move, second, support, com.drkkr.strategos.domain.human.ResponseModel.betaFrom(opponent),
+            userSaysNow = com.drkkr.strategos.domain.human.HotStateGate.userSaysNow(userText))
         return d.copy(delivery = plan.takeIf { !it.isEmpty })
     }
 
