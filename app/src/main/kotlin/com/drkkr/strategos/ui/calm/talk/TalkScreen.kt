@@ -260,7 +260,7 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
                 is TalkTurn.Ask -> AskCard(turn, onAnswer = actions.onSend)
                 is TalkTurn.Note -> Text(turn.text, color = c.ink3, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 is TalkTurn.Support -> ErrorLike("Support is available", turn.text, null, null)
-                is TalkTurn.PowerRead -> Unit                // the card arrives in PM5.2
+                is TalkTurn.PowerRead -> PowerReadCard(turn.read, actions.onSetLeverage)
             }
         }
         if (ui.thinking) item("thinking") { Thinking(ui.activity) }

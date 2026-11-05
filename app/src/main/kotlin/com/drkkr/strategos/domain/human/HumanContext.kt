@@ -158,6 +158,20 @@ data class HumanContext(
         const val TACTICS_MAX = 6
     }
 
+    /**
+     * Power Mode (CP-P2b): the user sets a leverage value on the Power Read card ("Your fallback", "They need you"). Same path as
+     * the Review sheet's Keep/Fix: the field becomes theirs (`userFixed`), any reading waiting in `pending` is dropped, and the
+     * model's later readings are ignored for it (I-H8). Only these two fields, in their own closed vocabularies.
+     */
+    fun setByUser(key: String, value: String): HumanContext {
+        val base = copy(userFixed = userFixed + key, pending = pending - key)
+        return when (key) {
+            "yourAlternative" -> if (value in HumanVocab.ALTERNATIVE) base.copy(yourAlternative = value) else this
+            "theyDependOnYou" -> if (value in HumanVocab.DEPENDENCE) base.copy(theyDependOnYou = value) else this
+            else -> this
+        }
+    }
+
     /** The Review sheet's Keep / Fix: the user takes the field as theirs ([clear] also empties it). */
     fun fix(key: String, clear: Boolean): HumanContext {
         val base = copy(userFixed = userFixed + key)

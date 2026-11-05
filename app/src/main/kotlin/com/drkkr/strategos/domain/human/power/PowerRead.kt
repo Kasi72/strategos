@@ -66,7 +66,7 @@ data class PowerRead(
 
         /** "REAL_COMPETITION" -> "Real competition"; the walk-away keeps its hyphen. */
         fun nameOf(id: StrategicId): String =
-            id.name.lowercase().replace('_', ' ').replace("walkaway", "walk-away").replaceFirstChar { it.uppercase() }
+            id.name.lowercase().replace('_', ' ').replace("walkaway", "walk-away").replace("dont ", "don't ").replaceFirstChar { it.uppercase() }
 
         /** The law numbers in a source ("48 Laws L3, L4" -> "L3/L4"), or the chapter when there is none ("Nudge Ch.15"). */
         fun lawLabel(source: String): String {

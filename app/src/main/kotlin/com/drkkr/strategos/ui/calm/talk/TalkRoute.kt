@@ -133,7 +133,10 @@ fun TalkRoute(
         onPowerExplained = { counsel?.markPowerExplained() },
         // The user's word on the Power Read card: saved through the same userFixed path as the Review sheet (I-H8).
         onSetLeverage = { key, value ->
-            Unit                                            // saved in PM5.2
+            vm.state.value.activeScenario?.takeIf { it.id == projectId }?.let { s ->
+                vm.updateActiveScenario(s.copy(humanContext = (s.humanContext ?: com.drkkr.strategos.domain.human.HumanContext()).setByUser(key, value)))
+                vm.saveScenario()
+            }
         }
     ))
 }
