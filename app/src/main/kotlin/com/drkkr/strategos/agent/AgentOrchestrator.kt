@@ -163,7 +163,10 @@ class AgentOrchestrator(
             "show_support" to "Showing support contacts…",
             "run_coalition_analysis" to "Computing leverage…",
             "check_mechanism_design" to "Checking design structure…",
-            "run_specific_framework" to "Running framework…"
+            "run_specific_framework" to "Running framework…",
+            "get_directive_plain" to "Computing directive…",
+            "get_outcome_history" to "Loading outcome history…",
+            "get_opponent_profile" to "Profiling opponent…"
         )
     }
 }

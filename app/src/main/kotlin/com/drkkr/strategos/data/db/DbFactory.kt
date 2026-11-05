@@ -60,11 +60,22 @@ object DbFactory {
         override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_3_4_SQL.forEach { db.execSQL(it) } }
     }
 
+    /** Statements for 4 -> 5. Adds outcome_record for flywheel pattern synthesis. */
+    val MIGRATION_4_5_SQL: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `outcome_record` (`id` TEXT NOT NULL, `scenario_id` TEXT NOT NULL, `recommended_move` TEXT NOT NULL, `actual_move` TEXT NOT NULL, `outcome_rating` INTEGER NOT NULL, `opponent_reaction` TEXT, `archetype_name` TEXT, `recorded_at` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scenario_id`) REFERENCES `scenario`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE INDEX IF NOT EXISTS `index_outcome_record_scenario_id` ON `outcome_record` (`scenario_id`)",
+        "CREATE INDEX IF NOT EXISTS `index_outcome_record_recorded_at` ON `outcome_record` (`recorded_at`)"
+    )
+
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_4_5_SQL.forEach { db.execSQL(it) } }
+    }
+
     fun open(context: Context, passphrase: ByteArray): StrategosDatabase {
         System.loadLibrary("sqlcipher")
         return Room.databaseBuilder(context, StrategosDatabase::class.java, "strategos.db")
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
     }
 

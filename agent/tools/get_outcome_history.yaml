@@ -1,0 +1,13 @@
+name: get_outcome_history
+description: >
+  Retrieve past outcome records for the current scenario — what was recommended,
+  what actually happened, and how the user rated the outcome. Use before giving
+  advice that depends on track record or when the user asks what happened last
+  time. Returns the most recent records (default 10, max 50).
+input_schema:
+  type: object
+  properties:
+    limit:
+      type: integer
+      description: Maximum number of records to return (1–50, default 10).
+  required: []

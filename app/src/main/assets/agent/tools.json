@@ -64,6 +64,48 @@
   },
   {
     "type": "function",
+    "name": "get_directive_plain",
+    "description": "Run the full on-device game-theory engine on the current scenario and return the engine directive as a plain JSON object. Use when you need the engine's recommended move, blocked moves, stress verdict, and supporting frameworks without displaying the full analysis card. Returns badge (one-line summary) and the complete directive fields.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_opponent_profile",
+    "description": "Synthesise a behavioural profile for a named opponent by analysing past outcome records. Returns dominant archetype, average outcome rating, advice-follow rate, and a plain-language insight. Requires at least 2 records with opponent or archetype data; returns insufficient_data status otherwise.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "opponent_id": {
+          "type": "string",
+          "description": "Name or identifier of the opponent/counterpart to profile (e.g. \"Alex\", \"the manager\", \"the client\").\n"
+        }
+      },
+      "required": [
+        "opponent_id"
+      ]
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_outcome_history",
+    "description": "Retrieve past outcome records for the current scenario — what was recommended, what actually happened, and how the user rated the outcome. Use before giving advice that depends on track record or when the user asks what happened last time. Returns the most recent records (default 10, max 50).\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of records to return (1–50, default 10)."
+        }
+      },
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "get_scenario",
     "description": "Full model digest. The app context already has a short one.",
     "parameters": {

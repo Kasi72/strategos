@@ -14,6 +14,7 @@ import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.GuidanceRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
+import com.drkkr.strategos.data.repo.OutcomeRepository
 import com.drkkr.strategos.data.repo.ProjectBrainRepository
 import com.drkkr.strategos.data.repo.ScenarioRepository
 import com.drkkr.strategos.data.repo.SettingsRepository
@@ -138,6 +139,7 @@ class AppContainer(
             memory = MemoryRepository(db),
             settings = settings,
             whatIfs = db.whatIfDao(),
+            outcomes = OutcomeRepository(db),
             hasKey = { settings.get(SettingsRepository.SECRET_XAI_KEY) != null },
             oneShot = true,     // SIMPLE PROFILE
             coach = true,       // COMPANION REPLY

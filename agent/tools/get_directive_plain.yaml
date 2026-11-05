@@ -1,0 +1,11 @@
+name: get_directive_plain
+description: >
+  Run the full on-device game-theory engine on the current scenario and return
+  the engine directive as a plain JSON object. Use when you need the engine's
+  recommended move, blocked moves, stress verdict, and supporting frameworks
+  without displaying the full analysis card. Returns badge (one-line summary)
+  and the complete directive fields.
+input_schema:
+  type: object
+  properties: {}
+  required: []

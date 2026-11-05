@@ -228,6 +228,23 @@ data class QuickCheckFeedbackEntity(
     @ColumnInfo(name = "created_at") val createdAt: Long
 )
 
+/** Outcome record written by the agent after the user reports what actually happened. */
+@Entity(
+    tableName = "outcome_record",
+    foreignKeys = [ForeignKey(entity = ScenarioEntity::class, parentColumns = ["id"], childColumns = ["scenario_id"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("scenario_id"), Index("recorded_at")]
+)
+data class OutcomeRecordEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "scenario_id") val scenarioId: String,
+    @ColumnInfo(name = "recommended_move") val recommendedMove: String,
+    @ColumnInfo(name = "actual_move") val actualMove: String,
+    @ColumnInfo(name = "outcome_rating") val outcomeRating: Int,
+    @ColumnInfo(name = "opponent_reaction") val opponentReaction: String? = null,
+    @ColumnInfo(name = "archetype_name") val archetypeName: String? = null,
+    @ColumnInfo(name = "recorded_at") val recordedAt: Long
+)
+
 /** R1c: compiled game model (GameIR) persisted for a scenario version. decision_state = DecisionState name. */
 @Entity(
     tableName = "game_model",

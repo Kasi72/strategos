@@ -13,6 +13,7 @@ import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ChangeSetStatus
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
+import com.drkkr.strategos.data.repo.OutcomeRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SaveResult
 import com.drkkr.strategos.data.repo.SettingsRepository
@@ -67,6 +68,7 @@ class CounselDeps(
     val memory: MemoryRepository,
     val settings: SettingsRepository,
     val whatIfs: WhatIfDao,
+    val outcomes: OutcomeRepository? = null,
     val hasKey: suspend () -> Boolean,
     val pipeline: AnalysisPipeline = AnalysisPipeline(),
     val dispatcher: ToolDispatcher = ToolDispatcher.default(),
@@ -387,6 +389,7 @@ class CounselController(
         conversationId = cid, turnId = turnId, scenarioId = sid, gateway = gateway, pipeline = deps.pipeline,
         conversations = deps.conversations, changeSets = deps.changeSets, memory = deps.memory, whatIfs = deps.whatIfs,
         userTexts = deps.conversations.userTexts(cid),
+        outcomes = deps.outcomes,
         uiMode = deps.settings.uiMode(),
         autoApply = ::autoApply
     )
