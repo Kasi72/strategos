@@ -143,6 +143,7 @@ class DeepSeekLiveFlowTest {
                     }
                     out.append("  dominant dynamic: ${d["dominant_dynamic"]?.jsonArray?.joinToString(" // ") { it.jsonPrimitive.content }}\n")
                     out.append("  stress: ${str("stress_verdict")} ${str("stress_flip") ?: ""}\n")
+                    out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")
                     out.append("  move_to_implement: ${str("move_to_implement")}\n")
                     out.append("  known_stakeholder_facts: ${d["known_stakeholder_facts"]?.jsonArray?.joinToString(" | ") { it.jsonPrimitive.content }}\n")
                     out.append("  bayesian_learning_note: ${str("bayesian_learning_note")}\n")
@@ -173,7 +174,8 @@ class DeepSeekLiveFlowTest {
                     out.append("  echoed engine_move: ${reply.engineMove}   matches engine pick: ${reply.implements(want)}\n")
                     out.append("  clear_win_move: ${reply.clearWinMove}\n  exact_words: ${reply.exactWords}\n")
                 }
-                out.append("\n--- what the user saw (${shown.length} chars) ---\n$shown\n\n")
+                out.append("\n--- what the user saw (${shown.length} chars) ---\n$shown\n")
+                out.append("BANNED-WORD CHECK on what the user saw: ${if (com.drkkr.strategos.domain.human.BannedWords.containedIn(shown)) "FAIL - names a law, book, author or tactic" else "clean"}\n\n")
                 java.io.File(outFile!!).writeText(out.toString())
             }
         } finally { DebugLog.sink = null; r.scope.cancel(); r.db.close() }
