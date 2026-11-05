@@ -141,13 +141,16 @@ data class SketchNegotiation(
     @SerialName("lowest_acceptable") @Serializable(with = TextOrListSerializer::class) val lowestAcceptable: String? = null,
     @SerialName("ideal") @Serializable(with = TextOrListSerializer::class) val ideal: String? = null,
     @SerialName("opening_ask") @Serializable(with = TextOrListSerializer::class) val openingAsk: String? = null,
+    /** What the OTHER side could do instead. Renamed from `their_alternative` (which the `power` object also uses, for a strength). */
+    @SerialName("their_if_no_deal") @Serializable(with = TextOrListSerializer::class) val theirIfNoDeal: String? = null,
+    /** The old name, still read so earlier replies and fixtures parse. */
     @SerialName("their_alternative") @Serializable(with = TextOrListSerializer::class) val theirAlternative: String? = null,
     @SerialName("their_limit") @Serializable(with = TextOrListSerializer::class) val theirLimit: String? = null
 ) {
     fun toContext() = com.drkkr.strategos.domain.model.NegotiationContext(
         batna = ifNoDeal.orEmpty().take(200), reservationPoint = lowestAcceptable.orEmpty().take(200),
         aspirationPoint = ideal.orEmpty().take(200), openingAnchor = openingAsk.orEmpty().take(200),
-        counterpartBatna = theirAlternative.orEmpty().take(200), counterpartReservation = theirLimit.orEmpty().take(200)
+        counterpartBatna = (theirIfNoDeal ?: theirAlternative).orEmpty().take(200), counterpartReservation = theirLimit.orEmpty().take(200)
     )
     fun hasContent() = toContext().let { it.batna.isNotBlank() || it.reservationPoint.isNotBlank() || it.aspirationPoint.isNotBlank() ||
         it.openingAnchor.isNotBlank() || it.counterpartBatna.isNotBlank() || it.counterpartReservation.isNotBlank() }

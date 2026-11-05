@@ -60,7 +60,13 @@ object StrategicCatalog {
     private val OFFER_WORDS = Regex("(?i)\\b(offer\\w*|quot\\w*|price\\w*|proposal|terms|bid)\\b")
     private fun offerOnTable(s: Scenario, c: HumanContext) =
         theirFigureOnTable(s) || s.negotiationContext?.openingAnchor?.isNotBlank() == true || OFFER_WORDS.containsMatchIn(c.statusQuo.orEmpty())
-    private fun realFallback(s: Scenario, c: HumanContext) = c.yourAlternative == "strong" || frame(s, c)?.walkAwayCredible == true
+    /**
+     * A real fallback: a confirmed strong alternative, a fallback figure that beats the walk-away, or (CP-P2) a strong alternative
+     * still waiting in `pending` together with a named `if_no_deal`: two signals from the user's own words. A fact said once never
+     * repeats, so it would otherwise never confirm. The Human Layer's merge is unchanged.
+     */
+    private fun realFallback(s: Scenario, c: HumanContext) = c.yourAlternative == "strong" || frame(s, c)?.walkAwayCredible == true ||
+        (c.pending["yourAlternative"] == "strong" && s.negotiationContext?.batna?.isNotBlank() == true)
     private fun counterpart(s: Scenario) = IntakeChecklist.self(s)?.let { o -> s.players().firstOrNull { it.id != o.id } }
     private fun calmOptions(s: Scenario, a: Action) = s.actionsFor(a.stakeholderId).filter { Postures.of(it) != Postures.REACTIVE }
 
@@ -104,12 +110,16 @@ object StrategicCatalog {
         t(StrategicId.AGGRESSIVE_ANCHOR, "48 Laws L28; Nudge Ch.1 (anchoring)", setOf(N), 1.0, 0.4,
             "Open at ${StrategicTactic.OPEN_AT}, the top of a range you can justify with real data.") { c, _, s -> !theirFigureOnTable(s) && frame(s, c)?.openAt != null },
         t(StrategicId.LET_THEM_MOVE_FIRST, "48 Laws L8", setOf(N) + WORK, 0.6, 0.1,
-            "Ask them to name their number or proposal first, before you give yours.") { _, a, s -> !theirFigureOnTable(s) || "gives_first" in DeliveryTags.of(a) },
+            // Never next to a move that puts a figure down (a figure in its wording, or tagged gives_first): the two would contradict (CP-P2).
+            "Ask them to name their number or proposal first, before you give yours.") { _, a, s ->
+            !theirFigureOnTable(s) && DealNumbers.figures(a.label).isEmpty() && "gives_first" !in DeliveryTags.of(a)
+        },
         t(StrategicId.STRATEGIC_SILENCE, "48 Laws L4", setOf(N, A) + WORK, 0.5, 0.2,
             "Answer in one short line, then stop and let the silence do the work.", defensive = true) { c, a, _ -> "probes_you" in c.theirTactics || "argues" in DeliveryTags.of(a) },
         t(StrategicId.COLOR_THE_CHOICES, "48 Laws L31 (colour the choices; real options only)", setOf(N) + WORK, 0.6, 0.4,
             "Lay out the real options in an order that makes yours the sensible middle choice.") { _, a, s -> calmOptions(s, a).size >= 3 },
-        t(StrategicId.REAL_COMPETITION, "48 Laws L20", setOf(N), 1.2, 0.3,
+        // Work too (CP-P2): a real outside offer is the classic lever in a raise or a role negotiation.
+        t(StrategicId.REAL_COMPETITION, "48 Laws L20", setOf(N) + WORK, 1.2, 0.3,
             "Line up real alternatives and say truthfully that you have other real options.") { c, _, s -> realFallback(s, c) },
         t(StrategicId.CREDIBLE_WALKAWAY, "48 Laws L28, L22 (reversed); Nudge Ch.15", setOf(N, A), 1.0, 0.3,
             "Get your real fallback ready, and let them see you could genuinely walk away.") { c, _, s ->

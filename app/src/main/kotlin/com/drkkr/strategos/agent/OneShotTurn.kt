@@ -243,15 +243,18 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
-            val body = if (argon != null) {
+            val userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor
+            val engineBody = if (argon != null) {
                 engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
-                    userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor)
+                    userAsksFor = userAsksFor)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
                 val note = if (nothingNew && talk == null) "$NOTHING_NEW\n\n" else ""
                 if (talk != null) "$talk\n\n$reply" else "$note$reply"
             }
+            // Power Mode: the fixed decline line, word for word, above whatever the reply is (the coach is told not to restate it).
+            val body = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor)?.let { "$it\n\n$engineBody" } ?: engineBody
             // The structured Do's/Don'ts ride along on the reply's payload so the Overview can aggregate them later.
             val assistant = conversations.append(
                 cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body,

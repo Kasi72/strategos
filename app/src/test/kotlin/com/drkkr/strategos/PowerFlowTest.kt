@@ -128,6 +128,9 @@ class PowerFlowTest {
     fun TC_PM_WIRE_03_aManipulativeAskGetsTheDeclineNoteEvenWithPowerModeOff() = runBlocking {
         val (d, _) = turn(powerOn = false, asks = "false_facts")
         assertEquals(DeclineNotes.of("false_facts"), d["decline_note"]?.jsonPrimitive?.content)
+        // pm4.5: Kotlin puts the fixed line in front of the reply, word for word
+        val reply = conversations.messages(conversations.listThreads("deal").first().id).last { it.role == "ASSISTANT" }.text
+        assertTrue(reply, reply.startsWith(DeclineNotes.of("false_facts")!!))
         val (plain, _) = turn(powerOn = false)
         assertFalse(plain.containsKey("decline_note"))
     }

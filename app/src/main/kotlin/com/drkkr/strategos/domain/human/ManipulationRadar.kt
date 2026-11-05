@@ -40,6 +40,9 @@ object ManipulationRadar {
         "probes_you" to Entry("They're digging for your limits.", "Answer questions about your limits with ranges, not your bottom line.", "L14 (defensive)")
     )
 
+    /** The radar's words for one pattern, whether or not it is confirmed yet (Power Read shows it from the first mention). */
+    fun describe(tag: String): WatchFor? = entries[tag]?.let { WatchFor(tag, it.sign, it.protect, it.source) }
+
     fun scan(ctx: HumanContext?, domain: RelationshipDomain): RadarResult {
         if (ctx == null) return RadarResult(emptyList(), false)
         if (CoerciveControl.routes(ctx, domain)) return RadarResult(emptyList(), true)

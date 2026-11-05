@@ -1,6 +1,7 @@
 package com.drkkr.strategos.domain.human.power
 
 import com.drkkr.strategos.domain.agent.IntakeChecklist
+import com.drkkr.strategos.domain.human.CoerciveControl
 import com.drkkr.strategos.domain.human.ManipulationRadar
 import com.drkkr.strategos.domain.human.RelationshipDomains
 import com.drkkr.strategos.domain.model.Scenario
@@ -35,7 +36,7 @@ data class PowerRead(
 
     /** A pattern the radar sees being used on the user, its law, and the counter-move. */
     @Serializable
-    data class Play(val sign: String = "", val lawLabel: String = "", val counter: String = "")
+    data class Play(val sign: String = "", val lawLabel: String = "", val counter: String = "", val seenOnce: Boolean = false)
 
     /** A hardball move: plain name, law, EV after exposure, what it costs if seen through, and whether the lead is a close call. */
     @Serializable
@@ -96,10 +97,21 @@ data class PowerRead(
                 theyNeedYou = hc?.theyDependOnYou, youNeedThem = hc?.youDependOnThem,
                 yourFallback = hc?.yourAlternative, theirFallback = hc?.theirAlternative,
                 decides = decides, clock = clock,
-                reputation = if (Exposure.continuing(hc)) "a relationship that continues" else if (hc?.relationship != null) "this deal" else null
+                reputation = when {
+                    hc?.relationship in Exposure.CLOSE -> "the relationship"
+                    Exposure.continuing(hc) -> "a relationship that continues"
+                    hc?.relationship != null -> "this deal"
+                    else -> null
+                }
             )
             val domain = RelationshipDomains.of(hc?.relationship, null)
-            val plays = ManipulationRadar.scan(hc, domain).watchFor.map { Play(it.sign, lawLabel(it.source), it.protect) }
+            // Every pattern described, newest first, from its first mention (labelled "seen once"); the engine itself still waits
+            // for two (support routing, the defensive gain). Coercive patterns in a close relationship route to support instead.
+            val routed = ManipulationRadar.scan(hc, domain).routeToSupport
+            val skip = if (CoerciveControl.isRoutingDomain(domain)) CoerciveControl.TAGS else emptySet()
+            val plays = if (routed || hc == null) emptyList() else hc.theirTactics.filter { it !in skip }.mapNotNull { tag ->
+                ManipulationRadar.describe(tag)?.let { Play(it.sign, lawLabel(it.source), it.protect, seenOnce = (hc.tacticTurns[tag] ?: 0) < 2) }
+            }
             val moves = plan.cardMoves.map { m -> Move(nameOf(m.tactic.id), lawLabel(m.tactic.tactic.source), m.ev, ifExposed(m.tactic.id), m.closeCall) }
             return PowerRead(leverage, plays, moves, plan.noHardballReason, plan.closeDomainNote)
         }

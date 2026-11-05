@@ -199,7 +199,14 @@ class DeepSeekLiveFlowTest {
                     out.append("  deal block sent to the coach: ${d?.get("deal") ?: "none"}\n")
                     val figs = com.drkkr.strategos.domain.negotiation.DealNumbers.figures(shown).map { com.drkkr.strategos.domain.negotiation.DealNumbers.format(it) }
                     out.append("  figures in what the user saw: ${figs.ifEmpty { listOf("none") }}\n")
-                    out.append("  walk-away/fallback check on what the user saw: ${if (frame == null || com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(shown), frame)) "clean" else "FLAGGED"}\n")
+                    // The same check the app runs: the coach's advice fields only (what_happened and the warnings may name their offer).
+                    val coachReply = turnCalls.lastOrNull { it.purpose == "COACH" }?.let { CoachReply.parse(it.text) }
+                    out.append("  walk-away/fallback check (the app's runtime check, on the coach's advice fields): ${when {
+                        frame == null -> "no frame"
+                        coachReply == null -> "no coach reply"
+                        com.drkkr.strategos.domain.negotiation.DealCheck.usable(coachReply, frame) -> "clean"
+                        else -> "FLAGGED (the reply would not be shown)"
+                    }}\n")
                 }
 
                 // Power Mode: the decline note sent to the coach, and the Power Read card saved this turn (Kotlin-built).

@@ -8,6 +8,8 @@ import com.drkkr.strategos.domain.model.Stakeholder
 object Exposure {
     /** Relationships that go on after this deal: more rounds, more chances to be found out. */
     val CONTINUING = setOf("manager", "report", "peer", "cofounder", "client")
+    /** Close relationships always continue (CP-P2); Power Mode never plays hardball in them, but the card names what is at stake. */
+    val CLOSE = setOf("spouse", "partner", "parent", "child", "sibling", "relative", "friend")
     /** Counterparts new to the user: they know little about how the user usually behaves. */
     val NEW_COUNTERPART = setOf("vendor", "landlord", "opponent")
     const val PROBES = "probes_you"
@@ -24,7 +26,7 @@ object Exposure {
         return q.coerceIn(c.qMin, c.qMax)
     }
 
-    fun continuing(ctx: HumanContext?): Boolean = ctx?.relationship in CONTINUING
+    fun continuing(ctx: HumanContext?): Boolean = ctx?.relationship in CONTINUING || ctx?.relationship in CLOSE
     fun suspicious(ctx: HumanContext?, counterpart: Stakeholder?): Boolean =
         PROBES in ctx?.theirTactics.orEmpty() || (counterpart != null && counterpart.credibility <= LOW_CREDIBILITY)
 
