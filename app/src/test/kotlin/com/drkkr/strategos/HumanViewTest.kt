@@ -105,6 +105,8 @@ class HumanViewTest {
         assertEquals(cell(open, "mgr", "a1", "r2", COST) - 0.5, cell(v, "mgr", "a1", "r2", COST), 1e-9)
         val withDefault = tag(open, "a1", "open_ended", "sets_default")
         assertSame(withDefault, HumanizedView.apply(withDefault))
+        val twoChoices = tag(open, "a1", "open_ended", "two_choices")                       // two concrete choices are not open-ended either
+        assertSame(twoChoices, HumanizedView.apply(twoChoices))
         val withDeadline = ctx(open) { it.copy(deadline = "soft") }
         assertSame(withDeadline, HumanizedView.apply(withDeadline))
         val unknown = ctx(open) { it.copy(deadline = null) }

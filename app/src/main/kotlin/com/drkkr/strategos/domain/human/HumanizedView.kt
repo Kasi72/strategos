@@ -21,7 +21,7 @@ import com.drkkr.strategos.domain.model.Scenario
  *     [HumanConstants.faceCost], a private one a third of it. `credits_them` removes it.
  *  3. Self-interest vs gratitude (L13): appealing to fairness or gratitude costs, except in close relationships where it is a
  *     legitimate appeal; leading with their interest helps everywhere.
- *  4. Inertia (Nudge Ch.1, 5): an open-ended ask with no deadline makes doing nothing more attractive; a default or a deadline cancels it.
+ *  4. Inertia (Nudge Ch.1, 5): an open-ended ask with no deadline makes doing nothing more attractive; a default, two concrete choices or a deadline cancel it.
  *  5. Setting (Nudge Ch.3, L1/L38): a `public` move hurts a request to break from a group and helps a commitment that should stick
  *     (only when there is no face cost). Uses the option's own `public` tag.
  *
@@ -92,7 +92,7 @@ object HumanizedView {
             }
             if (reply in defensive) {
                 // 4. inertia
-                if ("open_ended" in tags && ctx.deadline == "none" && "sets_default" !in tags) addAll(c.inertia)
+                if ("open_ended" in tags && ctx.deadline == "none" && "sets_default" !in tags && "two_choices" !in tags) addAll(c.inertia)
             }
 
             if (shift.values.all { it == 0.0 }) return@map e

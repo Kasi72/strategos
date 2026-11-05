@@ -37,7 +37,8 @@ object TacticCatalog {
     private val WORK_ETC = setOf(RelationshipDomain.WORK_HIERARCHY, RelationshipDomain.WORK_PEER, RelationshipDomain.NEGOTIATION)
     private val NEVER = { _: HumanContext, _: Action, _: Scenario -> false }          // no signal from Call 1 yet: dormant, never guessed
     private fun tags(a: Action) = DeliveryTags.of(a)
-    private fun calmOptions(s: Scenario, a: Action) = s.actionsFor(a.stakeholderId)
+    /** The paths actually worth offering: the user's own options minus the tempting reactive one. */
+    private fun calmOptions(s: Scenario, a: Action) = s.actionsFor(a.stakeholderId).filter { com.drkkr.strategos.domain.agent.Postures.of(it) != com.drkkr.strategos.domain.agent.Postures.REACTIVE }
 
     val offered: List<Tactic> = listOf(
         Tactic(TacticId.DEFAULT_WITH_DEADLINE, "Nudge Ch.5 (defaults); Ch.1 (\"yeah, whatever\")", Ethics.BENIGN, true, ALL,
