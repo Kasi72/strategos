@@ -27,7 +27,11 @@ enum class StrategicId : TacticKey {
  * reputation). Instead of the publicity test (I-H3) each one passes the two Power Mode checks: no false statement of material fact,
  * and the other side keeps a real way to say no or walk away. Statements about your OWN intentions or limits are posture, not fact.
  */
-data class StrategicTactic(val tactic: Tactic, val gain: Double, val exposureLoss: Double) {
+data class StrategicTactic(
+    val tactic: Tactic, val gain: Double, val exposureLoss: Double,
+    /** A move that answers probing (hold your number, silence, don't show your hand): no suspicion term in q; a gain bonus once probing is confirmed. */
+    val defensive: Boolean = false
+) {
     val id: StrategicId get() = tactic.id as StrategicId
 
     /** The hint the coach gets. The anchor's carries the opening figure from the deal frame (never the walk-away). */
@@ -85,13 +89,16 @@ object StrategicCatalog {
     }
 
     private fun t(id: StrategicId, source: String, domains: Set<RelationshipDomain>, gain: Double, loss: Double, hint: String,
-                  pre: (HumanContext, Action, Scenario) -> Boolean) =
+                  defensive: Boolean = false, pre: (HumanContext, Action, Scenario) -> Boolean) =
         StrategicTactic(Tactic(id, source, Ethics.STRATEGIC, publicityPass = true, domains = domains, preconditions = pre,
-            adds = emptySet(), removes = emptySet(), coachHint = hint), gain, loss)
+            adds = emptySet(), removes = emptySet(), coachHint = hint), gain, loss, defensive)
+
+    /** Moves of the same family: the coach gets only the stronger of the two (the card may show both). */
+    val SAME_FAMILY: Set<Set<StrategicId>> = setOf(setOf(StrategicId.REAL_COMPETITION, StrategicId.CREDIBLE_WALKAWAY))
 
     val tactics: List<StrategicTactic> = listOf(
         t(StrategicId.HOLD_YOUR_NUMBER, "48 Laws L3, L4", setOf(N, A) + WORK, 0.8, 0.2,
-            "Don't state your bottom line or your fallback first; keep your number to yourself.") { c, _, s -> frame(s, c)?.walkAway != null },
+            "Don't state your bottom line; keep your walk-away number to yourself.", defensive = true) { c, _, s -> frame(s, c)?.walkAway != null },
         t(StrategicId.FIRM_POSTURE, "48 Laws L28; negotiation norm", setOf(N, A), 0.7, 0.5,
             "Present your position as firm, then concede slowly and in shrinking steps, if at all.") { c, _, s -> offerOnTable(s, c) && realFallback(s, c) },
         t(StrategicId.AGGRESSIVE_ANCHOR, "48 Laws L28; Nudge Ch.1 (anchoring)", setOf(N), 1.0, 0.4,
@@ -99,7 +106,7 @@ object StrategicCatalog {
         t(StrategicId.LET_THEM_MOVE_FIRST, "48 Laws L8", setOf(N) + WORK, 0.6, 0.1,
             "Ask them to name their number or proposal first, before you give yours.") { _, a, s -> !theirFigureOnTable(s) || "gives_first" in DeliveryTags.of(a) },
         t(StrategicId.STRATEGIC_SILENCE, "48 Laws L4", setOf(N, A) + WORK, 0.5, 0.2,
-            "Answer in one short line, then stop and let the silence do the work.") { c, a, _ -> "probes_you" in c.theirTactics || "argues" in DeliveryTags.of(a) },
+            "Answer in one short line, then stop and let the silence do the work.", defensive = true) { c, a, _ -> "probes_you" in c.theirTactics || "argues" in DeliveryTags.of(a) },
         t(StrategicId.COLOR_THE_CHOICES, "48 Laws L31 (colour the choices; real options only)", setOf(N) + WORK, 0.6, 0.4,
             "Lay out the real options in an order that makes yours the sensible middle choice.") { _, a, s -> calmOptions(s, a).size >= 3 },
         t(StrategicId.REAL_COMPETITION, "48 Laws L20", setOf(N), 1.2, 0.3,
@@ -111,7 +118,7 @@ object StrategicCatalog {
         t(StrategicId.CONTROL_THE_CLOCK, "48 Laws L35", setOf(N, A) + WORK, 0.7, 0.3,
             "If time is on your side, slow down; if not, set a real, specific deadline.") { c, _, _ -> c.deadline == "soft" || c.deadline == "hard" || "artificial_deadline" in c.theirTactics },
         t(StrategicId.DONT_SHOW_YOUR_HAND, "48 Laws L30, L4", setOf(N) + WORK, 0.5, 0.2,
-            "Keep how much you need this, your urgency and your method to yourself.") { c, _, _ -> c.youDependOnThem == "some" || c.youDependOnThem == "high" || "probes_you" in c.theirTactics },
+            "Keep how much you need this, your urgency and your method to yourself.", defensive = true) { c, _, _ -> c.youDependOnThem == "some" || c.youDependOnThem == "high" || "probes_you" in c.theirTactics },
         t(StrategicId.GO_TO_THE_DECIDER, "48 Laws L23, L42 (benign half), L34", setOf(N) + WORK, 0.8, 0.5,
             "Take it to the person who actually decides, with your manager's knowledge if you have one.") { _, _, s -> deciderElsewhere(s) },
         t(StrategicId.BUILD_INDISPENSABILITY, "48 Laws L11 (legitimate form)", WORK, 0.9, 0.2,

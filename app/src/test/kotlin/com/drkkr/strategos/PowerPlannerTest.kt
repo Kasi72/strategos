@@ -78,6 +78,48 @@ class PowerPlannerTest {
         assertTrue(isEmpty(plan(Fx.pmVendor(), lock = true)))
     }
 
+    // ── pm2.4 (CP-P1 changes) ──────────────────────────────────────────────────────────────
+
+    @Test fun aVendorSendsRealCompetitionAndHoldYourNumber_notBothOfTheSameFamily() {
+        val p = plan(Fx.pmVendor())
+        assertEquals(listOf(StrategicId.REAL_COMPETITION, StrategicId.CREDIBLE_WALKAWAY, StrategicId.HOLD_YOUR_NUMBER), p.cardMoves.map { it.tactic.id })
+        assertEquals(listOf(StrategicId.REAL_COMPETITION, StrategicId.HOLD_YOUR_NUMBER), p.deliveryMoves.map { it.id })
+    }
+
+    @Test fun defensiveMovesAnswerConfirmedProbing() {
+        val p = plan(Fx.pmManager(probes = true))
+        val ev = p.cardMoves.associate { it.tactic.id to it.ev }
+        assertEquals(listOf(StrategicId.STRATEGIC_SILENCE, StrategicId.DONT_SHOW_YOUR_HAND, StrategicId.LET_THEM_MOVE_FIRST), p.cardMoves.map { it.tactic.id })
+        assertEquals(0.305, ev.getValue(StrategicId.STRATEGIC_SILENCE), 1e-9)
+        assertEquals(0.305, ev.getValue(StrategicId.DONT_SHOW_YOUR_HAND), 1e-9)
+        assertEquals(0.15, ev.getValue(StrategicId.LET_THEM_MOVE_FIRST), 1e-9)
+        // probing seen once only is not confirmed: no bonus, and the defensive moves skip the suspicion term only
+        val once = Fx.pmManager(probes = true).let { it.copy(humanContext = it.humanContext!!.copy(tacticTurns = mapOf("probes_you" to 1))) }
+        val e1 = plan(once).cardMoves.associate { it.tactic.id to it.ev }
+        assertEquals(0.55 * 0.5 - 0.45 * 0.2 * 1.5, e1.getValue(StrategicId.STRATEGIC_SILENCE), 1e-9)
+    }
+
+    @Test fun theCofounderAndTheManagerAreUnchanged() {
+        assertEquals(listOf(StrategicId.BUILD_INDISPENSABILITY, StrategicId.LET_THEM_MOVE_FIRST), plan(Fx.pmCofounder()).cardMoves.map { it.tactic.id })
+        assertTrue(plan(Fx.pmCofounder()).cardMoves.first().closeCall)
+        assertEquals(listOf(StrategicId.LET_THEM_MOVE_FIRST), plan(Fx.pmManager()).cardMoves.map { it.tactic.id })
+    }
+
+    @Test fun movesBelowTheMinimumEvAreNotShown() {
+        assertTrue(plan(Fx.pmVendor()).cardMoves.all { it.ev >= PowerConstants.DEFAULT.minEv })
+        // the manager's EV-0.02 moves of CP-P1 (before the defensive change) would now be cut; check the cut directly
+        val low = StrategicCatalog.tactics.map { it.copy(gain = 0.13, exposureLoss = 0.0) }   // vendor q 0.05 -> EV 0.1235 / manager q .45 -> 0.0715
+        assertTrue(plan(Fx.pmVendor(), tactics = low).cardMoves.isNotEmpty())
+        assertTrue(plan(Fx.pmManager(), tactics = low).cardMoves.isEmpty())
+    }
+
+    @Test fun habitsFromRecentTurnsCount() {
+        // "argues" in the last attempts makes the silence move apply, as the Human Layer planner reads habits
+        val s = Fx.pmVendor().let { it.copy(humanContext = it.humanContext!!.copy(lastAttemptTags = listOf("argues"))) }
+        assertTrue(plan(s).cardMoves.toString(), plan(s, tactics = StrategicCatalog.tactics.filter { it.id == StrategicId.STRATEGIC_SILENCE }).cardMoves.isNotEmpty())
+        assertTrue(plan(Fx.pmVendor(), tactics = StrategicCatalog.tactics.filter { it.id == StrategicId.STRATEGIC_SILENCE }).cardMoves.isEmpty())
+    }
+
     @Test fun theOtherTwoReasons() {
         // a cofounder (q 0.40, continuing): small gains -> "continues"
         val small = StrategicCatalog.tactics.map { it.copy(gain = it.gain * 0.1) }

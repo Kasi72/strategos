@@ -62,5 +62,8 @@ class StrategicCatalogTest {
         assertEquals(expected.keys, byId.keys)
         for ((id, v) in expected) { assertEquals(id, v.first, byId.getValue(id).gain, 0.0); assertEquals(id, v.second, byId.getValue(id).exposureLoss, 0.0) }
         assertTrue(byId.getValue("REAL_COMPETITION").tactic.coachHint.contains("real"))
+        // pm2.4: the three moves that answer probing are defensive; the hold hint no longer covers the fallback (rule 24)
+        assertEquals(setOf("HOLD_YOUR_NUMBER", "STRATEGIC_SILENCE", "DONT_SHOW_YOUR_HAND"), all.filter { it.defensive }.map { it.id.name }.toSet())
+        assertEquals("Don't state your bottom line; keep your walk-away number to yourself.", byId.getValue("HOLD_YOUR_NUMBER").tactic.coachHint)
     }
 }

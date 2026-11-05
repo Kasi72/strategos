@@ -38,6 +38,8 @@ class PowerGroundworkTest {
         assertEquals(3, c.maxCardMoves)
         assertEquals(2, c.maxDeliveryMoves)
         assertEquals(2.0, c.closeCallFactor, 0.0)
+        assertEquals(0.10, c.minEv, 0.0)
+        assertEquals(0.3, c.defensiveProbeGain, 0.0)
         assertTrue(c.qMin < c.qMax)
         for (d in RelationshipDomain.values().filter { !it.isClose }) assertTrue("$d has a base", d in c.qBase)
     }

@@ -15,10 +15,11 @@ object Exposure {
     const val LOW_CREDIBILITY = 3
 
     /** The chance q the other side sees through a hardball move, bounded to [PowerConstants.qMin, PowerConstants.qMax]. */
-    fun q(ctx: HumanContext?, domain: RelationshipDomain, counterpart: Stakeholder?, c: PowerConstants): Double {
+    /** [suspicion] false for a DEFENSIVE move: being seen holding back costs almost nothing, so probing doesn't raise its q (CP-P1). */
+    fun q(ctx: HumanContext?, domain: RelationshipDomain, counterpart: Stakeholder?, c: PowerConstants, suspicion: Boolean = true): Double {
         var q = c.qBase[domain] ?: c.qMax                       // a domain with no base (a close one) is treated as the most exposed
         if (continuing(ctx)) q += c.qContinuing                 // the analysis view is always a repeated game, so only the relationship decides
-        if (suspicious(ctx, counterpart)) q += c.qSuspicious
+        if (suspicion && suspicious(ctx, counterpart)) q += c.qSuspicious
         if (ctx?.relationship in NEW_COUNTERPART) q += c.qNewCounterpart
         return q.coerceIn(c.qMin, c.qMax)
     }

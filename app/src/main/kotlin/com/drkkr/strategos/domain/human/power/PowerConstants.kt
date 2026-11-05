@@ -30,7 +30,14 @@ data class PowerConstants(
     /** Hardball hints passed to the coach in `delivery` (blueprint §4, planner rule 2). */
     val maxDeliveryMoves: Int = 2,
     /** q is halved and doubled by this factor to find a "close call" (the InferredStressTest idea, blueprint §4). */
-    val closeCallFactor: Double = 2.0
+    val closeCallFactor: Double = 2.0,
+    /** A move must be worth at least this much (EV) to reach the card or the coach (CP-P1); not scaled by the close-call check. */
+    val minEv: Double = 0.10,
+    /**
+     * Added to a DEFENSIVE move's gain when probing (`probes_you`) is confirmed (seen on 2 turns, as the radar counts it): these moves
+     * answer probing, and being seen staying quiet costs almost nothing (CP-P1).
+     */
+    val defensiveProbeGain: Double = 0.3
 ) {
     companion object {
         val DEFAULT = PowerConstants()

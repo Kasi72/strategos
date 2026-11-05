@@ -162,10 +162,11 @@ object Fx {
         humanContext = HumanContext(relationship = "cofounder", theyDependOnYou = "some")
     )
 
-    /** A manager who depends on the user a lot (WORK_HIERARCHY, continuing); add `probes_you` where a test says so. */
+    /** A manager who depends on the user a lot (WORK_HIERARCHY, continuing); `probes_you` (confirmed: seen on 2 turns) where a test says so. */
     fun pmManager(probes: Boolean = false): Scenario = hlRaise().copy(
         id = "pm-manager", title = "Raise",
-        humanContext = HumanContext(relationship = "manager", theyDependOnYou = "high", theirTactics = if (probes) listOf("probes_you") else emptyList())
+        humanContext = HumanContext(relationship = "manager", theyDependOnYou = "high",
+            theirTactics = if (probes) listOf("probes_you") else emptyList(), tacticTurns = if (probes) mapOf("probes_you" to 2) else emptyMap())
     )
 
     /** A spouse (INTIMATE). */
