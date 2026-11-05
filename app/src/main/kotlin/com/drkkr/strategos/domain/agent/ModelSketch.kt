@@ -1,6 +1,7 @@
 package com.drkkr.strategos.domain.agent
 
 import com.drkkr.strategos.domain.human.DeliveryTags
+import com.drkkr.strategos.domain.human.HumanContext
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
@@ -231,7 +232,11 @@ object SketchConverter {
     private fun askOf(sketch: ModelSketch): String? =
         clean(sketch.ask)?.takeUnless { norm(it).startsWith("only if") || norm(it).contains("too thin") }
 
-    fun toOps(sketch: ModelSketch, s: Scenario): SketchOps {
+    /**
+     * [humanFields] is false for the repair pass: its human readings were already counted by the first request of the turn,
+     * and a value must not be "confirmed" twice within one turn.
+     */
+    fun toOps(sketch: ModelSketch, s: Scenario, humanFields: Boolean = true): SketchOps {
         // A reply that only asks a question (or flags support) saves nothing.
         val hasContent = sketch.people.isNotEmpty() || sketch.options.isNotEmpty() || sketch.limits.isNotEmpty() ||
             sketch.outcomes.isNotEmpty() || !sketch.goal.isNullOrBlank() || sketch.negotiation?.hasContent() == true
@@ -256,7 +261,7 @@ object SketchConverter {
         fun youExists() = s.stakeholders.any { key(it.name) == "you" } || sketch.people.any { key(it.name) == "you" }
         val people = if (youExists()) sketch.people else listOf(SketchPerson("You", "PLAYER")) + sketch.people
         // Human Layer: what the model read about power, status quo and state (closed vocabularies only; AI_INFERRED).
-        val humanCtx = SketchHuman.context(sketch)
+        val humanCtx = if (humanFields) SketchHuman.context(sketch) else null
         val fields = ChangeOp(
             OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE,
             scenarioFields = ScenarioFieldsPatch(
@@ -332,7 +337,7 @@ object SketchConverter {
             optionIds[k] = r
             optionCount[owner] = (optionCount[owner] ?: 0) + 1
             ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label,
-                description = (Postures.tag(o.posture) + (if (key(o.owner) == "you") DeliveryTags.tag(tagsByLabel[key(label)].orEmpty()) else "")).ifEmpty { null },
+                description = (Postures.tag(o.posture) + (if (key(o.owner) == "you") DeliveryTags.tag(SketchHuman.guardTags(o.posture, label, tagsByLabel[key(label)].orEmpty())) else "")).ifEmpty { null },
                 rationale = RATIONALE)
         }
 
@@ -408,7 +413,10 @@ object SketchConverter {
             val saved = s.stakeholders.firstOrNull { it.id == otherKey }
             val levels = when (humanCtx?.theirPower) { "they_higher" -> 8 to 5; "equal" -> 5 to 5; "you_higher" -> 3 to 5; else -> null }
             val fill = levels != null && (saved?.authority ?: 0) == 0 && (saved?.influence ?: 0) == 0
-            val canExit = humanCtx?.theirAlternative == "strong" && saved?.canExit != true
+            // Only once "strong" is CONFIRMED (the same reading on two turns in a row), never from a single turn.
+            val confirmedStrong = humanCtx != null && s.humanContext?.theirAlternative != "strong" &&
+                (s.humanContext ?: HumanContext()).merge(humanCtx).theirAlternative == "strong"
+            val canExit = confirmedStrong && saved?.canExit != true
             if (fill || canExit) ops += ChangeOp(
                 OpType.UPDATE_STAKEHOLDER, targetId = otherKey, rationale = RATIONALE, source = OpSource.AI_INFERRED,
                 authority = levels?.first?.takeIf { fill }, influence = levels?.second?.takeIf { fill }, canExit = true.takeIf { canExit }

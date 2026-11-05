@@ -205,7 +205,7 @@ class OneShotTurn(
                 onActivity("Filling in what's missing…")
                 val repair = askModel(input(LiveDigest.build(saved, forSketch = true), emptyList(), "$REPAIR_HEADER\n$gaps"), cid, turnId)
                 if (repair is Reply.Sketch) {
-                    val more = SketchConverter.toOps(repair.sketch, saved)
+                    val more = SketchConverter.toOps(repair.sketch, saved, humanFields = false)
                     if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let { understood += PlainResult.understood(it.accepted, saved) }
                 }
             }

@@ -34,20 +34,46 @@ data class HumanContext(
     val stepsForThemToSayYes: Int? = null,
     val goalIs: String? = null,
     /** Per delivery tactic: Beta(alpha, beta) of how often it worked with this person. Used from HL6. */
-    val tacticSuccess: Map<String, List<Double>> = emptyMap()
+    val tacticSuccess: Map<String, List<Double>> = emptyMap(),
+    /**
+     * Readings of the soft fields (and of a relationship in a new domain) that have been seen once and are waiting for a
+     * second turn to repeat them, keyed by field name. See [merge].
+     */
+    val pending: Map<String, String> = emptyMap()
 ) {
     /**
      * Folds a newer reading into this one. A non-null newer value replaces the old; a null never erases it. The two
      * state levels are smoothed (half new, half old). Tactics are the union, newest first. Learned priors are kept.
+     *
+     * Two kinds of value are slower to change, because a single message is a weak signal (seen live: a sibling read as a
+     * friend on one turn; alternatives and setting guessed):
+     *  - `relationship`: the saved one is kept. A value in a DIFFERENT [RelationshipDomain] replaces it only when it
+     *    arrives on two turns in a row; drift inside one domain (spouse, partner) never does. "other" says nothing.
+     *  - setting, dependencies, alternatives: a new value is held in [pending] and becomes the saved one only when the next
+     *    turn repeats it; a different value restarts the wait. A turn that omits the field neither confirms nor resets.
      */
-    fun merge(newer: HumanContext): HumanContext = HumanContext(
-        relationship = newer.relationship ?: relationship,
+    fun merge(newer: HumanContext): HumanContext {
+        val pend = pending.toMutableMap()
+        val rel = mergeRelationship(relationship, newer.relationship, pend)
+        val setting = soft("setting", setting, newer.setting, pend)
+        val theyDepend = soft("theyDependOnYou", theyDependOnYou, newer.theyDependOnYou, pend)
+        val youDepend = soft("youDependOnThem", youDependOnThem, newer.youDependOnThem, pend)
+        val yourAlt = soft("yourAlternative", yourAlternative, newer.yourAlternative, pend)
+        val theirAlt = soft("theirAlternative", theirAlternative, newer.theirAlternative, pend)
+        return mergeRest(newer, rel, setting, theyDepend, youDepend, yourAlt, theirAlt, pend)
+    }
+
+    private fun mergeRest(
+        newer: HumanContext, rel: String?, setting: String?, theyDepend: String?, youDepend: String?,
+        yourAlt: String?, theirAlt: String?, pend: Map<String, String>
+    ): HumanContext = HumanContext(
+        relationship = rel,
         theirPower = newer.theirPower ?: theirPower,
-        theyDependOnYou = newer.theyDependOnYou ?: theyDependOnYou,
-        youDependOnThem = newer.youDependOnThem ?: youDependOnThem,
-        yourAlternative = newer.yourAlternative ?: yourAlternative,
-        theirAlternative = newer.theirAlternative ?: theirAlternative,
-        setting = newer.setting ?: setting,
+        theyDependOnYou = theyDepend,
+        youDependOnThem = youDepend,
+        yourAlternative = yourAlt,
+        theirAlternative = theirAlt,
+        setting = setting,
         statusQuo = (newer.statusQuo ?: statusQuo)?.take(STATUS_QUO_MAX),
         statusQuoForThem = newer.statusQuoForThem ?: statusQuoForThem,
         deadline = newer.deadline ?: deadline,
@@ -59,8 +85,27 @@ data class HumanContext(
         theirTactics = (newer.theirTactics + theirTactics).distinct().take(TACTICS_MAX),
         stepsForThemToSayYes = newer.stepsForThemToSayYes ?: stepsForThemToSayYes,
         goalIs = newer.goalIs ?: goalIs,
-        tacticSuccess = tacticSuccess + newer.tacticSuccess
+        tacticSuccess = tacticSuccess + newer.tacticSuccess,
+        pending = pend
     )
+
+    private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {
+        new == null -> old
+        new == old -> { pend.remove(key); old }
+        pend[key] == new -> { pend.remove(key); new }
+        else -> { pend[key] = new; old }
+    }
+
+    private fun mergeRelationship(old: String?, new: String?, pend: MutableMap<String, String>): String? {
+        val key = "relationship"
+        if (new == null) return old
+        if (old == null || old == "other") { pend.remove(key); return new }      // nothing real saved yet
+        if (new == "other") return old
+        val newDomain = RelationshipDomains.of(new, null)
+        if (newDomain == RelationshipDomains.of(old, null)) { pend.remove(key); return old }
+        val waiting = pend[key]?.let { RelationshipDomains.of(it, null) }
+        return if (waiting == newDomain) { pend.remove(key); new } else { pend[key] = new; old }
+    }
 
     private fun smooth(old: Double?, new: Double?): Double? = when {
         new == null -> old

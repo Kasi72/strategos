@@ -22,10 +22,10 @@ import org.robolectric.annotation.Config
 
 /** Records every reply so a run can show what call 1 extracted and what call 2 said. */
 class RecordingLlm(private val inner: LlmClient) : LlmClient {
-    class Call(val purpose: String, val text: String)
+    class Call(val purpose: String, val text: String, val maxOut: Int = 0, val outTokens: Int = 0, val inTokens: Int = 0)
     val calls = mutableListOf<Call>()
     override suspend fun create(req: LlmRequest): LlmResult =
-        inner.create(req).also { r -> if (r is LlmResult.Ok) calls += Call(req.purpose, r.output.assistantText()) }
+        inner.create(req).also { r -> if (r is LlmResult.Ok) calls += Call(req.purpose, r.output.assistantText(), req.maxOutputTokens, r.usage.output, r.usage.input) }
     override suspend fun listModels(apiKey: String?) = inner.listModels(apiKey)
     override suspend fun testKey(key: String, model: String) = inner.testKey(key, model)
 }
@@ -113,6 +113,7 @@ class DeepSeekLiveFlowTest {
                 val st = r.controller.state.value
                 val turnCalls = r.llm.calls.drop(callsBefore)
                 out.append("===== MESSAGE ${i + 1} (${m.length} chars) =====\n")
+                out.append("CALLS: " + turnCalls.joinToString(" | ") { c -> "${c.purpose} in=${c.inTokens} out=${c.outTokens}/${c.maxOut} chars=${c.text.length} parses=${if (c.purpose == "TURN") SketchParser.tryParse(c.text).isSuccess else "-"}" } + "\n")
                 out.append("error=${st.error} support=${st.supportVisible} trajectory=${st.trajectory?.let { "trust ${it.trustScore.toInt()} tension ${it.tensionScore.toInt()} | ${it.band}" }} calls=${turnCalls.map { it.purpose }}\n\n")
 
                 out.append("(a) CALL 1 extracted options\n")
@@ -124,6 +125,9 @@ class DeepSeekLiveFlowTest {
                     out.append("  HUMAN raw: relationship=${sketch.relationship} power=${sketch.power} status_quo=${sketch.statusQuo} status_quo_for_them=${sketch.statusQuoForThem} deadline=${sketch.deadline} their_vulnerable=${sketch.theirVulnerable} your_state=${sketch.yourState} their_state=${sketch.theirState} their_tactics=${sketch.theirTactics} steps=${sketch.stepsForThemToSayYes} goal_is=${sketch.goalIs}\n")
                     out.append("  HUMAN option_tags raw: ${sketch.optionTags}\n")
                     out.append("  HUMAN read: ${com.drkkr.strategos.domain.agent.SketchHuman.context(sketch)}\n  HUMAN tags read: ${com.drkkr.strategos.domain.agent.SketchHuman.optionTags(sketch)}\n")
+                    r.gateway.activeScenario()?.let { sc ->
+                        out.append("  HUMAN SAVED: ${sc.humanContext}\n  HUMAN SAVED can_exit: ${sc.stakeholders.filter { it.gameRole == com.drkkr.strategos.domain.model.GameRole.PLAYER }.joinToString { "${it.name}=${it.canExit}/auth${it.authority}" }}\n")
+                    }
                 }
 
                 out.append("\n(b) ENGINE directive\n")

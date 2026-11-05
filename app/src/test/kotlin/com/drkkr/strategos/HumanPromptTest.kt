@@ -34,10 +34,10 @@ class HumanPromptTest {
     @Test
     fun TC_HL_PROMPT_02_growthStaysWithinTheAgreedBudget() {
         val growth = p.length - OLD_LENGTH
-        // BLUEPRINT-QUESTION: STEPS asks for <= 1,200 chars of growth AND every closed vocabulary spelled out. The vocabularies
-        // alone are ~850 chars, so with the wording and the schema keys the minimum is ~1,550 (~390 tokens). Limit set to 1,600;
-        // the 1,200 target is only reachable by dropping the their_tactics list. Raised with the user at CP-A.
-        assertTrue("prompt grew by $growth chars", growth in 1..1600)
+        // BLUEPRINT-QUESTION (resolved by the user): STEPS asks for <= 1,200 chars of growth AND every closed vocabulary spelled
+        // out; the vocabularies alone are ~850 chars. The user accepted a larger prompt (1,600), then raised it to 1,800 in hl1.5
+        // to make room for short definitions of the ambiguous tags and the "only if the user said it" guards.
+        assertTrue("prompt grew by $growth chars", growth in 1..1800)
     }
 
     @Test
@@ -55,5 +55,22 @@ class HumanPromptTest {
     fun TC_HL_PROMPT_04_existingRulesAreUntouched() {
         for (needle in listOf("18. NEGOTIATION FACTS", "17. ENOUGH TO RECOMMEND", "STAGE PROGRESSION", "THIRD-PARTY REQUESTS", "Do NOT give advice"))
             assertTrue(needle, p.contains(needle))
+    }
+
+    @Test
+    fun TC_HL_PROMPT_05_ambiguousTagsAreDefinedAndSoftFieldsAreGuarded() {
+        for (needle in listOf(
+            "never an apology",                                   // corrects_them
+            "says what will happen unless they object",           // sets_default
+            "done today",                                         // immediate
+            "cannot be undone",                                   // irreversible
+            "they lose something they have",                      // asks_them_to_give_up
+            "others will see or hear it",                         // public
+            "deliberate or repeated",                             // their_tactics
+            "one delay or quiet moment is not a tactic",
+            "only when the user doubts the deadline",             // artificial_deadline
+            "a real constraint goes here",
+            "ONLY if the user said them"                          // alternatives, setting, dependence
+        )) assertTrue("prompt should contain: $needle", p.contains(needle))
     }
 }

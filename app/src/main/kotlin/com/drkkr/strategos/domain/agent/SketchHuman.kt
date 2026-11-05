@@ -38,4 +38,13 @@ object SketchHuman {
             val clean = tags.mapNotNull { HumanVocab.clean(it, HumanVocab.OPTION_TAGS) }.toSet()
             clean.takeIf { it.isNotEmpty() }?.let { SketchConverter.norm(label) to it }
         }.toMap()
+
+    private val apology = Regex("(?i)\\bapolog|\\bsorry\\b")
+
+    /**
+     * A repair-posture option that apologises is never "correcting them", whatever the model tagged (seen live: a private
+     * apology tagged corrects_them, which would have charged a face cost for it).
+     */
+    fun guardTags(posture: String?, label: String, tags: Set<String>): Set<String> =
+        if (Postures.clean(posture) == Postures.REPAIR && apology.containsMatchIn(label)) tags - "corrects_them" else tags
 }

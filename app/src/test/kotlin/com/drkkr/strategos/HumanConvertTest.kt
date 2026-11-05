@@ -10,7 +10,9 @@ import com.drkkr.strategos.domain.agent.OpSource
 import com.drkkr.strategos.domain.agent.OpType
 import com.drkkr.strategos.domain.agent.Postures
 import com.drkkr.strategos.domain.agent.SketchConverter
+import com.drkkr.strategos.domain.agent.SketchHuman
 import com.drkkr.strategos.domain.agent.SketchParser
+import com.drkkr.strategos.domain.human.HumanContext
 import com.drkkr.strategos.domain.human.DeliveryTags
 import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.GameRole
@@ -121,12 +123,29 @@ class HumanConvertTest {
         val json = """{"people":[{"name":"Manager","role":"PLAYER"}],
             "power":{"relative":"equal","their_alternative":"strong","they_depend_on_you":"high","you_depend_on_them":"some"}}"""
         val o = ops(json, base())
-        assertEquals(true, o.single { it.type == OpType.UPDATE_STAKEHOLDER }.canExit)
+        // hl1.5: one turn is not enough; canExit waits for a second turn that repeats it
+        assertTrue(o.none { it.type == OpType.UPDATE_STAKEHOLDER && it.canExit == true })
         val patch = o.single { it.type == OpType.SET_SCENARIO_FIELDS }.scenarioFields!!.humanContext!!
         assertEquals("high", patch.theyDependOnYou); assertEquals("some", patch.youDependOnThem); assertEquals("strong", patch.theirAlternative)
         // a counterpart who can already exit gets no redundant canExit op
         val again = ops("""{"people":[{"name":"Manager"}],"power":{"their_alternative":"strong"}}""", base(canExit = true))
         assertTrue(again.none { it.type == OpType.UPDATE_STAKEHOLDER })
+    }
+
+    @Test
+    fun TC_HL_CONFIRM_02b_secondTurnConfirmsStrongAndSetsCanExit() {
+        val pendingStrong = base().copy(humanContext = HumanContext(pending = mapOf("theirAlternative" to "strong")))
+        val json = """{"people":[{"name":"Manager"}],"power":{"their_alternative":"strong"}}"""
+        assertEquals(true, ops(json, pendingStrong).single { it.type == OpType.UPDATE_STAKEHOLDER }.canExit)
+        // a different reading on the second turn does not
+        val weak = """{"people":[{"name":"Manager"}],"power":{"their_alternative":"weak"}}"""
+        assertTrue(ops(weak, pendingStrong).none { it.canExit == true })
+        // already confirmed earlier: no repeat op every turn
+        val confirmed = base().copy(humanContext = HumanContext(theirAlternative = "strong"))
+        assertTrue(ops(json, confirmed).none { it.type == OpType.UPDATE_STAKEHOLDER })
+        // and the repair pass (humanFields = false) never counts a second time within one turn
+        val twice = SketchConverter.toOps(SketchParser.parse(json)!!, pendingStrong, humanFields = false).ops
+        assertTrue(twice.none { it.canExit == true || it.scenarioFields?.humanContext != null })
     }
 
     @Test
@@ -136,7 +155,9 @@ class HumanConvertTest {
         val (s, problems) = apply(json, Scenario(title = "t"))
         assertEquals(emptyList<Any>(), problems)
         val m = s.stakeholders.single { it.name == "Manager" }
-        assertEquals(8, m.authority); assertEquals(5, m.influence); assertTrue(m.canExit)
+        assertEquals(8, m.authority); assertEquals(5, m.influence); assertFalse("one turn does not set canExit", m.canExit)
+        val (s2, _) = apply(json, s)
+        assertTrue("a second turn does", s2.stakeholders.single { it.name == "Manager" }.canExit)
         assertEquals("manager", s.humanContext?.relationship)
         assertEquals("they_higher", s.humanContext?.theirPower)
     }
@@ -169,5 +190,25 @@ class HumanConvertTest {
         }
         assertEquals(listOf(0.0, 1.5, 2.25), seen)
         assertEquals("furious", s.humanContext?.yourStateRaw)
+    }
+
+    @Test
+    fun TC_HL_TAGFIX_01_anApologyIsNeverTaggedCorrectsThem() {
+        val json = """{"people":[{"name":"You","role":"PLAYER"},{"name":"Manager","role":"PLAYER"}],"options":[
+            {"for":"You","label":"Apologise for snapping at her in the meeting","posture":"repair"},
+            {"for":"You","label":"Say sorry, then explain your side","posture":"repair"},
+            {"for":"You","label":"Tell her the numbers in the plan were wrong","posture":"repair"},
+            {"for":"You","label":"Say sorry and hold your ground","posture":"boundary"},
+            {"for":"Manager","label":"Agree","posture":"receptive"},{"for":"Manager","label":"Refuse","posture":"defensive"}],
+            "option_tags":{"Apologise for snapping at her in the meeting":["corrects_them","credits_them"],
+            "Say sorry, then explain your side":["corrects_them"],"Tell her the numbers in the plan were wrong":["corrects_them"],
+            "Say sorry and hold your ground":["corrects_them"]}}"""
+        val adds = ops(json, Scenario(title = "t")).filter { it.type == OpType.ADD_ACTION }
+        fun tags(label: String) = DeliveryTags.of(Action(stakeholderId = "you", label = label, description = adds.single { it.label == label }.description.orEmpty()))
+        assertEquals(setOf("credits_them"), tags("Apologise for snapping at her in the meeting"))
+        assertEquals(emptySet<String>(), tags("Say sorry, then explain your side"))
+        assertEquals(setOf("corrects_them"), tags("Tell her the numbers in the plan were wrong"))   // a repair move that really corrects them keeps it
+        assertEquals(setOf("corrects_them"), tags("Say sorry and hold your ground"))               // the guard is for repair-posture options only
+        assertEquals(setOf("credits_them"), SketchHuman.guardTags("repair", "I'm sorry", setOf("corrects_them", "credits_them")))
     }
 }
