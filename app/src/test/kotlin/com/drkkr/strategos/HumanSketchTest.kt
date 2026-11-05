@@ -103,4 +103,31 @@ class HumanSketchTest {
         assertEquals(setOf("calm", "tense", "upset", "furious"), HumanVocab.YOUR_STATE)
         assertEquals(HumanVocab.YOUR_STATE + "unknown", HumanVocab.THEIR_STATE)
     }
+
+    @Test
+    fun TC_HL_SKETCH_02e_aWordFieldThatArrivesAsAnObjectOrListNeverSinksTheSketch() {
+        // seen live (hl1.5b replay): "relationship":{...} made the whole reply unparseable, and the turn failed after the retry
+        val sk = SketchParser.parse(
+            """{"goal":"g","people":[{"name":"You","role":"player"}],
+               "relationship":{"who":"Priya","kind":"manager"},
+               "power":{"relative":{"value":"they_higher"},"setting":["private"],"their_alternative":{"x":1}},
+               "status_quo_for_them":["keeps_something"],"deadline":{"type":"soft"},"their_vulnerable":{},
+               "your_state":{"level":"tense"},"their_state":["upset","calm"],"goal_is":{"a":{"b":"c"}},
+               "option_tags":{"x":{"a":"public"}},"their_tactics":{"a":"hot_cold"}}"""
+        )
+        assertNotNull("must still parse", sk)
+        assertEquals("g", sk!!.goal)
+        val c = SketchHuman.context(sk)!!
+        assertEquals("manager", c.relationship)
+        assertEquals("they_higher", c.theirPower)
+        assertEquals("private", c.setting)
+        assertNull(c.theirAlternative)                 // a number is not a word in the vocabulary
+        assertEquals("keeps_something", c.statusQuoForThem)
+        assertEquals("soft", c.deadline)
+        assertNull(c.theirVulnerable)
+        assertEquals("tense", c.yourStateRaw)
+        assertEquals("upset", c.theirStateRaw)         // first item of a list
+        assertNull(c.goalIs)
+        assertTrue(SketchHuman.optionTags(sk).isEmpty())
+    }
 }

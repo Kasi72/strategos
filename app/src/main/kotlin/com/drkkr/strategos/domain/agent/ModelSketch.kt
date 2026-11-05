@@ -66,31 +66,48 @@ data class ModelSketch(
     val negotiation: SketchNegotiation? = null,
     // Human Layer: how the other person is placed and feeling, and how each move would be carried out. All optional and
     // read only through [SketchHuman] (closed vocabularies; anything else is dropped), so old sketches parse unchanged.
-    val relationship: String? = null,
+    @Serializable(with = WordSerializer::class) val relationship: String? = null,
     @Serializable(with = SketchPowerSerializer::class) val power: SketchPower? = null,
     @SerialName("status_quo") @Serializable(with = TextOrListSerializer::class) val statusQuo: String? = null,
-    @SerialName("status_quo_for_them") val statusQuoForThem: String? = null,
-    val deadline: String? = null,
-    @SerialName("their_vulnerable") val theirVulnerable: String? = null,
-    @SerialName("your_state") val yourState: String? = null,
-    @SerialName("their_state") val theirState: String? = null,
+    @SerialName("status_quo_for_them") @Serializable(with = WordSerializer::class) val statusQuoForThem: String? = null,
+    @Serializable(with = WordSerializer::class) val deadline: String? = null,
+    @SerialName("their_vulnerable") @Serializable(with = WordSerializer::class) val theirVulnerable: String? = null,
+    @SerialName("your_state") @Serializable(with = WordSerializer::class) val yourState: String? = null,
+    @SerialName("their_state") @Serializable(with = WordSerializer::class) val theirState: String? = null,
     @SerialName("option_tags") @Serializable(with = OptionTagsSerializer::class) val optionTags: Map<String, List<String>> = emptyMap(),
     @SerialName("their_tactics") @Serializable(with = StringListSerializer::class) val theirTactics: List<String> = emptyList(),
     /** A small whole number; may arrive quoted, so it is read through [SketchHuman]. */
     @SerialName("steps_for_them_to_say_yes") val stepsForThemToSayYes: JsonPrimitive? = null,
-    @SerialName("goal_is") val goalIs: String? = null
+    @SerialName("goal_is") @Serializable(with = WordSerializer::class) val goalIs: String? = null
 )
 
 /** The counterpart compared with "You". Every field is a closed word, read through [SketchHuman]. */
 @Serializable
 data class SketchPower(
-    val relative: String? = null,
-    @SerialName("they_depend_on_you") val theyDependOnYou: String? = null,
-    @SerialName("you_depend_on_them") val youDependOnThem: String? = null,
-    @SerialName("your_alternative") val yourAlternative: String? = null,
-    @SerialName("their_alternative") val theirAlternative: String? = null,
-    val setting: String? = null
+    @Serializable(with = WordSerializer::class) val relative: String? = null,
+    @SerialName("they_depend_on_you") @Serializable(with = WordSerializer::class) val theyDependOnYou: String? = null,
+    @SerialName("you_depend_on_them") @Serializable(with = WordSerializer::class) val youDependOnThem: String? = null,
+    @SerialName("your_alternative") @Serializable(with = WordSerializer::class) val yourAlternative: String? = null,
+    @SerialName("their_alternative") @Serializable(with = WordSerializer::class) val theirAlternative: String? = null,
+    @Serializable(with = WordSerializer::class) val setting: String? = null
 )
+
+/**
+ * One closed word (relationship, a state, a level) that the model sometimes wraps: `{"kind":"manager"}`, `["upset","calm"]`.
+ * Seen live: an object under `relationship` made the whole sketch unparseable and the turn failed. An object gives its first
+ * text value (keys like type/value/kind first), a list its first item, anything else an empty word. [SketchHuman] then checks the
+ * word against the closed vocabulary, so a wrong word is still dropped, never guessed.
+ */
+object WordSerializer : JsonTransformingSerializer<String>(String.serializer()) {
+    private val preferred = listOf("type", "value", "kind", "relationship", "name", "label", "level", "word", "relative")
+    private fun word(e: JsonElement?): String? = when (e) {
+        is JsonPrimitive -> e.contentOrNull
+        is JsonArray -> e.firstNotNullOfOrNull { word(it) }
+        is JsonObject -> preferred.firstNotNullOfOrNull { k -> word(e[k]) } ?: e.values.firstNotNullOfOrNull { (it as? JsonPrimitive)?.contentOrNull }
+        else -> null
+    }
+    override fun transformDeserialize(element: JsonElement): JsonElement = JsonPrimitive(word(element).orEmpty())
+}
 
 /** A string where a list belongs becomes a one-item list; anything that isn't text is skipped. */
 private fun lenientList(e: JsonElement): JsonElement = when (e) {

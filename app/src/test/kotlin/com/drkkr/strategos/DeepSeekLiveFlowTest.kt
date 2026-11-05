@@ -113,7 +113,7 @@ class DeepSeekLiveFlowTest {
                 val st = r.controller.state.value
                 val turnCalls = r.llm.calls.drop(callsBefore)
                 out.append("===== MESSAGE ${i + 1} (${m.length} chars) =====\n")
-                out.append("CALLS: " + turnCalls.joinToString(" | ") { c -> "${c.purpose} in=${c.inTokens} out=${c.outTokens}/${c.maxOut} chars=${c.text.length} parses=${if (c.purpose == "TURN") SketchParser.tryParse(c.text).isSuccess else "-"}" } + "\n")
+                out.append("CALLS: " + turnCalls.joinToString(" | ") { c -> "${c.purpose} in=${c.inTokens} out=${c.outTokens}/${c.maxOut} chars=${c.text.length} parses=${if (c.purpose == "TURN") SketchParser.tryParse(c.text).let { t -> if (t.isSuccess) "true" else "false WHY: " + t.exceptionOrNull()?.message?.take(240) } else "-"}" } + "\n")
                 out.append("error=${st.error} support=${st.supportVisible} trajectory=${st.trajectory?.let { "trust ${it.trustScore.toInt()} tension ${it.tensionScore.toInt()} | ${it.band}" }} calls=${turnCalls.map { it.purpose }}\n\n")
 
                 out.append("(a) CALL 1 extracted options\n")
