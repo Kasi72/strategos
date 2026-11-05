@@ -2,7 +2,8 @@ package com.drkkr.strategos.data.repo
 
 enum class MessageRole { USER, ASSISTANT, TOOL_CALL, TOOL_RESULT, EVENT, ERROR }
 
-enum class UiKind { NONE, CHANGE_SET, QUESTIONS, RECOMMENDATION, WHAT_IF, STRESS_TEST, UNDERSTANDING, SUPPORT }
+/** Stored as a string, so a new kind needs no schema change. POWER_READ: the Power Mode card (blueprint §5). */
+enum class UiKind { NONE, CHANGE_SET, QUESTIONS, RECOMMENDATION, WHAT_IF, STRESS_TEST, UNDERSTANDING, SUPPORT, POWER_READ }
 
 enum class ChangeSetStatus { PENDING, APPLIED, PARTIAL, REJECTED }
 

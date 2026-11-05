@@ -88,6 +88,8 @@ class PowerFlowTest {
       "relationship":"vendor","power":{"relative":"equal","your_alternative":"strong","their_alternative":"weak"},
       "user_asks_for":"$asks"}"""
 
+    private var llmRequestsOfLastTurn = ""
+
     private val message = "I'm buying a CRM from Karthik's company. I won't pay more than 40000, I'd like 35000, and I can go with another vendor."
 
     private suspend fun turn(powerOn: Boolean, asks: String = "none"): Pair<JsonObject, EngineEchoLlm> {
@@ -99,6 +101,7 @@ class PowerFlowTest {
         settings.setPowerMode(cid, powerOn)
         controller.send(message)!!.join(); controller.awaitIdle()
         assertEquals("the turn stayed in one thread", cid, controller.state.value.conversationId)
+        llmRequestsOfLastTurn = llm.requests.filter { it.purpose == "COACH" }.joinToString("\n") { it.input.toString() }
         return (llm.lastDirective ?: error("no coach call: ${llm.requests.map { it.purpose }}")) to llm
     }
 
@@ -127,5 +130,22 @@ class PowerFlowTest {
         assertEquals(DeclineNotes.of("false_facts"), d["decline_note"]?.jsonPrimitive?.content)
         val (plain, _) = turn(powerOn = false)
         assertFalse(plain.containsKey("decline_note"))
+    }
+
+    @Test
+    fun TC_PM_READ_04_aPowerReadComesBeforeTheReplyWhenPowerModeIsOn() = runBlocking {
+        turn(powerOn = true)
+        val msgs = conversations.messages(conversations.listThreads("deal").first().id)
+        val read = msgs.indexOfFirst { it.role == "TOOL_RESULT" && it.uiKind == "POWER_READ" }
+        val reply = msgs.indexOfLast { it.role == "ASSISTANT" }
+        assertTrue(msgs.map { "${it.role}:${it.uiKind}" }.toString(), read in 0 until reply)
+        // the card carries laws and names; Call 2 never does
+        assertFalse(llmRequestsOfLastTurn, Regex("""\bL\d|48 Laws|Nudge|Greene""").containsMatchIn(llmRequestsOfLastTurn))
+    }
+
+    @Test
+    fun TC_PM_READ_04b_noPowerReadWhenPowerModeIsOff() = runBlocking {
+        turn(powerOn = false)
+        assertFalse(conversations.messages(conversations.listThreads("deal").first().id).any { it.uiKind == "POWER_READ" })
     }
 }

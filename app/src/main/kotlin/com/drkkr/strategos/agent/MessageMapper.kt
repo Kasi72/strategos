@@ -55,6 +55,7 @@ object MessageMapper {
                         UiKind.STRESS_TEST.name -> ChatItem.StressTest(m.id, output)
                         UiKind.UNDERSTANDING.name -> ChatItem.Understanding(m.id, strings(parseObject(callPayloads[m.callId])?.get("bullets")), answeredAfter(m))
                         UiKind.SUPPORT.name -> ChatItem.Support(m.id)
+                        UiKind.POWER_READ.name -> ChatItem.PowerRead(m.id, com.drkkr.strategos.domain.human.power.PowerReadCodec.decode(m.payloadJson.orEmpty()))
                         else -> null
                     }
                     if (card != null) {

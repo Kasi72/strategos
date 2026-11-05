@@ -331,6 +331,12 @@ class OneShotTurn(
         val powerOn = settings.isPowerMode(cid)
         val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, settings.powerLock(), support, snap?.trustScore)
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready)
+        // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
+        if (powerOn && directive.ready) {
+            val read = com.drkkr.strategos.domain.human.power.PowerRead.build(maskedRaw, powerPlan ?: com.drkkr.strategos.domain.human.power.PowerPlan())
+            conversations.append(cid, turnId, MessageRole.TOOL_RESULT, text = "Power Read", toolName = "power_read", callId = turnId,
+                payloadJson = com.drkkr.strategos.domain.human.power.PowerReadCodec.encode(read), uiKind = UiKind.POWER_READ)
+        }
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
         if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
             s.humanContext?.pendingCooling != directive.moveToImplement) {
