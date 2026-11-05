@@ -24,6 +24,10 @@ class GuidanceRepository(private val db: StrategosDatabase) {
                 guide.dontDoThis.filter { it.isNotBlank() }.forEach {
                     add(GuidanceItem(it, GuidanceKind.DONT, GuidanceSource.THREAD, t.title, msg.id, msg.createdAt))
                 }
+                // Human Layer: what may be being done to them, with the protective move, joins the standing box.
+                guide.watchFor.filter { it.isNotBlank() }.forEach {
+                    add(GuidanceItem("Watch for: $it", GuidanceKind.DO, GuidanceSource.THREAD, t.title, msg.id, msg.createdAt))
+                }
             }
             db.journalDao().appliedPostNotes(scenarioId).forEach { n ->
                 if (n.doThis.isNotBlank()) add(GuidanceItem(n.doThis, GuidanceKind.DO, GuidanceSource.JOURNAL, JOURNAL_LABEL, n.journalEntryId, n.createdAt))

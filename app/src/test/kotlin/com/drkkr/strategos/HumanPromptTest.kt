@@ -37,8 +37,8 @@ class HumanPromptTest {
         // BLUEPRINT-QUESTION (resolved by the user): STEPS asks for <= 1,200 chars of growth AND every closed vocabulary spelled
         // out; the vocabularies alone are ~850 chars. The user accepted a larger prompt (1,600), then 1,800 in hl1.5 for short
         // definitions of the ambiguous tags and the "only if the user said it" guards. Restoring the schema keys (below) after the
-        // live replay showed the model had stopped filling them took it to ~1,880, so the limit is 1,900.
-        assertTrue("prompt grew by $growth chars", growth in 1..1900)
+        // live replay showed the model had stopped filling them took it to ~1,880, so the limit was 1,900; the safety wording added to rule 9 in HL5.2 (controlling money, cutting you off from friends or family, intimidation) took it to 2,000.
+        assertTrue("prompt grew by $growth chars", growth in 1..2000)
     }
 
     @Test

@@ -167,6 +167,21 @@ class OneShotTurn(
             }
         }
 
+        // Safety first (I-H5). The model flagged support, or the radar heard coercive control in a close relationship: the engine, the
+        // tactics and the watch-for list stay out of it. A short, warm reply points to someone they trust and to the support card.
+        if (argon != null) {
+            val saved = gateway.activeScenario() ?: scenario
+            val radar = com.drkkr.strategos.domain.human.ManipulationRadar.scan(
+                saved.humanContext, com.drkkr.strategos.domain.human.RelationshipDomains.of(saved.humanContext?.relationship, null)
+            )
+            if (converted.support || radar.routeToSupport) {
+                onSupport()
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, safetyReply(cid, turnId, text))
+                afterTurn(cid)
+                return TurnResult.Done
+            }
+        }
+
         // Negotiations: before answering, ask up to two plain-words questions (what you'd do if it falls through, the lowest you'd
         // accept, the best you'd hope for) when those facts are still unknown. Asked once per thread and optional: the next
         // message goes through whatever the user answers, or skips. The saved negotiation context is filled from the replies.
@@ -335,7 +350,7 @@ class OneShotTurn(
         val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
-            var g = reply.guide().copy(pill = pillFor(directive))
+            var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" })
             // One optional, plain-words question about the negotiation (fallback, lowest acceptable, ideal...), never repeated in this thread.
             val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
             com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
@@ -371,7 +386,29 @@ class OneShotTurn(
             .firstNotNullOfOrNull { l -> mine.firstOrNull { it.label.equals(l, ignoreCase = true) && it.id != move.id } }
         val plan = com.drkkr.strategos.domain.human.DeliveryPlanner.plan(raw, hc, move, second, support, com.drkkr.strategos.domain.human.ResponseModel.betaFrom(opponent),
             userSaysNow = com.drkkr.strategos.domain.human.HotStateGate.userSaysNow(userText))
-        return d.copy(delivery = plan.takeIf { !it.isEmpty })
+        val radar = com.drkkr.strategos.domain.human.ManipulationRadar.scan(hc, com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null))
+        return d.copy(delivery = plan.takeIf { !it.isEmpty }, watchFor = radar.watchFor)
+    }
+
+    /** The safety-first reply: one short call that never sees an engine move, checked by [SafetyReply]; the fixed warm text if it fails. */
+    private suspend fun safetyReply(cid: String, turnId: String, text: String): String {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.SAFETY_REPLY_PROMPT) })
+            add(buildJsonObject { put("role", "user"); put("content", "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}") })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = SAFETY_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
+            purpose = "SAFETY", conversationId = cid, turnId = turnId, jsonObjectMode = false
+        )
+        repeat(2) { attempt ->
+            val result = llm.create(request)
+            if (result is LlmResult.Ok) {
+                val reply = result.output.assistantText().trim()
+                if (com.drkkr.strategos.domain.agent.SafetyReply.acceptable(reply)) return reply
+                DebugLog.d { "SAFETY reply refused (attempt ${attempt + 1}); it gave strategy, was empty, or named something" }
+            } else if (attempt == 0) delay(RETRY_PAUSE_MS)
+        }
+        return com.drkkr.strategos.domain.agent.SafetyReply.FALLBACK
     }
 
     private fun pillFor(d: EngineDirective): String = listOfNotNull(
@@ -660,6 +697,7 @@ class OneShotTurn(
         // BLUEPRINT-QUESTION: 900 was sized for Groq's 8,000 tokens/minute cap (LEAN PROFILE). On DeepSeek it cut the sketch JSON mid-array,
         // so every substantive first message failed with "Couldn't reach the coach" (found by the emulator E2E run). 3,000 fits a full sketch.
         private const val EXTRACTION_MAX_TOKENS = 3_000
+        private const val SAFETY_MAX_TOKENS = 250
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3

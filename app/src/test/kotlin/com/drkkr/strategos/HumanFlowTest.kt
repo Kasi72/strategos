@@ -196,4 +196,80 @@ class HumanFlowTest {
         assertNull(gateway.inner.scenario!!.humanContext!!.pendingCooling)
         assertNull(llm.lastDirective!!["pending_cooling"])
     }
+
+    // ── HL5.2: the radar in a full turn ───────────────────────────────────────────
+
+    private fun withTactics(vararg tags: String, relationship: String = "manager", support: Boolean = false): String =
+        sketch.replace("\"relationship\":\"manager\"", "\"relationship\":\"$relationship\"").dropLast(1) +
+            ""","their_tactics":[${tags.joinToString(",") { "\"$it\"" }}]""" + (if (support) ""","support":true""" else "") + "}"
+
+    private val warm = "That sounds really hard, and I'm glad you told me. You don't have to sort it out alone: please talk to someone you trust. The support card has numbers you can use right now."
+
+    @Test
+    fun TC_HL_RADAR_05_coerciveBehaviourInACloseRelationshipGetsTheSupportCardAndASafetyFirstReply() = runBlocking {
+        val gateway = CommittingGateway(start)
+        // turn 1 (TURN, RED_TEAM, COACH) is ordinary; turn 2 (TURN, SAFETY) hears isolation
+        val llm = EngineEchoLlm(listOf(withTactics("controls_the_options", relationship = "spouse"), "Is that fair?", withTactics("isolates_you", relationship = "spouse"), warm))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("My husband handles all the money and I have to ask him for groceries.")!!.join(); controller.awaitIdle()
+        assertEquals(listOf("TURN", "RED_TEAM", "COACH"), llm.requests.map { it.purpose })
+        assertFalse("a first, ordinary tactic is not a safety matter", controller.state.value.supportVisible)
+
+        controller.send("He doesn't like me seeing my friends anymore.")!!.join(); controller.awaitIdle()
+        assertEquals(listOf("TURN", "RED_TEAM", "COACH", "TURN", "SAFETY"), llm.requests.map { it.purpose })      // no engine, no coach
+        assertTrue(controller.state.value.supportVisible)
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertEquals(warm, reply)
+        val safetyRequest = llm.requests.last().input.toString()
+        assertFalse("no engine move reaches the safety call", safetyRequest.contains("move_to_implement") || safetyRequest.contains("ENGINE DIRECTIVE"))
+        for (banned in listOf("stand firm", "confront", "don't apologise", "won't keep guessing")) assertFalse(banned, reply.contains(banned, ignoreCase = true))
+    }
+
+    @Test
+    fun TC_HL_RADAR_05b_aSafetyReplyThatGivesStrategyIsReplacedByTheFixedWarmOne() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(withTactics("hot_cold", relationship = "partner"), "You should stand firm and confront him."))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("Some days he's sweet, other days he won't speak to me.")!!.join(); controller.awaitIdle()
+        assertEquals(listOf("TURN", "SAFETY", "SAFETY"), llm.requests.map { it.purpose })                          // tried twice, then the fixed text
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertEquals(com.drkkr.strategos.domain.agent.SafetyReply.FALLBACK, reply)
+        assertTrue(controller.state.value.supportVisible)
+    }
+
+    @Test
+    fun TC_HL_RADAR_05c_theModelsOwnSupportFlagAlsoMeansASafetyFirstReply() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(withTactics(support = true), warm))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("I don't feel safe at home and I'm not sure what to do about the raise either.")!!.join(); controller.awaitIdle()
+        assertEquals(listOf("TURN", "SAFETY"), llm.requests.map { it.purpose })
+        assertTrue(controller.state.value.supportVisible)
+        assertEquals(warm, conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text)
+    }
+
+    @Test
+    fun TC_HL_RADAR_10_anOrdinaryPatternIsShownAfterTwoTurns_asPlainWordsOnly() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val s1 = withTactics("moves_goalposts", relationship = "peer")
+        val llm = EngineEchoLlm(listOf(s1, "Is that fair?", s1, "Is that fair?"))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("raise").join()
+        controller.send("My colleague keeps changing what counts as done.")!!.join(); controller.awaitIdle()
+        assertNull("seen once: not shown", llm.lastDirective!!["watch_for"])
+
+        controller.send("He did it again after I met the last one.")!!.join(); controller.awaitIdle()
+        val w = llm.lastDirective!!["watch_for"]!!.jsonArray.single().jsonObject
+        assertEquals(setOf("sign", "protect"), w.keys)
+        assertEquals("The target changes after you meet it.", w.getValue("sign").jsonPrimitive.content)
+        for (id in TacticId.values()) assertFalse(llm.requests.last { it.purpose == "COACH" }.input.toString().contains(id.name, ignoreCase = true))
+        assertFalse(llm.requests.last { it.purpose == "COACH" }.input.toString().contains("moves_goalposts"))
+        // and it joins the Overview's standing do/don't box through the guidance payload
+        val last = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }
+        val guide = GuidanceCodec.decode(last.payloadJson!!)!!
+        assertEquals(listOf("The target changes after you meet it. Agree the finish line in writing first."), guide.watchFor)
+    }
 }
