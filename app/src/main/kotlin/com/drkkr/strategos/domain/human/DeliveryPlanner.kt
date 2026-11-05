@@ -46,7 +46,7 @@ object DeliveryPlanner {
      */
     private val HABIT = setOf("public", "corrects_them", "argues", "appeals_to_fairness_or_gratitude", "open_ended", "asks_them_to_give_up", "immediate")
 
-    private fun carrying(hc: HumanContext, recommended: Action): Action =
+    internal fun carrying(hc: HumanContext, recommended: Action): Action =
         hc.lastAttemptTags.filter { it in HABIT }.toSet().let { if (it.isEmpty()) recommended else DeliveryTags.with(recommended, it, emptySet()) }
 
     private fun conflicts(a: TacticId, b: TacticId) = CONFLICTS.any { (x, y) -> (a == x && b == y) || (a == y && b == x) }

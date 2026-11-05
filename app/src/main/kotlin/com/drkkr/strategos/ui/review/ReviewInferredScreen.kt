@@ -89,7 +89,7 @@ private fun ReviewRow(
     item: ReviewItem, ink: androidx.compose.ui.graphics.Color, muted: androidx.compose.ui.graphics.Color, raised: androidx.compose.ui.graphics.Color,
     border: androidx.compose.ui.graphics.Color, onKeep: () -> Unit, onConfirm: () -> Unit, onRemove: () -> Unit
 ) {
-    val group = when (item.kind) { ReviewKind.PERSON -> "Person"; ReviewKind.OPTION -> "Option"; ReviewKind.LIMIT -> "Limit"; ReviewKind.OUTCOME -> "Outcome"; ReviewKind.BELIEF -> "Likelihood" }
+    val group = when (item.kind) { ReviewKind.PERSON -> "Person"; ReviewKind.OPTION -> "Option"; ReviewKind.LIMIT -> "Limit"; ReviewKind.OUTCOME -> "Outcome"; ReviewKind.BELIEF -> "Likelihood"; ReviewKind.POWER -> "Who has the say" }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(raised).border(1.dp, border, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             ProvenanceChip(FactStatus.AI_INFERRED)

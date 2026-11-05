@@ -43,7 +43,11 @@ data class XRayUiState(
     val modelStrip: String = "",
     /** The engine's own verdict at the coach's odds, so the sheet never disagrees with the chat. */
     val engineMove: String? = null,
-    val engineRobust: Boolean? = null
+    val engineRobust: Boolean? = null,
+    /** Human Layer: the strongest effect on how the move lands, in one plain line, and where to read more. Null when there is none. */
+    val humanLens: String? = null,
+    val humanLensTopic: String? = null,
+    val humanLensUrl: String? = null
 ) {
     val changed: Boolean get() = kotlin.math.abs(odds - coachOdds) > 0.004f
     val flipped: Boolean get() = grid != null && changed && grid.best.label != coachBestLabel
@@ -100,13 +104,17 @@ class XRayViewModel(app: Application, private val projectId: String) : AndroidVi
         val counts = container.projectBrainRepository?.brain(projectId)?.let {
             "${it.counts.people} people · ${it.counts.options} options · ${it.counts.outcomesFilled}/${it.counts.outcomesExpected} outcomes"
         }.orEmpty()
+        val lens = com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.let { o ->
+            com.drkkr.strategos.domain.human.HumanLens.of(s.humanContext, s.actionsFor(o.id).firstOrNull { it.label.equals(coachBest, ignoreCase = true) })
+        }
         XRayUiState(
             loading = false, grid = grid,
             notEnough = if (grid == null) XRayNotEnough.from(true, false) else null,
             odds = odds, coachOdds = coach, coachBestLabel = coachBest,
             oddsLabel = prior?.label ?: "It goes well",
             pattern = PatternCatalog.of(archetype, s), modelStrip = counts,
-            engineMove = pinned, engineRobust = directive?.let { it.stressVerdict == "ROBUST" }
+            engineMove = pinned, engineRobust = directive?.let { it.stressVerdict == "ROBUST" },
+            humanLens = lens?.line, humanLensTopic = lens?.topic, humanLensUrl = lens?.url
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), XRayUiState())
 

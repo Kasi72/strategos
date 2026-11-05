@@ -77,6 +77,19 @@ data class OverviewActions(
 object OverviewChart {
     const val STEPS = 3
 
+    /**
+     * A 3-point moving average (the last three points, fewer at the start), so one message does not make the chart lurch (Nudge Ch.7:
+     * checking too often makes people more reactive than they would choose to be). Only what is drawn; the saved points are untouched.
+     */
+    fun smooth(series: List<Float>, window: Int = 3): List<Float> =
+        series.indices.map { i -> series.subList(maxOf(0, i - window + 1), i + 1).average().toFloat() }
+
+    /** The chart as drawn: smoothed past, with the dashed projections continued from the smoothed line. */
+    fun ui(trust: List<Float>, tension: List<Float>): ChartUi {
+        val t = smooth(trust); val x = smooth(tension)
+        return ChartUi(t, x, hold(t), hold(x), revert(t), revert(x))
+    }
+
     /** Continue the recent slope ("if you hold this approach"), clamped 0..100. */
     fun hold(series: List<Float>, steps: Int = STEPS): List<Float> {
         if (series.size < 2) return emptyList()

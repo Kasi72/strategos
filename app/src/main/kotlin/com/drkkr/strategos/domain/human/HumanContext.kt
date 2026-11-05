@@ -54,7 +54,9 @@ data class HumanContext(
     /** The last three turns' readings of [lastAttemptTags], newest first. Habits older than three turns drop out. */
     val attemptHistory: List<List<String>> = emptyList(),
     /** The reply whose outcome was last counted into [tacticSuccess], so one reply is never counted twice. */
-    val learnedFromMessage: String? = null
+    val learnedFromMessage: String? = null,
+    /** Fields the user has kept or fixed in the Review sheet. The model never overwrites them again (I-H8: the user's word wins). */
+    val userFixed: Set<String> = emptySet()
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -70,8 +72,17 @@ data class HumanContext(
      *  - setting, dependencies, alternatives: a new value is held in [pending] and becomes the saved one only when the next
      *    turn repeats it; a different value restarts the wait. A turn that omits the field neither confirms nor resets.
      */
-    fun merge(newer: HumanContext): HumanContext {
+    fun merge(incoming: HumanContext): HumanContext {
+        // The user's own word wins: a field they kept or fixed ignores what the model reads from now on.
+        val fixed = userFixed + incoming.userFixed
+        val newer = if (fixed.isEmpty()) incoming else incoming.copy(
+            relationship = incoming.relationship.takeUnless { "relationship" in fixed }, theirPower = incoming.theirPower.takeUnless { "theirPower" in fixed },
+            setting = incoming.setting.takeUnless { "setting" in fixed }, theyDependOnYou = incoming.theyDependOnYou.takeUnless { "theyDependOnYou" in fixed },
+            youDependOnThem = incoming.youDependOnThem.takeUnless { "youDependOnThem" in fixed }, yourAlternative = incoming.yourAlternative.takeUnless { "yourAlternative" in fixed },
+            theirAlternative = incoming.theirAlternative.takeUnless { "theirAlternative" in fixed }, userFixed = fixed
+        )
         val pend = pending.toMutableMap()
+        fixed.forEach { pend.remove(it) }
         val rel = mergeRelationship(relationship, newer.relationship, pend)
         val setting = soft("setting", setting, newer.setting, pend)
         val theyDepend = soft("theyDependOnYou", theyDependOnYou, newer.theyDependOnYou, pend)
@@ -111,7 +122,8 @@ data class HumanContext(
         // A real turn carries the whole history (so an empty union can legitimately replace an old one); a bare patch only adds.
         lastAttemptTags = if (newer.attemptHistory.isNotEmpty()) newer.lastAttemptTags else newer.lastAttemptTags.ifEmpty { lastAttemptTags },
         attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory },
-        learnedFromMessage = newer.learnedFromMessage ?: learnedFromMessage
+        learnedFromMessage = newer.learnedFromMessage ?: learnedFromMessage,
+        userFixed = userFixed + newer.userFixed
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {
@@ -141,5 +153,17 @@ data class HumanContext(
     companion object {
         const val STATUS_QUO_MAX = 200
         const val TACTICS_MAX = 6
+    }
+
+    /** The Review sheet's Keep / Fix: the user takes the field as theirs ([clear] also empties it). */
+    fun fix(key: String, clear: Boolean): HumanContext {
+        val base = copy(userFixed = userFixed + key)
+        if (!clear) return base
+        return when (key) {
+            "relationship" -> base.copy(relationship = null); "theirPower" -> base.copy(theirPower = null); "setting" -> base.copy(setting = null)
+            "theyDependOnYou" -> base.copy(theyDependOnYou = null); "youDependOnThem" -> base.copy(youDependOnThem = null)
+            "yourAlternative" -> base.copy(yourAlternative = null); "theirAlternative" -> base.copy(theirAlternative = null)
+            else -> base
+        }
     }
 }

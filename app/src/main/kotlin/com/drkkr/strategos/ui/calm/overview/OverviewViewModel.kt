@@ -63,11 +63,7 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
                 subtitle = subtitle(threads.size, pts.lastOrNull()?.timestamp ?: s.updatedAt, now),
                 linkedJournalCount = journal?.let { countLinked(projectId) } ?: 0,
                 status = status,
-                chart = ChartUi(
-                    trustPast = trust, tensionPast = tension,
-                    trustHold = OverviewChart.hold(trust), tensionHold = OverviewChart.hold(tension),
-                    trustRevert = OverviewChart.revert(trust), tensionRevert = OverviewChart.revert(tension)
-                ),
+                chart = OverviewChart.ui(trust, tension),
                 momentumBlurb = blurb(status),
                 events = trajectory?.events(projectId).orEmpty(),
                 pendingCheck = trajectory?.pendingCheck(projectId),

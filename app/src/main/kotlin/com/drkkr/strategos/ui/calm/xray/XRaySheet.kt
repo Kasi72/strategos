@@ -116,6 +116,12 @@ fun XRayContent(ui: XRayUiState, onOdds: (Float) -> Unit, onKeep: () -> Unit, on
             Text(p.summary, style = Calm.type.body, color = c.ink2)
             Text("Read more: ${p.name}", style = Calm.type.subtitle, color = c.action, modifier = Modifier.heightIn(min = 48.dp).clickable { onReadMore(p.wikiUrl) })
         }
+        ui.humanLens?.let { line ->
+            Text("HUMAN LENS", style = Calm.type.caption.copy(fontFamily = MONO), color = c.ink3)
+            Text(line, style = Calm.type.body, color = c.ink, modifier = Modifier.clickable(enabled = ui.humanLensUrl != null) { ui.humanLensUrl?.let(onReadMore) })
+            if (ui.humanLensUrl != null && ui.humanLensTopic != null)
+                Text("Read more: ${ui.humanLensTopic}", style = Calm.type.subtitle, color = c.action, modifier = Modifier.heightIn(min = 48.dp).clickable { onReadMore(ui.humanLensUrl) })
+        }
         if (ui.modelStrip.isNotBlank()) Text(ui.modelStrip, style = Calm.type.caption.copy(fontFamily = MONO), color = c.rigor)
         Spacer(Modifier.height(8.dp))
     }
