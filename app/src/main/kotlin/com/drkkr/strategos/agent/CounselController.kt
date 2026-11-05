@@ -123,9 +123,9 @@ class CounselController(
 
     init {
         // §11.5.1: screens update the moment a key, consent or the toggle changes; no restart.
-        scope.launch { deps.settings.observeAiFlags().collect { refreshAiStatus() } }
+        scope.launch { safeCollect { deps.settings.observeAiFlags().collect { refreshAiStatus() } } }
         // Space 2 is global: the whole journal, whichever project is open.
-        deps.journal?.let { j -> scope.launch { j.observeEntries(null).collect { list -> _state.update { it.copy(journalEntries = list) } } } }
+        deps.journal?.let { j -> scope.launch { safeCollect { j.observeEntries(null).collect { list -> _state.update { it.copy(journalEntries = list) } } } } }
     }
 
     private var scenarioId: String? = null
