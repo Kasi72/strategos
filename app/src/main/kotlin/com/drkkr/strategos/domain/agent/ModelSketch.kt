@@ -160,7 +160,9 @@ data class CoachGuideSketch(
     /** Phase G.4: a short, situation-specific closing line (a concrete next step or a real question), replacing the static footer. */
     @SerialName("follow_up") val followUp: String = "",
     /** The engine's one-line label for this reply ("Wait · Mutual trust needed · Robust"), set by Kotlin, never by the model. Shown as the pill. */
-    @SerialName("pill") val pill: String = ""
+    @SerialName("pill") val pill: String = "",
+    /** Human Layer: things to watch for (what is being done TO the user), each one plain sentence with its protective move. Joins the Overview's standing do/don't box. */
+    @SerialName("watch_for") val watchFor: List<String> = emptyList()
 )
 
 /**

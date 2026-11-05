@@ -44,8 +44,13 @@ data class HumanContext(
      * The move that was held back for the user to cool off ([Timing.AFTER_COOLING]). The next turns ask "did you send it?" until
      * they report how it went. An empty string in a patch clears it.
      */
-    val pendingCooling: String? = null
+    val pendingCooling: String? = null,
+    /** How many turns each of [theirTactics] was described on. A pattern is only shown to the user once it has been seen twice. */
+    val tacticTurns: Map<String, Int> = emptyMap()
 ) {
+    /** Tactics described on at least [minTurns] turns, newest first. */
+    fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
+
     /**
      * Folds a newer reading into this one. A non-null newer value replaces the old; a null never erases it. The two
      * state levels are smoothed (half new, half old). Tactics are the union, newest first. Learned priors are kept.
@@ -92,7 +97,8 @@ data class HumanContext(
         goalIs = newer.goalIs ?: goalIs,
         tacticSuccess = tacticSuccess + newer.tacticSuccess,
         pending = pend,
-        pendingCooling = if (newer.pendingCooling == "") null else newer.pendingCooling ?: pendingCooling
+        pendingCooling = if (newer.pendingCooling == "") null else newer.pendingCooling ?: pendingCooling,
+        tacticTurns = tacticTurns + newer.theirTactics.distinct().associateWith { (tacticTurns[it] ?: 0) + 1 }
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {
