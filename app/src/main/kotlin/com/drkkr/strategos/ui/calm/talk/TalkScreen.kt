@@ -99,7 +99,8 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
     Box(modifier.fillMaxSize().imePadding()) {
         Conversation(ui, actions, Modifier.fillMaxSize(), onExplain = { explaining = it },
             topPad = with(density) { headerPx.toDp() }, bottomPad = with(density) { footerPx.toDp() })
-        Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }.statusBarsPadding()) {
+        // Opaque header (CP-P3): the conversation scrolls under it and must not show through the back arrow or the chips.
+        Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }.background(c.ground).statusBarsPadding()) {
             TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true },
                 power = if (ui.powerAvailable) ui.powerMode else null,
                 onPower = {

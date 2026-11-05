@@ -39,6 +39,9 @@ data class SettingsActions(
 )
 
 object SettingsUi {
+    /** The Power Mode lock switch exists only in debug builds (blueprint §5); a release build never shows it. */
+    fun powerLockVisible(debugBuild: Boolean, hasSettings: Boolean): Boolean = debugBuild && hasSettings
+
     fun from(ai: AiSettingsUi, reveal: RevealMath, available: Boolean = true) = SettingsUiState(
         available = available, loaded = ai.loaded,
         aiOn = ai.ready,

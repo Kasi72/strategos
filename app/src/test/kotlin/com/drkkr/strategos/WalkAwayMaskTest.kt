@@ -111,4 +111,20 @@ class WalkAwayMaskTest {
         assertFalse(shown, shown.contains("45,000"))
         assertTrue(shown, shown.contains("above your ceiling"))
     }
+
+    @Test fun aRejectedFollowUpAnswerLosesTheRevealingSentencesAndGainsTheKeepPrivateLine() {
+        // vendor turn 4 (pm4.6 replay), the answer that survived its retry
+        val t4 = "Here's what that means in practice for tomorrow. Open by naming your number as a firm limit, not a starting point. " +
+            "Then say it simply: \"My number is my hard ceiling — what can you do to get me there?\" If he pushes on Friday, ask where that date comes from."
+        assertFalse(DealCheck.usableAnswer(t4, vendor))
+        val shown = DealCheck.sanitizeAnswer(t4, vendor)
+        assertTrue(shown, DealCheck.usableAnswer(shown, vendor))
+        assertFalse(shown, shown.contains("naming your number"))
+        assertFalse(shown, shown.contains("\""))
+        assertFalse(shown, shown.contains("say it simply"))
+        assertTrue(shown, shown.contains("If he pushes on Friday, ask where that date comes from."))
+        assertTrue(shown, shown.endsWith("• Keep your walk-away to yourself."))
+        // without a frame nothing changes
+        assertEquals(t4, DealCheck.sanitizeAnswer(t4, null))
+    }
 }

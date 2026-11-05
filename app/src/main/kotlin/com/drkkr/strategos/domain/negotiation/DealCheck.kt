@@ -28,8 +28,11 @@ object DealCheck {
     // ng7: advice to reveal the walk-away even without its figure ("say the number once"); negated advice is allowed.
     private val revealVerb = Regex("""(?i)\b(?:say|says|saying|tell|tells|telling|name|naming|share|sharing|reveal|revealing|state|stating|give|giving|mention|mentioning)\b""")
     private val walkAwayWords = Regex("""(?i)\bthe number\b|\b(?:your|my|our) (?:budget|ceiling|floor|limit|bottom[- ]line|walk[- ]?away|max(?:imum)?|min(?:imum)?|number)\b""")
-    private val negated = Regex("""(?i)\b(?:don'?t|do not|never|not|no need|avoid|without)\b|\bkeep\b.*\b(?:private|to yourself|secret|quiet)\b""")
-    private val sentence = Regex("""(?<=[.!?;\n])\s+""")
+    // Negation counts only before the reveal verb ("don't name your ceiling", "never reveal it") or as "keep ... private"; a later
+    // "not" ("open by naming your number, not a starting point") does not excuse the advice (CP-P3).
+    private val negated = Regex("""(?i)\b(?:don'?t|do not|never|not|no need to|avoid|without)\s+(?:\w+\s+){0,3}?(?:say|tell|name|share|reveal|state|give|mention)|\bkeep\b.*\b(?:private|to yourself|secret|quiet)\b""")
+    /** Sentence breaks, including after a closing quote ('...?" If he pushes'). */
+    private val sentence = Regex("""(?<=[.!?;\n]["”]?)\s+""")
 
     fun usable(reply: CoachReply, frame: DealFrame?): Boolean {
         if (frame?.walkAway == null) return true
@@ -46,6 +49,25 @@ object DealCheck {
 
     /** An answer to a follow-up question explains the situation, like `what_happened`: only the speech rule applies. */
     fun usableAnswer(text: String, frame: DealFrame?): Boolean = frame?.walkAway == null || !(revealsAsSpeech(text, frame) || advisesReveal(text))
+
+    const val KEEP_PRIVATE = "Keep your walk-away to yourself."
+
+    /**
+     * The last resort for a follow-up answer the check still rejects after its retry (CP-P3): every flagged sentence is removed
+     * (advice to name, state or reveal the walk-away, a secret figure given as speech), a flagged quoted line is dropped whole, and
+     * the bullet "Keep your walk-away to yourself." is always added. Never the masked answer, which kept the advice.
+     */
+    fun sanitizeAnswer(text: String, frame: DealFrame?): String {
+        if (frame?.walkAway == null) return text
+        // A flagged quoted line takes its whole sentence with it (so "Say it simply: ..." never dangles).
+        val marked = quoted.replace(text) { m -> if (hasSecret(m.value, frame) || advisesReveal(m.value)) "$DROP." else m.value }   // keeps a sentence boundary
+        val kept = marked.lines().map { line ->
+            line.split(sentence).filter { s -> s.isNotBlank() && DROP !in s && !advisesReveal(s) && !revealsAsSpeech(s, frame) }.joinToString(" ")
+        }.filter { it.isNotBlank() }
+        return (kept + "• $KEEP_PRIVATE").joinToString("\n").trim()
+    }
+
+    private const val DROP = "\u0000"
 
     /** A sentence that tells the user to say, share or name their walk-away ("say the number once"), and is not negated. */
     private fun advisesReveal(text: String): Boolean =

@@ -141,7 +141,7 @@ class NegotiationFlowTest {
     }
 
     @Test
-    fun aFollowUpAnswerThatGivesTheWalkAwayAsALineIsRetriedThenShownMasked() = runBlocking {
+    fun aFollowUpAnswerThatGivesTheWalkAwayAsALineIsRetriedThenSanitised() = runBlocking {
         val gateway = CommittingGateway(start)
         val followUp = """{"message_kind":"followup_question","people":[],"options":[]}"""
         val llm = LeakyFollowUpLlm(EngineEchoLlm(listOf(sketch, followUp)))
@@ -154,6 +154,8 @@ class NegotiationFlowTest {
         assertEquals("rejected once, retried once", 2, llm.followUpCalls)
         val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
         assertFalse(reply, Regex("""100,000|100k""").containsMatchIn(reply))
-        assertTrue(reply, reply.contains("your floor"))
+        // CP-P3: never the masked advice; the revealing sentence is removed and the keep-private line added
+        assertFalse(reply, reply.contains("strongest line"))
+        assertTrue(reply, reply.contains("Keep your walk-away to yourself."))
     }
 }

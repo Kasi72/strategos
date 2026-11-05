@@ -61,7 +61,9 @@ class PowerReadCardTest {
         compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(full, { _, _ -> }) } } }
         for (t in listOf("⚡ POWER READ", "Leverage", "Their plays", "Your moves")) compose.onNodeWithText(t).assertExists()
         for (law in listOf("L20", "L3/L4", "L8", "L14")) compose.onNodeWithText(law).assertExists()
-        compose.onNodeWithText("EV +0.90").assertExists()
+        // CP-P3: no score on the card itself (it is in the law sheet); the ranking and "close call" stay
+        compose.onNodeWithText("EV", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("1. Real competition").assertExists()
         compose.onNodeWithText("close call").assertExists()
         compose.onNodeWithText("Your fallback: strong").assertExists()
         compose.onNodeWithText("seen once", substring = true).assertExists()
@@ -82,14 +84,22 @@ class PowerReadCardTest {
         compose.waitForIdle()
         compose.onNodeWithText(LawNotes.forLabel("L20").single().text).assertExists()
         compose.onNodeWithText("Read more").assertExists()
+        compose.onNodeWithText("Score: 0.90").assertExists()
+    }
+
+    @Test fun anUnsetPillSaysTapToSet() {
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(PowerRead(), { _, _ -> }) } } }
+        compose.onNodeWithText("Your fallback: tap to set").assertExists()
+        compose.onNodeWithText("They need you: tap to set").assertExists()
     }
 
     @Test fun tappingYourFallbackSavesTheUsersWord() {
         val calls = mutableListOf<Pair<String, String>>()
         compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(full.copy(leverage = full.leverage.copy(yourFallback = null)), { k, v -> calls += k to v }) } } }
-        compose.onNodeWithText("Your fallback: not set").performClick()
+        compose.onNodeWithText("Your fallback: tap to set").performClick()
         compose.onNodeWithText("strong").performClick()
         assertEquals(listOf("yourAlternative" to "strong"), calls)
+        compose.onNodeWithText("They need you: high").assertExists()
         compose.onNodeWithText("Your fallback: strong (yours)").assertExists()
     }
 
@@ -155,7 +165,7 @@ class PowerReadCardTest {
             }
         }
         compose.onNodeWithText("1. Real competition").assertDoesNotExist()
-        compose.onNodeWithText("Your fallback: not set").performClick()
+        compose.onNodeWithText("Your fallback: tap to set").performClick()
         compose.onNodeWithText("strong").performClick()
         // the next turn: Call 1 again says nothing about the fallback
         scenario = apply("""{"people":[{"name":"You","role":"player"}],"options":[{"who":"You","do":"Ask with a plan","posture":"repair"}],"relationship":"manager"}""", scenario)

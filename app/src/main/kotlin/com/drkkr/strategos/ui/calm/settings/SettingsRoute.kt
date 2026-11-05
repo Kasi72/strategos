@@ -28,7 +28,7 @@ fun SettingsRoute(vm: StrategosViewModel) {
     val settings = (androidx.compose.ui.platform.LocalContext.current.applicationContext as? com.drkkr.strategos.StrategosApplication)?.container?.settingsRepository
     val lock by (settings?.observePowerLock() ?: remember { MutableStateFlow(false) }).collectAsState(initial = false)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val ui = SettingsUi.from(ai, reveal, available = c != null).copy(powerLockVisible = com.drkkr.strategos.BuildConfig.DEBUG && settings != null, powerLock = lock)
+    val ui = SettingsUi.from(ai, reveal, available = c != null).copy(powerLockVisible = SettingsUi.powerLockVisible(com.drkkr.strategos.BuildConfig.DEBUG, settings != null), powerLock = lock)
     LaunchedEffect(ai.hasKey) { if (ai.hasKey) SettingsNudge.on = false }
     SettingsScreen(
         ui,

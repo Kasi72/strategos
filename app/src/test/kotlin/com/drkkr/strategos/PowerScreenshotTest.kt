@@ -131,14 +131,18 @@ class PowerScreenshotTest {
         }
     }
 
-    @Test fun salarySequence_tapYourFallbackStrong_nextTurnShowsRealCompetition() {
+    @Test fun salarySequence_light() = salarySequence(dark = false)
+    @Test fun salarySequence_dark() = salarySequence(dark = true)
+
+    private fun salarySequence(dark: Boolean) {
+        val theme = if (dark) "dark" else "light"
         var scenario = apply(salaryTurn, Scenario(id = "salary", title = "Raise"))
         val before = salaryRead(scenario)
         assertFalse(before.yourMoves.any { it.name == "Real competition" })
         compose.setContent {
             var read by remember { mutableStateOf(before) }
             var nextTurn by remember { mutableStateOf(false) }
-            StrategosTheme(darkTheme = false) {
+            StrategosTheme(darkTheme = dark) {
                 TalkScreen(talk(read, power = true).let { if (nextTurn) it.copy(turns = it.turns + TalkTurn.User("u2", "I talked to her. She asked what I'd want.")) else it },
                     TalkActions(onSetLeverage = { k, v ->
                         // saved through the userFixed path, as TalkRoute does
@@ -149,12 +153,12 @@ class PowerScreenshotTest {
             androidx.compose.runtime.LaunchedEffect(nextTurn) { if (nextTurn) read = salaryRead(scenario) }
             NextTurnTrigger.trigger = { nextTurn = true }
         }
-        shot("4-salary-before")
-        compose.onNodeWithText("Your fallback: not set").performClick(); shot("5-salary-tap-your-fallback")
-        compose.onNodeWithText("strong").performClick(); shot("6-salary-fallback-strong")
+        shot("4-salary-before-$theme")
+        compose.onNodeWithText("Your fallback: tap to set").performClick(); shot("5-salary-tap-your-fallback-$theme")
+        compose.onNodeWithText("strong").performClick(); shot("6-salary-fallback-strong-$theme")
         scenario = apply("""{"people":[{"name":"You","role":"player"}],"options":[{"who":"You","do":"Name the two systems and ask for a raise that reflects the offer","posture":"repair"}],"relationship":"manager"}""", scenario)
         compose.runOnIdle { NextTurnTrigger.trigger() }
-        shot("7-salary-next-turn-real-competition")
+        shot("7-salary-next-turn-real-competition-$theme")
         compose.onNodeWithText("1. Real competition").assertExists()
         assertTrue(salaryRead(scenario).yourMoves.any { it.name == "Real competition" })
     }

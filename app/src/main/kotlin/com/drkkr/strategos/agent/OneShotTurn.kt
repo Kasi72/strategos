@@ -632,14 +632,15 @@ class OneShotTurn(
         deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
     ): String? {
         // CP-N: the prior reply and the digest go in masked; an answer that gives the walk-away or the fallback as a line to say is
-        // retried once, and if it still does, it is shown masked ("your ceiling"), never with the figure.
+        // retried once, and if it still does, every flagged sentence is removed and "Keep your walk-away to yourself." added (CP-P3).
         val prior = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(priorReply, deal)
         val digest = reportJson?.let { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) }
         val first = followUpCall(cid, turnId, text, prior, digest) ?: return null
         if (com.drkkr.strategos.domain.negotiation.DealCheck.usableAnswer(first, deal)) return first
         DebugLog.d { "FOLLOWUP answer gave the walk-away or fallback as a line; retrying once" }
-        val second = followUpCall(cid, turnId, text, prior, digest) ?: return com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(first, deal)
-        return if (com.drkkr.strategos.domain.negotiation.DealCheck.usableAnswer(second, deal)) second else com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(second, deal)
+        val second = followUpCall(cid, turnId, text, prior, digest) ?: return com.drkkr.strategos.domain.negotiation.DealCheck.sanitizeAnswer(first, deal)
+        return if (com.drkkr.strategos.domain.negotiation.DealCheck.usableAnswer(second, deal)) second
+            else com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(com.drkkr.strategos.domain.negotiation.DealCheck.sanitizeAnswer(second, deal), deal)
     }
 
     private suspend fun followUpCall(cid: String, turnId: String, text: String, priorReply: String, reportJson: String?): String? {

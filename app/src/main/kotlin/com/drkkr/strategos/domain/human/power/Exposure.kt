@@ -27,8 +27,9 @@ object Exposure {
     }
 
     fun continuing(ctx: HumanContext?): Boolean = ctx?.relationship in CONTINUING || ctx?.relationship in CLOSE
+    /** Probing counts once it is confirmed (seen on 2 turns, like every engine effect, CP-P3); "seen once" only shows on the card. */
     fun suspicious(ctx: HumanContext?, counterpart: Stakeholder?): Boolean =
-        PROBES in ctx?.theirTactics.orEmpty() || (counterpart != null && counterpart.credibility <= LOW_CREDIBILITY)
+        PROBES in ctx?.confirmedTactics().orEmpty() || (counterpart != null && counterpart.credibility <= LOW_CREDIBILITY)
 
     /** EV = (1 − q)·gain − q·exposureLoss·(1 + trust/100). More trust means more to lose; trust defaults to 50. */
     fun ev(t: StrategicTactic, q: Double, trustLevel: Double?, c: PowerConstants): Double =

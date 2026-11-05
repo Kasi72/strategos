@@ -46,7 +46,7 @@ import com.drkkr.strategos.ui.calm.theme.calmCard
 @Composable
 fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -> Unit, modifier: Modifier = Modifier) {
     val c = Calm.colors
-    var law by remember { mutableStateOf<String?>(null) }
+    var law by remember { mutableStateOf<Pair<String, Double?>?>(null) }
     var editing by remember { mutableStateOf<String?>(null) }
     var mine by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
@@ -74,7 +74,7 @@ fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("• ${p.sign}", color = c.ink, fontSize = 15.sp, lineHeight = 21.sp, modifier = Modifier.weight(1f, fill = false))
-                        LawChip(p.lawLabel) { law = p.lawLabel }
+                        LawChip(p.lawLabel) { law = p.lawLabel to null }
                     }
                     Text(p.counter + if (p.seenOnce) "  ·  seen once" else "", color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(start = 12.dp))
                 }
@@ -89,8 +89,8 @@ fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("${i + 1}. ${m.name}", color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            LawChip(m.lawLabel) { law = m.lawLabel }
-                            Text(evLabel(m.ev), color = c.ink2, fontSize = 13.sp)
+                            // the score lives in the law sheet (CP-P3): the card shows the ranking and a close call only
+                            LawChip(m.lawLabel) { law = m.lawLabel to m.ev }
                             if (m.closeCall) Text("close call", color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                         }
                         Text("If they see through it: ${m.ifExposed}", color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(start = 16.dp))
@@ -99,11 +99,11 @@ fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -
             }
         }
     }
-    law?.let { LawSheet(it) { law = null } }
+    law?.let { (label, score) -> LawSheet(label, score) { law = null } }
 }
 
-/** "EV +0.75" (two decimals; the card is a guide, not a ledger). */
-fun evLabel(ev: Double): String = "EV " + (if (ev >= 0) "+" else "") + "%.2f".format(java.util.Locale.US, ev)
+/** "Score: 0.15" (two decimals; the card is a guide, not a ledger). */
+fun scoreLabel(ev: Double): String = "Score: " + "%.2f".format(java.util.Locale.US, ev)
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
@@ -121,7 +121,7 @@ private fun Editable(label: String, value: String?, yours: Boolean, onTap: () ->
         Modifier.height(30.dp).clip(shape).background(if (yours) c.yoursBg else c.paper2).border(1.dp, c.line, shape)
             .clickable(onClick = onTap).padding(horizontal = 12.dp).semantics { contentDescription = "$label, tap to set" },
         verticalAlignment = Alignment.CenterVertically
-    ) { Text("$label: ${value ?: "not set"}" + if (yours) " (yours)" else "", color = c.ink, fontSize = 14.sp) }
+    ) { Text("$label: ${value ?: "tap to set"}" + if (yours) " (yours)" else "", color = c.ink, fontSize = 14.sp) }
 }
 
 @Composable
@@ -143,13 +143,14 @@ private fun LawChip(label: String, onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LawSheet(label: String, onClose: () -> Unit) {
+private fun LawSheet(label: String, score: Double?, onClose: () -> Unit) {
     val c = Calm.colors
     val uri = LocalUriHandler.current
     val notes = LawNotes.forLabel(label)
     ModalBottomSheet(onDismissRequest = onClose, containerColor = c.paper, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            score?.let { Text(scoreLabel(it), color = c.ink2, fontSize = 14.sp) }
             if (notes.isEmpty()) Text("No note for this one yet.", color = c.ink2, fontSize = 15.sp)
             notes.forEach { n ->
                 Text(n.label, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)

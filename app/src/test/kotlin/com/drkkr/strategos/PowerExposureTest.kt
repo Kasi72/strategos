@@ -59,6 +59,14 @@ class PowerExposureTest {
         assertEquals("trust defaults to 50", Exposure.ev(tactic(StrategicId.GO_TO_THE_DECIDER), 0.45, 50.0, c), Exposure.ev(tactic(StrategicId.GO_TO_THE_DECIDER), 0.45, null, c), 1e-12)
     }
 
+    @Test fun probingSeenOnceDoesNotRaiseQ_onlyConfirmedProbingDoes() {
+        val once = HumanContext(relationship = "manager", theirTactics = listOf("probes_you"), tacticTurns = mapOf("probes_you" to 1))
+        assertEquals(0.45, Exposure.q(once, RelationshipDomain.WORK_HIERARCHY, null, c), 1e-9)
+        assertEquals(0.60, Exposure.q(once.copy(tacticTurns = mapOf("probes_you" to 2)), RelationshipDomain.WORK_HIERARCHY, null, c), 1e-9)
+        // the salary story (probing seen once): Real competition at q 0.45 = 0.55 * 1.2 - 0.45 * 0.3 * 1.5
+        assertEquals(0.4575, Exposure.ev(tactic(StrategicId.REAL_COMPETITION), Exposure.q(once, RelationshipDomain.WORK_HIERARCHY, null, c), 50.0, c), 1e-9)
+    }
+
     @Test fun lowCredibilityCountsAsSuspicion() {
         val vendor = HumanContext(relationship = "vendor")
         assertEquals(0.05, Exposure.q(vendor, RelationshipDomain.NEGOTIATION, Stakeholder(id = "t", name = "T"), c), 1e-9)
