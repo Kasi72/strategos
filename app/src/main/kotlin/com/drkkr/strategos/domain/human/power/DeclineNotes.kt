@@ -16,4 +16,7 @@ object DeclineNotes {
     )
 
     fun of(userAsksFor: String?): String? = userAsksFor?.let { NOTES[it] }
+
+    /** [text] with a leading decline line removed (so a check on what a reply starts with still sees the reply). */
+    fun strip(text: String): String = NOTES.values.firstOrNull { text.startsWith(it) }?.let { text.removePrefix(it).trimStart() } ?: text
 }

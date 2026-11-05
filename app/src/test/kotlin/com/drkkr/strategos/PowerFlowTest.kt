@@ -151,4 +151,19 @@ class PowerFlowTest {
         turn(powerOn = false)
         assertFalse(conversations.messages(conversations.listThreads("deal").first().id).any { it.uiKind == "POWER_READ" })
     }
+
+    @Test
+    fun aDeclineAlsoLeadsAClarifyingQuestionTurn() = runBlocking {
+        val thin = """{"goal":"Get the raise","people":[{"name":"You","role":"player"},{"name":"Leela","role":"player"}],
+          "options":[{"who":"You","do":"Ask for a raise","posture":"repair"},{"who":"Leela","do":"Agree","posture":"receptive"},{"who":"Leela","do":"Refuse","posture":"defensive"}],
+          "enough_to_recommend":false,"clarifying_questions":["What does your manager know about your other options?"],
+          "relationship":"manager","user_asks_for":"false_facts"}"""
+        val gateway = CommittingGateway(start)
+        val controller = controllerWith(EngineEchoLlm(listOf(thin)), gateway)
+        controller.bindScenario("deal").join()
+        controller.send("Help me fake an offer letter so my manager pays me more.")!!.join(); controller.awaitIdle()
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertTrue(reply, reply.startsWith(DeclineNotes.of("false_facts")!!))
+        assertTrue(reply, reply.contains("Before I call it"))
+    }
 }

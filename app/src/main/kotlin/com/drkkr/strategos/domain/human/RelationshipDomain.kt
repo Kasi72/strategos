@@ -11,6 +11,17 @@ enum class RelationshipDomain {
 object RelationshipDomains {
 
     /**
+     * The same mapping, except that an unnamed counterpart ("other": an investor, a buyer, a lender) in a conversation with a
+     * non-empty negotiation block is a NEGOTIATION (CP-P2b). Used for delivery and Power Mode only: safety routing, the keyword
+     * screen and coercive-control routing keep the two-argument, most-protective reading.
+     */
+    fun of(relationship: String?, archetype: String?, negotiation: com.drkkr.strategos.domain.model.NegotiationContext?): RelationshipDomain {
+        val key = relationship?.trim()?.lowercase()
+        val inNegotiation = negotiation != null && negotiation != com.drkkr.strategos.domain.model.NegotiationContext()
+        return if (key == "other" && inNegotiation) RelationshipDomain.NEGOTIATION else of(relationship, archetype)
+    }
+
+    /**
      * Deterministic mapping from the extracted `relationship` word. Unknown or missing resolves to the MOST PROTECTIVE
      * domain that fits: INTIMATE for a relational-repair (or unlabelled) archetype, otherwise FRIENDSHIP.
      */

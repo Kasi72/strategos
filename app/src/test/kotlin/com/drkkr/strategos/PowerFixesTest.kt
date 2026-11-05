@@ -152,4 +152,32 @@ class PowerFixesTest {
         assertTrue(RelationshipDomain.WORK_HIERARCHY in t.tactic.domains)
         assertTrue(RelationshipDomain.WORK_PEER in t.tactic.domains)
     }
+
+    // ── pm4.6 ────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    @Test fun anOtherCounterpartInANegotiationIsANegotiation_otherwiseTheProtectiveDefault() {
+        val nc = com.drkkr.strategos.domain.model.NegotiationContext(batna = "open the round to the other two funds")
+        assertEquals(RelationshipDomain.NEGOTIATION, RelationshipDomains.of("other", null, nc))
+        assertEquals(RelationshipDomains.of("other", null), RelationshipDomains.of("other", null, null))
+        assertEquals(RelationshipDomains.of("other", null), RelationshipDomains.of("other", null, com.drkkr.strategos.domain.model.NegotiationContext()))
+        assertEquals(RelationshipDomain.INTIMATE, RelationshipDomains.of("other", null, null))
+        // a named relationship keeps its own domain even with a negotiation
+        assertEquals(RelationshipDomain.INTIMATE, RelationshipDomains.of("spouse", null, nc))
+        // the investor story gets moves, not the close-relationship note
+        val investor = Fx.pmVendor().let { it.copy(humanContext = it.humanContext!!.copy(relationship = "other"),
+            negotiationContext = it.negotiationContext!!.copy(batna = "open the round to the other two funds")) }
+        val p = PowerPlanner.plan(investor, RelationshipDomains.of("other", null, investor.negotiationContext), true, false, false, 50.0, 0.0)
+        assertTrue(p.closeDomainNote == null && p.cardMoves.isNotEmpty())
+        // safety routing still uses the protective reading
+        val coercive = HumanContext(relationship = "other", theirTactics = listOf("isolates_you"), tacticTurns = mapOf("isolates_you" to 1))
+        assertTrue(com.drkkr.strategos.domain.human.ManipulationRadar.scan(coercive, RelationshipDomains.of("other", null)).routeToSupport)
+    }
+
+    @Test fun rule19HasAWorkedExampleOfTheSides() {
+        val p = ArgonPrompts.EXTRACTION_PROMPT
+        assertTrue(p.contains("your_alternative: strong"))
+        assertTrue(p.contains("they_depend_on_you: high"))
+        val growth = p.length - PowerSketchTest.START_OF_BRANCH_LENGTH
+        assertTrue("grew by $growth", growth in 1..400)
+    }
 }

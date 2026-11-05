@@ -121,6 +121,9 @@ class OneShotTurn(
             is Reply.Sketch -> first.sketch
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
         }
+        // Power Mode: the fixed decline line leads EVERY reply this turn when the user asked for something manipulative (CP-P2b).
+        val decline = com.drkkr.strategos.domain.human.power.DeclineNotes.of(com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor)
+        fun declined(t: String) = decline?.let { "$it\n\n$t" } ?: t
         // Phase G.2: a message that only asks about the PREVIOUS reply ("what is that?", "why?") is answered directly
         // from that reply, never by re-running the engine into a near-duplicate answer. Routed before the trajectory and
         // Bayesian updates below, so asking a question never moves trust/tension or the learned priors.
@@ -130,7 +133,7 @@ class OneShotTurn(
                 onActivity("Answering your question…")
                 val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(loaded.negotiationContext, loaded.humanContext, text, recent = userTexts.takeLast(6).joinToString("\n"))
                 answerFollowUp(cid, turnId, text, prior, previousReportJson, deal)?.let { answer ->
-                    conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
+                    conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(answer))
                     afterTurn(cid)
                     return TurnResult.Done
                 }
@@ -155,7 +158,7 @@ class OneShotTurn(
         val understood = mutableListOf<String>()
         if (converted.ops.isEmpty()) {
             if (converted.ask != null || !hasModel) {
-                conversations.append(cid, turnId, MessageRole.ASSISTANT, converted.ask ?: COULD_NOT_READ)
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(converted.ask ?: COULD_NOT_READ))
                 return TurnResult.Done
             }
             nothingNew = true
@@ -194,7 +197,7 @@ class OneShotTurn(
                 recentUser, gateway.activeScenario()?.negotiationContext, earlier
             )
             if (qs.isNotEmpty()) {
-                conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(qs.map { it.text }) + "\n(Answer whichever you like, or say \"skip\" and I'll work with what I have.)")
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(buildClarify(qs.map { it.text }) + "\n(Answer whichever you like, or say \"skip\" and I'll work with what I have.)"))
                 afterTurn(cid)
                 return TurnResult.Done
             }
@@ -207,9 +210,9 @@ class OneShotTurn(
         // Concrete stakes (numbers) in the message mean there is something real to rank: do not hold the answer back for questions.
         if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty() && !hasConcreteStakes(text)) {
             val recentAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }.takeLast(CLARIFY_MAX)
-            val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { it.startsWith(CLARIFY_LEAD) }
+            val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { com.drkkr.strategos.domain.human.power.DeclineNotes.strip(it).startsWith(CLARIFY_LEAD) }
             if (!askedTooMuch) {
-                conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(parsed.clarifyingQuestions))
+                conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(buildClarify(parsed.clarifyingQuestions)))
                 afterTurn(cid)
                 return TurnResult.Done
             }
@@ -243,10 +246,9 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
-            val userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor
             val engineBody = if (argon != null) {
                 engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
-                    userAsksFor = userAsksFor)
+                    userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -254,7 +256,7 @@ class OneShotTurn(
                 if (talk != null) "$talk\n\n$reply" else "$note$reply"
             }
             // Power Mode: the fixed decline line, word for word, above whatever the reply is (the coach is told not to restate it).
-            val body = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor)?.let { "$it\n\n$engineBody" } ?: engineBody
+            val body = declined(engineBody)
             // The structured Do's/Don'ts ride along on the reply's payload so the Overview can aggregate them later.
             val assistant = conversations.append(
                 cid, turnId, MessageRole.ASSISTANT, if (converted.ask != null) "$body\n\n${converted.ask}" else body,
@@ -432,7 +434,7 @@ class OneShotTurn(
         val move = raw.actionsFor(owner.id).firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } ?: return d to null
         val spread = com.drkkr.strategos.domain.human.power.BenignEquivalent.spread(raw, move.id)
         val benign = d.delivery?.tactics.orEmpty().map { it to com.drkkr.strategos.domain.human.power.BenignEquivalent.of(it.deltaP, spread) }
-        val domain = com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null)
+        val domain = com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null, raw.negotiationContext)
         val plan = com.drkkr.strategos.domain.human.power.PowerPlanner.plan(raw, domain, powerOn, support, powerLock, trust,
             benignBest = benign.maxOfOrNull { it.second } ?: 0.0, move = move)
         if (plan.deliveryMoves.isEmpty()) return d to plan
