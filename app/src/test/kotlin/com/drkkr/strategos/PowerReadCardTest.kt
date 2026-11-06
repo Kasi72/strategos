@@ -71,11 +71,26 @@ class PowerReadCardTest {
     }
 
     @Test fun TC_PM_UI_05_aCloseRelationshipShowsTheNoteInsteadOfMoves() {
-        val close = full.copy(yourMoves = emptyList(), closeDomainNote = PowerPlanner.CLOSE_DOMAIN_NOTE)
+        val close = full.copy(yourMoves = emptyList(), noMoves = com.drkkr.strategos.domain.human.power.NoMovesReason.CLOSE_RELATIONSHIP, noMovesLine = PowerPlanner.CLOSE_DOMAIN_NOTE)
         compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(close, { _, _ -> }) } } }
         compose.onNodeWithText(PowerPlanner.CLOSE_DOMAIN_NOTE).assertExists()
         compose.onNodeWithText("L20").assertDoesNotExist()
         compose.onNodeWithText("Their plays").assertExists()
+    }
+
+    @Test fun pm61_noMovesAndNoReason_noYourMovesSection() {
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(full.copy(yourMoves = emptyList()), { _, _ -> }) } } }
+        compose.onNodeWithText("Your moves").assertDoesNotExist()
+        compose.onNodeWithText("Hardball", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Their plays").assertExists()
+    }
+
+    @Test fun pm61_theSpouseReadAsAnElderInCareShowsTheCloseNote() {
+        val s = Fx.pmSpouse().let { it.copy(humanContext = it.humanContext!!.copy(theirVulnerable = "elder_in_care")) }
+        val read = PowerRead.build(s, plan(s))
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(read, { _, _ -> }) } } }
+        compose.onNodeWithText(PowerPlanner.CLOSE_DOMAIN_NOTE).assertExists()
+        compose.onNodeWithText("doesn't pay", substring = true).assertDoesNotExist()
     }
 
     @Test fun TC_PM_UI_06_aLawChipOpensItsNoteWithAReadMoreLink() {

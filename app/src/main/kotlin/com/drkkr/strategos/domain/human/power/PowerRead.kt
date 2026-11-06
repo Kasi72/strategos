@@ -17,8 +17,10 @@ data class PowerRead(
     val leverage: Leverage = Leverage(),
     val theirPlays: List<Play> = emptyList(),
     val yourMoves: List<Move> = emptyList(),
-    val noHardballReason: String? = null,
-    val closeDomainNote: String? = null
+    /** Why there are no moves, from the plan (pm6.1); null when there are moves or the plan gave none. */
+    val noMoves: NoMovesReason? = null,
+    /** That reason's fixed line ([NoMovesLines]), the only text the card shows in place of moves. */
+    val noMovesLine: String? = null
 ) {
     /** Who needs whom, the alternatives on each side, who decides, whose clock it is, and the reputation at stake. */
     @Serializable
@@ -68,11 +70,14 @@ data class PowerRead(
         fun nameOf(id: StrategicId): String =
             id.name.lowercase().replace('_', ' ').replace("walkaway", "walk-away").replace("dont ", "don't ").replaceFirstChar { it.uppercase() }
 
-        /** The law numbers in a source ("48 Laws L3, L4" -> "L3/L4"), or the chapter when there is none ("Nudge Ch.15"). */
+        /**
+         * The law numbers in a source ("48 Laws L3, L4" -> "L3/L4"), or the chapter when there is none ("Nudge Ch.15"). A source with
+         * neither gets no label, so no chip (pm6.1: no fallback text on the card).
+         */
         fun lawLabel(source: String): String {
             val laws = Regex("""L\d+""").findAll(source).map { it.value }.distinct().toList()
             if (laws.isNotEmpty()) return laws.joinToString("/")
-            return Regex("""(?:Nudge )?Ch\.\s?\d+""").find(source)?.value ?: source
+            return Regex("""(?:Nudge )?Ch\.\s?\d+""").find(source)?.value.orEmpty()
         }
 
         /** The card for this turn, from the saved model, the radar and the plan. */
@@ -113,7 +118,8 @@ data class PowerRead(
                 ManipulationRadar.describe(tag)?.let { Play(it.sign, lawLabel(it.source), it.protect, seenOnce = (hc.tacticTurns[tag] ?: 0) < 2) }
             }
             val moves = plan.cardMoves.map { m -> Move(nameOf(m.tactic.id), lawLabel(m.tactic.tactic.source), m.ev, ifExposed(m.tactic.id), m.closeCall) }
-            return PowerRead(leverage, plays, moves, plan.noHardballReason, plan.closeDomainNote)
+            val noMoves = plan.noMoves.takeIf { moves.isEmpty() }
+            return PowerRead(leverage, plays, moves, noMoves, NoMovesLines.of(noMoves, plan.readAs, them?.name))
         }
     }
 }

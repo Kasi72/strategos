@@ -81,10 +81,11 @@ fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -
             }
         }
 
-        Section("Your moves") {
+        // No moves: only the plan's own reason line (pm6.1). No moves and no reason: the section isn't shown at all.
+        val noMovesLine = read.noMovesLine
+        if (read.yourMoves.isNotEmpty() || noMovesLine != null) Section("Your moves") {
             when {
-                read.closeDomainNote != null -> Text(read.closeDomainNote, color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp)
-                read.yourMoves.isEmpty() -> Text("Hardball doesn't pay here: ${read.noHardballReason ?: "nothing to gain"}.", color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp)
+                read.yourMoves.isEmpty() -> Text(noMovesLine.orEmpty(), color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp)
                 else -> read.yourMoves.forEachIndexed { i, m ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -151,7 +152,6 @@ private fun LawSheet(label: String, score: Double?, onClose: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(label, color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             score?.let { Text(scoreLabel(it), color = c.ink2, fontSize = 14.sp) }
-            if (notes.isEmpty()) Text("No note for this one yet.", color = c.ink2, fontSize = 15.sp)
             notes.forEach { n ->
                 Text(n.label, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(n.text, color = c.ink, fontSize = 15.sp, lineHeight = 22.sp)

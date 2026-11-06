@@ -167,7 +167,7 @@ class PowerFixesTest {
         val investor = Fx.pmVendor().let { it.copy(humanContext = it.humanContext!!.copy(relationship = "other"),
             negotiationContext = it.negotiationContext!!.copy(batna = "open the round to the other two funds")) }
         val p = PowerPlanner.plan(investor, RelationshipDomains.of("other", null, investor.negotiationContext), true, false, false, 50.0, 0.0)
-        assertTrue(p.closeDomainNote == null && p.cardMoves.isNotEmpty())
+        assertTrue(p.noMoves == null && p.cardMoves.isNotEmpty())
         // safety routing still uses the protective reading
         val coercive = HumanContext(relationship = "other", theirTactics = listOf("isolates_you"), tacticTurns = mapOf("isolates_you" to 1))
         assertTrue(com.drkkr.strategos.domain.human.ManipulationRadar.scan(coercive, RelationshipDomains.of("other", null)).routeToSupport)

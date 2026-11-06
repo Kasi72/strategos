@@ -52,7 +52,7 @@ class PowerReadTest {
         // a spouse: no moves, the close-relationship note
         val spouse = read(Fx.pmSpouse())
         assertTrue(spouse.yourMoves.isEmpty())
-        assertEquals(PowerPlanner.CLOSE_DOMAIN_NOTE, spouse.closeDomainNote)
+        assertEquals(PowerPlanner.CLOSE_DOMAIN_NOTE, spouse.noMovesLine)
     }
 
     @Test fun theirPlaysComeFromTheRadarWithTheLaw() {

@@ -92,6 +92,31 @@ class DeepSeekLiveFlowTest {
         } finally { DebugLog.sink = null; r.scope.cancel(); r.db.close() }
     }
 
+    /**
+     * pm6.1, rule 20: their_vulnerable describes the counterpart themself, not the people they look after. "His parents need him
+     * nearby" must leave their_vulnerable at none. Writes the last Call 1 output to EXTRACTION_FIXTURE_OUT when set (to record the
+     * offline fixture `human/spouseParentsNearby.json`).
+     */
+    @Test
+    fun spouseWhoseParentsNeedHim_isNotReadAsVulnerable() = runBlocking {
+        Assume.assumeTrue("DEEPSEEK_API_KEY not set; live flow skipped", key != null)
+        val r = rig(key!!, "move", "The move")
+        try {
+            r.say("My husband Ravi wants to move to his hometown and I don't. We've argued about it for weeks.")
+            r.say("He says his parents need him nearby. I think that's an excuse. What's my strongest move?")
+            val turns = r.llm.calls.filter { it.purpose == "TURN" }
+            assertTrue("two extraction calls", turns.size >= 2)
+            turns.forEach { t ->
+                val v = SketchParser.parse(t.text)?.theirVulnerable
+                assertTrue("their_vulnerable=$v in:\n${t.text}", v == null || v == "none")
+            }
+            val saved = r.gateway.activeScenario()?.humanContext?.theirVulnerable
+            assertTrue("saved their_vulnerable=$saved", saved == null || saved == "none")
+            System.getenv("EXTRACTION_FIXTURE_OUT")?.takeIf { it.isNotBlank() }?.let { java.io.File(it).writeText(turns.last().text) }
+            println("FLOW|PASS|their_vulnerable=$saved")
+        } finally { DebugLog.sink = null; r.scope.cancel(); r.db.close() }
+    }
+
     /** Replays a JSON array of messages from FLOW_MESSAGES_FILE and writes, for each: (a) call 1 options, (b) the engine's picks, (c) call 2's translation. */
     @Test
     fun replayMessagesFromFile() = runBlocking {

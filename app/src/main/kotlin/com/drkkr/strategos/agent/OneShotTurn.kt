@@ -337,7 +337,8 @@ class OneShotTurn(
         val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, settings.powerLock(), support, snap?.trustScore)
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready)
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
-        if (powerOn && directive.ready) {
+        // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
+        if (powerOn && directive.ready && !support) {
             val read = com.drkkr.strategos.domain.human.power.PowerRead.build(maskedRaw, powerPlan ?: com.drkkr.strategos.domain.human.power.PowerPlan())
             conversations.append(cid, turnId, MessageRole.TOOL_RESULT, text = "Power Read", toolName = "power_read", callId = turnId,
                 payloadJson = com.drkkr.strategos.domain.human.power.PowerReadCodec.encode(read), uiKind = UiKind.POWER_READ)
@@ -429,15 +430,19 @@ class OneShotTurn(
         d: EngineDirective, raw: com.drkkr.strategos.domain.model.Scenario, powerOn: Boolean, powerLock: Boolean, support: Boolean, trust: Double?
     ): kotlin.Pair<EngineDirective, com.drkkr.strategos.domain.human.power.PowerPlan?> {
         if (!powerOn || !d.ready) return d to null
-        val hc = raw.humanContext ?: return d to null
-        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(raw) ?: return d to null
-        val move = raw.actionsFor(owner.id).firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } ?: return d to null
-        val spread = com.drkkr.strategos.domain.human.power.BenignEquivalent.spread(raw, move.id)
-        val benign = d.delivery?.tactics.orEmpty().map { it to com.drkkr.strategos.domain.human.power.BenignEquivalent.of(it.deltaP, spread) }
-        val domain = com.drkkr.strategos.domain.human.RelationshipDomains.of(hc.relationship, null, raw.negotiationContext)
+        val hc = raw.humanContext
+        val owner = com.drkkr.strategos.domain.agent.IntakeChecklist.self(raw)
+        val move = owner?.let { o -> raw.actionsFor(o.id).firstOrNull { it.label.equals(d.moveToImplement, ignoreCase = true) } }
+        val spread = move?.let { com.drkkr.strategos.domain.human.power.BenignEquivalent.spread(raw, it.id) }
+        val benign = if (spread == null) emptyList() else d.delivery?.tactics.orEmpty().map { it to com.drkkr.strategos.domain.human.power.BenignEquivalent.of(it.deltaP, spread) }
+        val domain = com.drkkr.strategos.domain.human.RelationshipDomains.of(hc?.relationship, null, raw.negotiationContext)
+        // The plan is always made when Power Mode is on, so the card always has its moves or the one reason there are none (pm6.1).
+        // Without the engine's move no tactic can apply to it, so no candidates (the planner then says NOTHING_APPLIES).
         val plan = com.drkkr.strategos.domain.human.power.PowerPlanner.plan(raw, domain, powerOn, support, powerLock, trust,
-            benignBest = benign.maxOfOrNull { it.second } ?: 0.0, move = move)
-        if (plan.deliveryMoves.isEmpty()) return d to plan
+            benignBest = benign.maxOfOrNull { it.second } ?: 0.0, move = move,
+            tactics = if (move == null) emptyList() else com.drkkr.strategos.domain.human.power.StrategicCatalog.tactics)
+        // Hardball joins the coach's delivery only for the engine's own move (I-H1).
+        if (plan.deliveryMoves.isEmpty() || hc == null || move == null) return d to plan
         val hard = plan.deliveryMoves.map { t ->
             com.drkkr.strategos.domain.human.PlannedTactic(t.id, t.hint(raw, hc), 0.0) to (plan.ev[t.id] ?: 0.0)
         }

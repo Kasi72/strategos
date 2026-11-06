@@ -1,0 +1,195 @@
+{
+ "note": "pm6.1 rule 20: Call 1 output recorded live (DeepSeek, 2026-11-06) for the second message; their_vulnerable describes the person themself, not people they look after.",
+ "messages": [
+  "My husband Ravi wants to move to his hometown and I don't. We've argued about it for weeks.",
+  "He says his parents need him nearby. I think that's an excuse. What's my strongest move?"
+ ],
+ "sketch": {
+  "goal": "Reach a decision about the move the user can live with, without endless re-arguing",
+  "archetype": "CHICKEN_GAME",
+  "trust_delta": -2,
+  "tension_delta": 3,
+  "backstory_only": false,
+  "support": false,
+  "people": [
+   {
+    "name": "You",
+    "role": "player",
+    "wants": "to not move to his hometown",
+    "fears": "being pushed into a move she doesn't want"
+   },
+   {
+    "name": "Ravi",
+    "role": "player",
+    "wants": "to move to his hometown"
+   }
+  ],
+  "options": [
+   {
+    "who": "You",
+    "do": "Tell Ravi plainly that you don't want to move, and name what you'd need to even consider it",
+    "posture": "repair"
+   },
+   {
+    "who": "You",
+    "do": "Say the move is off the table for now and stop re-arguing it",
+    "posture": "boundary"
+   },
+   {
+    "who": "You",
+    "do": "Keep arguing the point every time he brings it up until he drops it",
+    "posture": "reactive"
+   },
+   {
+    "who": "Ravi",
+    "do": "Talk through what he wants from the move and listen to your side",
+    "posture": "receptive"
+   },
+   {
+    "who": "Ravi",
+    "do": "Keep pressing the move or shut down the conversation",
+    "posture": "defensive"
+   }
+  ],
+  "dims": [
+   "RELATIONSHIPS",
+   "WELLBEING",
+   "LONG_TERM_VALUE"
+  ],
+  "outcomes": [
+   {
+    "when": [
+     "Tell Ravi plainly that you don't want to move, and name what you'd need to even consider it",
+     "Talk through what he wants from the move and listen to your side"
+    ],
+    "for_you": [
+     8,
+     8,
+     8
+    ],
+    "for_them": [
+     7,
+     7,
+     7
+    ]
+   },
+   {
+    "when": [
+     "Tell Ravi plainly that you don't want to move, and name what you'd need to even consider it",
+     "Keep pressing the move or shut down the conversation"
+    ],
+    "for_you": [
+     5,
+     5,
+     6
+    ],
+    "for_them": [
+     5,
+     5,
+     5
+    ]
+   },
+   {
+    "when": [
+     "Say the move is off the table for now and stop re-arguing it",
+     "Talk through what he wants from the move and listen to your side"
+    ],
+    "for_you": [
+     7,
+     7,
+     7
+    ],
+    "for_them": [
+     5,
+     6,
+     6
+    ]
+   },
+   {
+    "when": [
+     "Say the move is off the table for now and stop re-arguing it",
+     "Keep pressing the move or shut down the conversation"
+    ],
+    "for_you": [
+     6,
+     6,
+     6
+    ],
+    "for_them": [
+     4,
+     4,
+     4
+    ]
+   },
+   {
+    "when": [
+     "Keep arguing the point every time he brings it up until he drops it",
+     "Talk through what he wants from the move and listen to your side"
+    ],
+    "for_you": [
+     4,
+     4,
+     3
+    ],
+    "for_them": [
+     3,
+     3,
+     3
+    ]
+   },
+   {
+    "when": [
+     "Keep arguing the point every time he brings it up until he drops it",
+     "Keep pressing the move or shut down the conversation"
+    ],
+    "for_you": [
+     2,
+     2,
+     2
+    ],
+    "for_them": [
+     3,
+     2,
+     3
+    ]
+   }
+  ],
+  "limits": [],
+  "ask": null,
+  "user_last_move_posture": "none",
+  "counterpart_observed_reaction": "none",
+  "message_kind": "situation",
+  "enough_to_recommend": false,
+  "clarifying_questions": [
+   "When you push back on the move, does Ravi usually talk it through or go quiet and drop it?",
+   "What would you actually accept — staying put entirely, or moving only under certain conditions?"
+  ],
+  "negotiation": null,
+  "relationship": {
+   "person": "Ravi",
+   "type": "partner"
+  },
+  "power": null,
+  "status_quo": null,
+  "your_state": "tense",
+  "their_state": "unknown",
+  "option_tags": {
+   "Tell Ravi plainly that you don't want to move, and name what you'd need to even consider it": [
+    "open_ended",
+    "their_interest",
+    "future_commitment"
+   ],
+   "Say the move is off the table for now and stop re-arguing it": [
+    "sets_default",
+    "withdraws"
+   ],
+   "Keep arguing the point every time he brings it up until he drops it": [
+    "argues",
+    "immediate"
+   ]
+  },
+  "their_tactics": [],
+  "last_attempt_tags": [],
+  "user_asks_for": "none"
+ }
+}

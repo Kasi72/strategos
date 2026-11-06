@@ -41,7 +41,8 @@ class HumanPromptTest {
         // sentences to rule 18 (if_no_deal is never the walk-away line; their_limit is never their current quote) (+224 chars), so the limit is 2,442 (actual 2,402).
         // Power Mode PM3.1 added probes_you to their_tactics, the user_asks_for rule and its schema key (+249 chars, the one HL limit that step may raise), so the limit is 2,691 (actual 2,651). pm4.5 rewrote rules 18 and 19 so each side is explicit and renamed their_alternative to their_if_no_deal in `negotiation`, folding in the two ng5 sentences: -15 chars, so the limit stays 2,691 (actual 2,636).
         // pm4.6 added a one-line worked example of the sides to rule 19 (+135 chars), so the limit is 2,826 (actual 2,771).
-        assertTrue("prompt grew by $growth chars", growth in 1..2826)
+        // pm6.1 added "(them, not who they care for)" to their_vulnerable in rule 20 (+30 chars), so the limit is 2,856 (actual 2,801).
+        assertTrue("prompt grew by $growth chars", growth in 1..2856)
     }
 
     @Test
