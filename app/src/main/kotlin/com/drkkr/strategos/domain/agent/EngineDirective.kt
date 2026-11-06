@@ -85,6 +85,8 @@ data class EngineDirective(
     val autoTopOptions: Boolean = false,
     /** ID1.6: the fixed fallback line, set only when the fallback shift changed the pick (also appended to [recommendedWhy]). Never in the JSON on its own. */
     val fallbackLine: String? = null,
+    /** ID2.3: the advice changed since last turn on a turn that saved changes. In the JSON as `changed_since_last` only when set. */
+    val changedSinceLast: com.drkkr.strategos.domain.intent.RecommendationDiff? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -152,6 +154,7 @@ data class EngineDirective(
         pendingCooling?.let { put("pending_cooling", it) }
         if (watchFor.isNotEmpty()) putJsonArray("watch_for") { watchFor.forEach { w -> addJsonObject { put("sign", w.sign); put("protect", w.protect) } } }
         deal?.let { put("deal", it.toJson()) }
+        changedSinceLast?.let { put("changed_since_last", it.toJson()) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }

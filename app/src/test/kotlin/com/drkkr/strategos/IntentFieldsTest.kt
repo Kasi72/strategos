@@ -45,9 +45,9 @@ class IntentFieldsTest {
     private val main = """"people":[{"name":"You","role":"player"},{"name":"Karthik","role":"player"}],
       "options":[{"who":"You","do":"Hold firm","posture":"boundary"},{"who":"You","do":"Ask for a week","posture":"repair"},
         {"who":"Karthik","do":"Agree","posture":"receptive"},{"who":"Karthik","do":"Refuse","posture":"defensive"}],
-      "dims":["COST","RELATIONSHIPS"],
-      "outcomes":[{"when":["Hold firm","Agree"],"for_you":["+","0"],"for_them":["-","0"]},{"when":["Hold firm","Refuse"],"for_you":["-","-"],"for_them":["0","-"]},
-        {"when":["Ask for a week","Agree"],"for_you":["0","+"],"for_them":["0","+"]},{"when":["Ask for a week","Refuse"],"for_you":["-","0"],"for_them":["0","0"]}]"""
+      "dims":["COST","RELATIONSHIPS","LONG_TERM_VALUE"],
+      "outcomes":[{"when":["Hold firm","Agree"],"for_you":["+","0","+"],"for_them":["-","0","0"]},{"when":["Hold firm","Refuse"],"for_you":["-","-","0"],"for_them":["0","-","0"]},
+        {"when":["Ask for a week","Agree"],"for_you":["0","+","+"],"for_them":["0","+","0"]},{"when":["Ask for a week","Refuse"],"for_you":["-","0","0"],"for_them":["0","0","0"]}]"""
     private val whatIf = """"what_if":{"people":[{"name":"You","role":"player"},{"name":"Meena","role":"player"}],
       "options":[{"who":"You","do":"Offer 50k","posture":"repair"},{"who":"Meena","do":"Take it","posture":"receptive"}],
       "dims":["COST"],"outcomes":[{"when":["Offer 50k","Take it"],"for_you":["++"],"for_them":["+"]}],
@@ -83,6 +83,7 @@ class IntentFieldsTest {
         assertEquals(bytes(saved), bytes(withWhatIf))
         assertTrue(withWhatIf.stakeholders.none { it.name == "Meena" })
         assertTrue(withWhatIf.actions.none { it.label == "Offer 50k" })
+        assertEquals("the main part's payoffs are saved", 8, withWhatIf.payoffs.size)
         // a later turn on top of the saved one: still byte-identical
         assertEquals(bytes(save("""{$main}""", saved)), bytes(save("""{$main,$whatIf}""", saved)))
     }

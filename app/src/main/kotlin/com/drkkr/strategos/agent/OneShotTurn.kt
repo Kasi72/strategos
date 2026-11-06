@@ -158,6 +158,8 @@ class OneShotTurn(
         val hasModel = scenario.actions.isNotEmpty()
         var nothingNew = false
         val understood = mutableListOf<String>()
+        // ID2.3: what this turn saved, for the "advice changed because" lines (Kotlin's own descriptions of the ops).
+        val turnOps = mutableListOf<com.drkkr.strategos.domain.agent.ChangeOp>()
         if (converted.ops.isEmpty()) {
             if (converted.ask != null || !hasModel) {
                 conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(converted.ask ?: COULD_NOT_READ))
@@ -171,6 +173,7 @@ class OneShotTurn(
                 nothingNew = true
             } else {
                 understood += PlainResult.understood(applied.accepted, scenario)
+                turnOps += applied.accepted
             }
         }
 
@@ -252,7 +255,7 @@ class OneShotTurn(
                 engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
-                    intent = parsed.intentKind, intentDetail = parsed.intentDetail,
+                    intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
                     whatIfOps = if (converted.support) emptyList() else parsed.whatIf?.let { w -> runCatching { SketchConverter.toOps(w, after).ops }.getOrNull() }.orEmpty())
             } else {
                 val reply = PlainResult.build(after, pr, understood)
@@ -289,7 +292,10 @@ class OneShotTurn(
         /** Intent Dispatch: what the user asked for this turn (never stored), its detail, and the hypothetical's ops. */
         intent: com.drkkr.strategos.domain.intent.Intent = com.drkkr.strategos.domain.intent.Intent.STANDARD,
         intentDetail: com.drkkr.strategos.domain.agent.IntentDetail? = null,
-        whatIfOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList()
+        whatIfOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
+        /** ID2.3: the ops this turn saved from the user's message, and the scenario they were applied to. */
+        turnOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
+        turnBefore: com.drkkr.strategos.domain.model.Scenario = s
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -366,7 +372,11 @@ class OneShotTurn(
         // Power Mode: hardball moves join the delivery when they pay (I-P3); the decline note is set in any mode.
         val powerOn = settings.isPowerMode(cid)
         val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, lock, support, snap?.trustScore)
-        val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready)
+        // ID2.3: the advice changed since last turn, on a standard turn that saved changes (built in Kotlin from the ops).
+        val diff = if (!powered.ready) null else com.drkkr.strategos.domain.intent.RecommendationDiff.of(
+            intent, previousMove, powered.recommendedMove, turnOps, turnBefore, s, com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.id, deal)
+        val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
+            changedSinceLast = diff)
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
