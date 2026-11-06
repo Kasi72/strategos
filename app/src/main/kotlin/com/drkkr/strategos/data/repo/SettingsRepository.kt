@@ -68,6 +68,10 @@ class SettingsRepository(private val db: StrategosDatabase) {
 
     suspend fun get(key: String): String? = dao.get(key)
 
+    /** ID4.2: a cross-project insight is shown at most once per conversation per matched project. */
+    suspend fun crossProjectShown(cid: String, pid: String): Boolean = dao.get(com.drkkr.strategos.domain.intent.CrossProjectMatcher.shownKey(cid, pid)) == "1"
+    suspend fun setCrossProjectShown(cid: String, pid: String) = put(com.drkkr.strategos.domain.intent.CrossProjectMatcher.shownKey(cid, pid), "1")
+
     /** Set when a turn gets 401: the stored key stopped working. Cleared by a successful save (§11.5.1). */
     suspend fun keyInvalid(): Boolean = dao.get(AI_KEY_INVALID) == "true"
     suspend fun setKeyInvalid(v: Boolean) = put(AI_KEY_INVALID, v.toString())

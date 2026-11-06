@@ -73,7 +73,9 @@ class OneShotTurn(
     /** Argon: prefix-cached request, JSON mode, coach guide in the answer, and one trajectory point per turn. Null keeps the v2.0 flow. */
     private val argon: ArgonTurn? = null,
     /** R4: writes a GameModelEntity + DecisionCertificateEntity when the solver reaches VERIFIED integrity. */
-    private val certificates: CertificateRepository? = null
+    private val certificates: CertificateRepository? = null,
+    /** ID4.2: the user's other projects as the matcher sees them (loaded by the controller from the repositories). */
+    private val otherProjects: suspend (currentScenarioId: String) -> List<com.drkkr.strategos.domain.intent.ProjectFeatures> = { emptyList() }
 ) {
     class ArgonTurn(val assembler: ContextAssembler, val trajectory: TrajectoryRepository, val journal: com.drkkr.strategos.data.repo.JournalRepository? = null)
 
@@ -401,6 +403,12 @@ class OneShotTurn(
                     com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel), dominatedIds, powered.delivery, close)
             }.getOrNull()
         }
+        // ID4.2: another project that shares a person or a pattern, at most once per conversation per project.
+        val crossProject = if (!powered.ready || support) null else runCatching {
+            val others = otherProjects(s.id)
+            val shown = others.filter { settings.crossProjectShown(cid, it.id) }.map { it.id }.toSet()
+            com.drkkr.strategos.domain.intent.CrossProjectMatcher.match(com.drkkr.strategos.domain.intent.CrossProjectMatcher.features(s), others, shown)
+        }.getOrNull()
         // ID2.3: the advice changed since last turn, on a standard turn that saved changes (built in Kotlin from the ops).
         val diff = if (!powered.ready) null else com.drkkr.strategos.domain.intent.RecommendationDiff.of(
             intent, previousMove, powered.recommendedMove, turnOps, turnBefore, s, com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.id, deal)
@@ -428,7 +436,7 @@ class OneShotTurn(
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
             compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready },
             theirReaction = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TheirReaction)?.block?.takeIf { powered.ready },
-            planAhead = planAhead,
+            planAhead = planAhead, crossProject = crossProject,
             // ID3.5: on every engine turn with a pick.
             confidence = if (!powered.ready) null else com.drkkr.strategos.domain.intent.ConfidenceSummary.of(
                 powered.confidenceLevel, powered.stressVerdict == "FRAGILE", stress, powered.labelIssues, nextQuestion,
@@ -483,6 +491,8 @@ class OneShotTurn(
         val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
             band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
         return if (reply != null) {
+            // ID4.2: shown once per conversation per matched project, counted when a reply that could carry it is shown.
+            directive.crossProject?.let { runCatching { settings.setCrossProjectShown(cid, it.projectId) } }
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
             var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" },
                 tactics = directive.delivery?.tactics.orEmpty().map { it.id.name })

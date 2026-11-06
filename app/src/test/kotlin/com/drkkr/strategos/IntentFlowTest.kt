@@ -174,4 +174,22 @@ class IntentFlowTest {
         assertTrue("the engine ran and the coach got a directive", llm.requests.count { it.purpose == "COACH" } > coachCalls)
         assertNotNull(llm.lastDirective!!["top_options"])
     }
+
+    @Test fun TC_ID_XP_04_theInsightIsShownOncePerConversationPerProject() = runBlocking {
+        val gateway = CommittingGateway(start).apply {
+            others = listOf(Scenario(id = "other", title = "Holiday plans with Meera", stakeholders = listOf(
+                com.drkkr.strategos.domain.model.Stakeholder(id = "u", name = "You"), com.drkkr.strategos.domain.model.Stakeholder(id = "m", name = "Meera"))))
+        }
+        val llm = EngineEchoLlm(listOf(spouse(true), spouse(true)))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("s").join()
+        controller.send("My wife Meera told her sister about our loan. I want it kept private between us.")!!.join(); controller.awaitIdle()
+        val first = llm.lastDirective!!["cross_project"] as JsonObject
+        assertEquals("Holiday plans with Meera", first["title"]!!.jsonPrimitive.content)
+        assertEquals("the same person: Meera", first["shared"]!!.jsonPrimitive.content)
+        assertTrue(settings.crossProjectShown(controller.state.value.conversationId!!, "other"))
+        controller.send("She did it again today.")!!.join(); controller.awaitIdle()
+        assertTrue("a second engine turn ran", llm.requests.count { it.purpose == "COACH" } >= 2)
+        assertEquals(null, llm.lastDirective!!["cross_project"])
+    }
 }

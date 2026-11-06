@@ -55,6 +55,8 @@ import kotlin.math.roundToInt
 /** The scenario side the controller needs. Implemented by StrategosViewModel (§10.5). */
 interface CounselGateway : ScenarioGateway {
     suspend fun commitAgentChange(updated: Scenario): SaveResult
+    /** ID4.2: every saved project (deleted ones are gone; archived ones are filtered by the matcher). */
+    fun allScenarios(): List<Scenario> = emptyList()
 }
 
 /** Everything the controller uses, built by AppContainer (or by a test). */
@@ -118,7 +120,12 @@ class CounselController(
         deps.llm, deps.conversations, deps.changeSets, deps.settings, gateway, autoApply = ::autoApply,
         onSupport = { showModelSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
         argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!, deps.journal) },
-        certificates = deps.certificates
+        certificates = deps.certificates,
+        otherProjects = { currentId ->
+            gateway.allScenarios().filter { it.id != currentId }.map { s ->
+                com.drkkr.strategos.domain.intent.CrossProjectMatcher.features(s, runCatching { deps.outcomes?.recentForScenario(s.id) }.getOrNull().orEmpty())
+            }
+        }
     )
 
     init {

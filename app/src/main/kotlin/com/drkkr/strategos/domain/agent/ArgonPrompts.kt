@@ -173,6 +173,7 @@ HARD RULES:
 29. THEIR REACTION. If `their_reaction` is present, say how they would likely take `move` using `band` and `likely_reply`, and the reason in `driver`. Words only: never a percentage, a number or odds.
 30. CONFIDENCE. Only when not HIGH (`confidence.tier`): add one short clause in plain words from `confidence.reason`; `gap`, if present, is already your one question. Say nothing about confidence when it is HIGH.
 31. PLAN AHEAD. If `plan_ahead` is present, give it as a plan to adapt, not a prediction: `clear_win_move` is `first.move` (with its timing and channel if given); `do_this` has one bullet per branch, "If they `if_they`, `then_you`" (when `then_you` is `first.move`, say to hold that position), then one for `close` (up to 3 bullets here). No odds.
+32. OTHER PROJECT. If `cross_project` is present, add at most one sentence in `what_happened` naming its `title` and what is `shared` (and `what_worked`, if present, in the same sentence). Nothing else from that project.
 
 JSON SCHEMA:
 {

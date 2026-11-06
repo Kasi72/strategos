@@ -13,6 +13,8 @@ data class PersonCarryOver(val name: String, val sourceScenarioId: String, val s
  * as AI_INFERRED so they show up flagged for review, never silently filed. Pure; the caller saves.
  */
 object CrossProjectPeople {
+    /** Two projects' people are the same person when the names match, ignoring case (Intent Dispatch ID4.2 uses the same rule). */
+    fun samePerson(a: String, b: String): Boolean = a.equals(b, ignoreCase = true)
 
     /** People in [target] who are still blank here but fleshed out in another project. One suggestion per name. */
     fun suggestions(target: Scenario, others: List<Scenario>): List<PersonCarryOver> {
@@ -21,7 +23,7 @@ object CrossProjectPeople {
             .filter { !it.name.equals("You", ignoreCase = true) && it.isSparse() }
             .mapNotNull { blank ->
                 sources.firstNotNullOfOrNull { src ->
-                    src.stakeholders.firstOrNull { it.name.equals(blank.name, ignoreCase = true) && !it.isSparse() }
+                    src.stakeholders.firstOrNull { samePerson(it.name, blank.name) && !it.isSparse() }
                         ?.let { PersonCarryOver(blank.name, src.id, it.id) }
                 }
             }

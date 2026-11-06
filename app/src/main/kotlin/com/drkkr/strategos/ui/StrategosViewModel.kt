@@ -131,6 +131,7 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         override suspend fun analyzeAndPublish() = analyzeAndAwait()
         override fun lastResults() = _state.value.analysisResults
         override suspend fun commitAgentChange(updated: Scenario): SaveResult = this@StrategosViewModel.commitAgentChange(updated)
+        override fun allScenarios(): List<Scenario> = repo.scenarios.value
     }
 
     /** AI key, consent and model settings (null when secure storage is unavailable). */

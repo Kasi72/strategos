@@ -99,6 +99,8 @@ data class EngineDirective(
     val theirReaction: com.drkkr.strategos.domain.intent.TheirReactionBlock? = null,
     /** ID4.1: three exchanges, a plan to adapt. In the JSON as `plan_ahead` only when set. */
     val planAhead: com.drkkr.strategos.domain.intent.PlanAheadBlock? = null,
+    /** ID4.2: another project of the user's that shares a person or a pattern. In the JSON as `cross_project` only when set. */
+    val crossProject: com.drkkr.strategos.domain.intent.CrossProjectInsight? = null,
     /** ID3.5: tier, fixed reason, missing fact. Set on every engine turn by the turn (never by the builder, so its snapshots hold). */
     val confidence: com.drkkr.strategos.domain.intent.ConfidenceSummary? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
@@ -175,6 +177,7 @@ data class EngineDirective(
         topOptions?.takeIf { it.isNotEmpty() }?.let { put("top_options", com.drkkr.strategos.domain.intent.TopOptions.toJson(it)) }
         theirReaction?.let { put("their_reaction", it.toJson()) }
         planAhead?.let { put("plan_ahead", it.toJson()) }
+        crossProject?.let { put("cross_project", it.toJson()) }
         confidence?.let { put("confidence", it.toJson()) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }

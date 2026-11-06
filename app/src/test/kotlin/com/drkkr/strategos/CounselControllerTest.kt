@@ -54,6 +54,9 @@ import org.robolectric.annotation.Config
 class CommittingGateway(scenario: Scenario?) : CounselGateway {
     val inner = FakeGateway(scenario)
     var commits = 0
+    /** ID4.2: the user's other projects. */
+    var others: List<Scenario> = emptyList()
+    override fun allScenarios(): List<Scenario> = listOfNotNull(inner.scenario) + others
     override fun activeScenario() = inner.scenario
     override suspend fun analyzeAndPublish() = inner.analyzeAndPublish()
     override fun lastResults() = inner.lastResults()
