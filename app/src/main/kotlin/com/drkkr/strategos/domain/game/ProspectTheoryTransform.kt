@@ -30,7 +30,15 @@ object ProspectTheoryTransform {
         val lambda: Double = 2.25,
         /** Reference point per player (defaults to 0 for all players). */
         val referencePoints: List<Double> = emptyList()
-    )
+    ) {
+        init {
+            // alpha ≤ 0 or beta ≤ 0 causes 0.0.pow(negative) = Infinity in valueFunction,
+            // which corrupts the utility matrix and produces NaN mixed strategies.
+            require(alpha > 0.0) { "alpha must be positive, got $alpha" }
+            require(beta > 0.0)  { "beta must be positive, got $beta" }
+            require(lambda > 0.0) { "lambda must be positive, got $lambda" }
+        }
+    }
 
     val DEFAULT = Config()
 

@@ -28,7 +28,10 @@ object BackwardInductionSolver {
     fun solve(root: SequenceNode?, weights: Map<PayoffDimension, Double>): Result? {
         root ?: return null
         val (path, payoffMap) = backward(root, weights) ?: return null
-        return Result(path, payoffMap)
+        // root.actionLabel is the action that reached the root (meaningless for the root itself).
+        // When the root is a bare leaf the label IS the terminal action — keep it.
+        val equilibriumPath = if (root.children.isEmpty()) path else path.drop(1)
+        return Result(equilibriumPath, payoffMap)
     }
 
     private fun backward(
@@ -47,8 +50,9 @@ object BackwardInductionSolver {
         if (childSolutions.isEmpty()) return null
 
         return if (node.stakeholderId == null) {
-            // Chance node: expectation weighted by child probability
-            val totalProb = node.children.sumOf { it.probability }.coerceAtLeast(1e-9)
+            // Chance node: expectation weighted by child probability.
+            // Use only solved children's probabilities — unsolved branches have no payoffs to weight.
+            val totalProb = childSolutions.sumOf { (child, _) -> child.probability }.coerceAtLeast(1e-9)
             val expectedPayoffs = mutableMapOf<String, MultiPayoff>()
             for ((child, solution) in childSolutions) {
                 val w = child.probability / totalProb

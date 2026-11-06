@@ -27,7 +27,7 @@ object ChangeSetValidator {
         val accepted = mutableListOf<IndexedOp>()
         val rejected = mutableListOf<OpRejection>()
         ops.forEachIndexed { i, op ->
-            val reason = try { ws.check(op) } catch (e: Exception) { "invalid_op" }
+            val reason = try { ws.check(op) } catch (e: Exception) { "internal_error" }
             if (reason == null) {
                 ws.commit(op, newId)
                 accepted += IndexedOp(i, op)
@@ -47,7 +47,7 @@ object ChangeSetValidator {
         try {
             Workspace(scenario, refIds.toMutableMap(), batchMode = false, establishedDims = dims).check(op)
         } catch (e: Exception) {
-            "invalid_op"
+            "internal_error"
         }
 
     /** Resolved model state as ops are processed in order. */
@@ -156,7 +156,7 @@ object ChangeSetValidator {
                 bad(op.difficulty, 1.0, 5.0) -> "difficulty"
                 bad(op.timeCostDays, 0.0, Double.MAX_VALUE) -> "time_cost_days"
                 bad(op.probability, 0.0, 1.0) -> "probability"
-                op.cost?.let { it.isNaN() || it.isInfinite() } == true -> "cost"
+                op.cost?.let { it < 0.0 || it.isNaN() || it.isInfinite() } == true -> "cost"
                 (op.goals?.size ?: 0) > 5 -> "goals"
                 (op.fears?.size ?: 0) > 5 -> "fears"
                 (op.incentives?.size ?: 0) > 5 -> "incentives"
