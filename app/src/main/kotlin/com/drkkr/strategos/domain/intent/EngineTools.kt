@@ -25,9 +25,14 @@ object EngineTools {
     /** ID3.2: two moves side by side. */
     suspend fun compare(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = Compare.run(input, pipeline)
 
+    /** ID3.3: best, upside and insurance on the turn's view. */
+    fun topOptions(input: RouteInput): IntentResult =
+        TopOptions.of(input.view, input.decide(input.view), input.dominated).takeIf { it.isNotEmpty() }?.let { IntentResult.TopOptionsList(it) } ?: IntentResult.None
+
     /** The handlers the router uses in the app. An intent answers [IntentResult.None] until its step. */
     val handlers: IntentHandlers = object : IntentHandlers {
         override suspend fun whatIf(input: RouteInput) = EngineTools.whatIf(input)
         override suspend fun compare(input: RouteInput) = EngineTools.compare(input)
+        override suspend fun topOptions(input: RouteInput) = EngineTools.topOptions(input)
     }
 }

@@ -16,6 +16,8 @@ sealed class IntentResult {
     data class WhatIf(val block: WhatIfBlock) : IntentResult()
     /** ID3.2: two moves side by side. */
     data class Compare(val block: CompareBlock) : IntentResult()
+    /** ID3.3: up to three moves in three roles. */
+    data class TopOptionsList(val options: List<TopOption>) : IntentResult()
 }
 
 /**
@@ -39,6 +41,8 @@ data class RouteInput(
     val prepare: (Scenario) -> Scenario = TurnChain.prepare(deal, sides),
     /** The engine's pick on a prepared view, through the directive's own guards (walk-away, dominance, stated floor); null = none. */
     val decide: (Scenario) -> String? = { null },
+    /** The user's moves the dominance pruner eliminated (action ids), never offered as an option. */
+    val dominated: Set<String> = emptySet(),
     /** How sharply they pick their best reply ([com.drkkr.strategos.domain.human.ResponseModel.betaFrom]). */
     val beta: Double = 1.0
 )

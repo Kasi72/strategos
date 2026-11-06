@@ -40,8 +40,9 @@ class IntentRouterTest {
             IntentRouter(r).route(RouteInput(i, Fx.loanFamily()))
             if (i == Intent.STANDARD) assertEquals(emptyList<String>(), r.calls) else assertEquals(listOf(i.word), r.calls)
         }
-        // the app's handlers answer None until each intent's step
-        for (i in Intent.entries) assertSame(IntentResult.None, IntentRouter().route(RouteInput(i, Fx.loanFamily())))
+        // the app's handlers answer None without what they need (no hypothetical, no moves named) or before their step;
+        // top_options (ID3.3) needs nothing more than the view, so it answers
+        for (i in Intent.entries - Intent.TOP_OPTIONS) assertSame(i.word, IntentResult.None, IntentRouter().route(RouteInput(i, Fx.loanFamily())))
     }
 
     @Test fun TC_ID_INT_04_aSupportTurnRunsNoHandler() = kotlinx.coroutines.runBlocking {

@@ -315,6 +315,9 @@ class OneShotTurn(
             )
         }
         // ID2.2: exactly one handler for the turn's intent, on copies of the view; none on a support turn (I-D4).
+        // The user's moves the pruner eliminated (never offered as an option by an intent block).
+        val ownerId = com.drkkr.strategos.domain.agent.IntakeChecklist.self(view)?.id
+        val dominatedIds = gameContext.pruneResult?.eliminated?.get(ownerId).orEmpty().toSet()
         val intentResult = if (support || intent == com.drkkr.strategos.domain.intent.Intent.STANDARD) com.drkkr.strategos.domain.intent.IntentResult.None
         else withContext(Dispatchers.Default) {
             runCatching {
@@ -323,7 +326,7 @@ class OneShotTurn(
                 val decide = com.drkkr.strategos.domain.intent.TurnChain.decide(deal, com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text))
                 com.drkkr.strategos.domain.intent.IntentRouter().route(com.drkkr.strategos.domain.intent.RouteInput(
                     intent, view, whatIfOps, intentDetail, base = raw, deal = deal, sides = fallback.sides, prepare = prepare, decide = decide,
-                    beta = com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel)))
+                    dominated = dominatedIds, beta = com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel)))
             }.getOrDefault(com.drkkr.strategos.domain.intent.IntentResult.None)
         }
         DebugLog.d { "INTENT ${intent.word} -> ${intentResult::class.simpleName}" }
@@ -392,7 +395,11 @@ class OneShotTurn(
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
             changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready },
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
-            compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready })
+            compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready },
+            // ID3.3: asked for, or on its own when the pick is FRAGILE or the labels favoured one option everywhere.
+            topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
+                ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))
+                    com.drkkr.strategos.domain.intent.TopOptions.of(view, powered.recommendedMove, dominatedIds).takeIf { it.isNotEmpty() } else null)
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
