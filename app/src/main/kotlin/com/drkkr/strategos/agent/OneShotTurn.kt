@@ -293,8 +293,15 @@ class OneShotTurn(
         val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(raw.negotiationContext, raw.humanContext, text, recent = recentForDeal)
         // CP-N: the user's option labels carry no walk-away or fallback figure in the view ("your ceiling", "your other option").
         val negotiated = com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(com.drkkr.strategos.domain.negotiation.NegotiationView.apply(raw, deal), deal)
+        // ID1.6: each side's fallback moves the refusal cells (after the label checks, on the Kotlin values). In memory only.
+        // The pick is computed with and without it; the fixed line is added only when it changed the pick.
+        val lock = settings.powerLock()
+        val fallback = withContext(Dispatchers.Default) {
+            com.drkkr.strategos.domain.human.FallbackShift.effect(negotiated, deal, support, lock,
+                com.drkkr.strategos.domain.human.HumanSensitivity.pick(com.drkkr.strategos.domain.analysis.AnalysisPipeline()))
+        }
         // Human Layer: the other person's payoffs as a real person would feel them. In memory only, like the lines above.
-        val view = com.drkkr.strategos.domain.human.HumanizedView.apply(negotiated)
+        val view = com.drkkr.strategos.domain.human.HumanizedView.apply(fallback.view)
         // In memory only: the last few things the user said, so text-based detectors (mechanism design) see more than the empty frame.
         val recentUserText = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString(" ") { it.text }
         val (viewResult, stress, gameContext) = withContext(Dispatchers.Default) {
@@ -307,7 +314,7 @@ class OneShotTurn(
         }
         // I-H6: a pick that only exists because of one of the Human Layer's constants is reported as fragile.
         val humanFragile = withContext(Dispatchers.Default) {
-            runCatching { com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(negotiated, com.drkkr.strategos.domain.analysis.AnalysisPipeline()) }.getOrDefault(false)
+            runCatching { com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(negotiated, com.drkkr.strategos.domain.analysis.AnalysisPipeline(), fallback.sides) }.getOrDefault(false)
         }
         val gameResult = gameContext.result
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
@@ -333,7 +340,7 @@ class OneShotTurn(
         val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
             statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile, opponentModel = gameContext.opponentModel, deal = deal,
             // ID1.4: the checks read the AI's labels before the Human Layer moves them (the walk-away view, so excluded moves don't count).
-            labelIssues = com.drkkr.strategos.domain.game.LabelChecks.check(negotiated))
+            labelIssues = com.drkkr.strategos.domain.game.LabelChecks.check(negotiated), fallbackLine = fallback.line)
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
@@ -344,7 +351,7 @@ class OneShotTurn(
         )
         // Power Mode: hardball moves join the delivery when they pay (I-P3); the decline note is set in any mode.
         val powerOn = settings.isPowerMode(cid)
-        val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, settings.powerLock(), support, snap?.trustScore)
+        val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, lock, support, snap?.trustScore)
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready)
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).

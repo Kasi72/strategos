@@ -186,6 +186,10 @@ class DeepSeekLiveFlowTest {
                         } }
                         val numeric = sc.payoffs.count { com.drkkr.strategos.domain.game.RubricPayoffs.AI_SCORED_NUMERIC in it.provenanceNote }
                         out.append("  [ID1] label_issues=${issues.ifEmpty { listOf("none") }} numeric_payoffs=$numeric/${sc.payoffs.size} confidence=${str("confidence_level")}\n")
+                        // ID1.6: the fallback inputs, and whether the fixed line (the shift changed the pick) is in the why.
+                        val why = str("recommended_why").orEmpty()
+                        val shiftLine = com.drkkr.strategos.domain.human.FallbackShift.STRONG_LINE in why || com.drkkr.strategos.domain.human.FallbackShift.WEAK_LINE in why
+                        out.append("  [ID1.6] your_alternative=${sc.humanContext?.yourAlternative} their_alternative=${sc.humanContext?.theirAlternative} walk_away_credible=${(d["deal"] as? kotlinx.serialization.json.JsonObject)?.get("walk_away_credible")} fallback_shift_changed_pick=$shiftLine\n")
                     }
                     out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")
                     r.gateway.activeScenario()?.let { sc ->

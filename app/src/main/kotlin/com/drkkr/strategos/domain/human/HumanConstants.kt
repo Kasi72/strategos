@@ -41,7 +41,13 @@ data class HumanConstants(
     /** Raise when the ask is framed around what the user's role makes possible, never as a threat. 48 Laws L11 (awareness form). Judgement call. */
     val leverageShift: Double = 0.25,
     /** Raise when the user stops chasing and lets them come to you. 48 Laws L16, L8. Judgement call. */
-    val stepBackShift: Double = 0.25
+    val stepBackShift: Double = 0.25,
+    /**
+     * Points a side's fallback moves its own payoff in the refusal cells (their DEFENSIVE reply): up for a strong fallback, down
+     * for a weak one or none (Intent Dispatch ID1.6, Kasi's request; [FallbackShift]). Judgement call, the same size as the other
+     * small shifts, bounded (never past the acceptance cell) and stress-tested.
+     */
+    val alternativeShift: Double = 0.5
 ) {
     /**
      * Multiplies every effect size by [f], for the sensitivity check (all halved, all doubled). Thresholds, caps and
@@ -58,7 +64,8 @@ data class HumanConstants(
         giveFirstShift = giveFirstShift * f,
         yardstickShift = yardstickShift * f,
         leverageShift = leverageShift * f,
-        stepBackShift = stepBackShift * f
+        stepBackShift = stepBackShift * f,
+        alternativeShift = alternativeShift * f
     )
 
     companion object {

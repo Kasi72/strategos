@@ -83,6 +83,8 @@ data class EngineDirective(
     val labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList(),
     /** ID1.4: the labels favoured one option everywhere, so real alternatives are shown (the top-options block, ID3.3). Never in the JSON. */
     val autoTopOptions: Boolean = false,
+    /** ID1.6: the fixed fallback line, set only when the fallback shift changed the pick (also appended to [recommendedWhy]). Never in the JSON on its own. */
+    val fallbackLine: String? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -265,7 +267,9 @@ object EngineDirectiveBuilder {
         /** Negotiation Numbers: the user's figures, read in one unit and direction. Null keeps the human-layer directive exactly (I-N1). */
         deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null,
         /** Intent Dispatch ID1.4: [com.drkkr.strategos.domain.game.LabelChecks] on the turn's labels. Empty keeps the directive as before. */
-        labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList()
+        labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList(),
+        /** ID1.6: [com.drkkr.strategos.domain.human.FallbackShift]'s fixed line, only when the shift changed the pick. Null keeps the directive as before. */
+        fallbackLine: String? = null
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -395,7 +399,8 @@ object EngineDirectiveBuilder {
         }
 
         return EngineDirective(
-            ready = true, recommendedMove = recommended.label, recommendedWhy = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY), deal).take(MAX_TEXT),
+            ready = true, recommendedMove = recommended.label, recommendedWhy = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY), deal).take(MAX_TEXT)
+                .let { why -> if (fallbackLine == null) why else "$why $fallbackLine".trim() },
             supportingFrameworks = supporting, safeFallbackMove = fallback?.label, complementaryMove = complementary?.label,
             blockedOrDominatedMoves = blocked, dominantDynamic = dynamicTexts, dynamicLabel = dynamicLabel,
             influencersInPlay = s.stakeholders.filter { it.gameRole == GameRole.INFLUENCER }.map { it.name }.distinct().take(MAX_INFLUENCERS),
@@ -420,6 +425,7 @@ object EngineDirectiveBuilder {
             stakesTier = tier,
             labelIssues = labelIssues,
             autoTopOptions = labelDominance,
+            fallbackLine = fallbackLine,
             infoAsymmetry = asymmetry,
             shapleyValues = shapleyValues,
             mechanismHint = mechanismHint,
