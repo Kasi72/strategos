@@ -340,8 +340,6 @@ object EngineDirectiveBuilder {
     private fun knownFacts(s: Scenario, previousMove: String?, recommendedLabel: String): List<String> = buildList {
         s.negotiationContext?.takeIf { it.hasContent() }?.let { nc ->
             if (nc.aspirationPoint.isNotBlank()) add("Target outcome: ${nc.aspirationPoint.take(100)}")
-            if (nc.reservationPoint.isNotBlank()) add("Walk-away line: ${nc.reservationPoint.take(100)}")
-            if (nc.batna.isNotBlank()) add("BATNA: ${nc.batna.take(100)}")
         }
         s.stakeholders.forEach { p ->
             p.fears.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} fears: $it") }

@@ -61,14 +61,17 @@ object GameModelCompiler {
             utility[pi][idx] = entry.payoff.weighted(weights)
         }
 
-        // Fill missing cells with proxy 0.0 and track coverage. Partial payoff tables are
-        // common in multi-player chat scenarios; hard-failing them blocks all Stage 5 handlers.
+        // Fill missing cells with neutral proxy 5.0 (midpoint of 0–10 scale) and track coverage.
+        // 0.0 reads as catastrophic; it biases the solver against any action with an unfilled cell,
+        // causing safe fallback moves to be incorrectly marked dominated. 5.0 = unknown/neutral.
+        // Partial payoff tables are common in multi-player chat scenarios; hard-failing them
+        // blocks all Stage 5 handlers.
         var missing = 0
         for (pi in playerIds.indices) {
             for (idx in 0 until totalProfiles) {
                 val v = utility[pi][idx]
                 if (v.isNaN()) {
-                    utility[pi][idx] = 0.0
+                    utility[pi][idx] = 5.0
                     missing++
                 } else if (!v.isFinite()) {
                     errors += CompileError.NonFinitePayoff(playerIds[pi], idx)
