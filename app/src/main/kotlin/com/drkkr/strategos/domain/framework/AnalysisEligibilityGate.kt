@@ -139,7 +139,7 @@ object AnalysisEligibilityGate {
     }
 
     private fun isLowRiskAction(action: Action?): Boolean {
-        if (action == null) return true
+        if (action == null) return false  // unknown action → assume risk, not safety
         return action.reversible &&
             !action.publicVisibility &&
             action.cost <= 0 &&

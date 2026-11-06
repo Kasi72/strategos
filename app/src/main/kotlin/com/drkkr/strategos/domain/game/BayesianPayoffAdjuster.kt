@@ -50,10 +50,16 @@ object BayesianPayoffAdjuster {
         val oppPlayerId = ir.playerIds[1]
         val oppStakeholder = scenario.stakeholders.firstOrNull { it.id == oppPlayerId } ?: return ir
 
-        // Priors from the opponent stakeholder
-        val pSoftens = oppStakeholder.probSoftensOnRepair ?: return ir   // no priors → skip
-        val pBoundary = oppStakeholder.probRespectsBoundary ?: NEUTRAL
+        // Priors from the opponent stakeholder — skip only when ALL three are unlearned.
+        // Returning on the first null was wrong: a game with no repair rounds yet has
+        // probSoftensOnRepair == null but may have learned probRespectsBoundary or
+        // probEscalatesOnReactive, and those should still apply.
+        val pSoftens   = oppStakeholder.probSoftensOnRepair    ?: NEUTRAL
+        val pBoundary  = oppStakeholder.probRespectsBoundary   ?: NEUTRAL
         val pEscalates = oppStakeholder.probEscalatesOnReactive ?: NEUTRAL
+        if (oppStakeholder.probSoftensOnRepair == null &&
+            oppStakeholder.probRespectsBoundary == null &&
+            oppStakeholder.probEscalatesOnReactive == null) return ir
 
         // Posture of each user action (player 0)
         val userPostures = ir.actionIds[0].map { id ->
@@ -105,7 +111,6 @@ object BayesianPayoffAdjuster {
         val pDefensive = 1.0 - pReceptive
 
         // Distribute mass across opponent actions by posture
-        val nOtherActions = (nOpp - 1).coerceAtLeast(1)
         return when (oppPosture) {
             RECEPTIVE -> pReceptive
             DEFENSIVE -> pDefensive

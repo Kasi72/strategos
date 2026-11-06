@@ -61,6 +61,11 @@ object GameModelCompiler {
             utility[pi][idx] = entry.payoff.weighted(weights)
         }
 
+        // Classify BEFORE neutral fill: NaN cells make zero-sum check return false naturally,
+        // so a sparse table is never mis-classified as ZERO_SUM_2P. After fill, all cells
+        // are 5.0 for missing entries, which would incorrectly satisfy the zero-sum test.
+        val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
+
         // Fill missing cells with neutral proxy 5.0 (midpoint of 0–10 scale) and track coverage.
         // 0.0 reads as catastrophic; it biases the solver against any action with an unfilled cell,
         // causing safe fallback moves to be incorrectly marked dominated. 5.0 = unknown/neutral.
@@ -80,16 +85,15 @@ object GameModelCompiler {
         }
         if (errors.isNotEmpty()) return CompileResult.Failure(errors)
 
-        val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
         val total = totalProfiles * playerIds.size
-        val coveragePct = if (missing == 0) 100 else ((total - missing) * 100 / total)
+        val coveragePct = if (missing == 0) 100 else ((total - missing) * 100.0 / total).toInt()
 
         val prelimIr = GameIR(
             scenarioId = scenario.id,
             playerIds = playerIds,
             actionIds = playerIds.map { actionMap[it]!! },
             strategyCounts = strategyCounts,
-            utility = utility.map { it },
+            utility = utility.map { it.copyOf() },
             gameClass = gameClass,
             coveragePct = coveragePct
         )

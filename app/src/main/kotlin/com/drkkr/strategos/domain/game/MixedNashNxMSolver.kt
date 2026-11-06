@@ -198,10 +198,19 @@ object MixedNashNxMSolver : GameSolver {
     ): List<DoubleArray> {
         val p1 = DoubleArray(m); s1.forEachIndexed { idx, a -> p1[a] = p[idx].coerceIn(0.0, 1.0) }
         val p2 = DoubleArray(n); s2.forEachIndexed { idx, a -> p2[a] = q[idx].coerceIn(0.0, 1.0) }
+        // Renormalize after clamping: negative-probability solutions from Gaussian elimination
+        // can produce components that clamp to 0, leaving the vector summing to < 1.0.
+        // A non-normalized vector would pass EquilibriumVerifier (it checks payoff deviations,
+        // not probability sums), so without this step we could return invalid equilibria.
+        val sum1 = p1.sum().coerceAtLeast(1e-12); p1.indices.forEach { p1[it] /= sum1 }
+        val sum2 = p2.sum().coerceAtLeast(1e-12); p2.indices.forEach { p2[it] /= sum2 }
         return listOf(p1, p2)
     }
 
-    /** Two mixed-strategy profiles are the same if every probability differs by less than TOLERANCE. */
+    /** Two mixed-strategy profiles are the same if every probability differs by less than TOLERANCE.
+     *  Uses 1e-6 (looser than the solver's TOLERANCE=1e-9) so profiles that are numerically
+     *  identical for practical purposes collapse into one, even if they differ below the
+     *  verification threshold. */
     private fun isDuplicate(a: List<DoubleArray>, b: List<DoubleArray>): Boolean =
         a.size == b.size && a.zip(b).all { (x, y) ->
             x.size == y.size && x.zip(y.toTypedArray()).all { (xi, yi) -> abs(xi - yi) < 1e-6 }

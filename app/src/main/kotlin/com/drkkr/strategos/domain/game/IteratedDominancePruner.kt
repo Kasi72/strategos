@@ -144,13 +144,14 @@ object IteratedDominancePruner {
 
         val newActionIds = (0 until ir.playerCount).map { p -> surviving[p].map { ir.actionIds[p][it] } }
 
-        val eliminatedNames: Map<String, List<String>> = eliminate.mapKeys { (pi, _) -> ir.playerIds[pi] }
-            .mapValues { (pi, elim) -> elim.map { ir.actionIds[ir.playerIds.indexOf(pi)][it] } }
+        val eliminatedNames: Map<String, List<String>> = eliminate.entries.associate { (pi, elim) ->
+            ir.playerIds[pi] to elim.map { ir.actionIds[pi][it] }
+        }
 
         val newIr = ir.copy(
             actionIds = newActionIds,
             strategyCounts = newStrategyCounts,
-            utility = newUtility.map { it }
+            utility = newUtility.map { it.copyOf() }
         )
         return newIr to eliminatedNames
     }
