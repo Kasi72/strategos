@@ -133,4 +133,45 @@ class IntentFlowTest {
         assertEquals(yes.directive, no.directive)
         assertFalse(no.reply.contains("What usually happens when you raise it?"))
     }
+
+    /** A second turn that asks a hypothetical, with Call 1 putting the moves in the main fields too (seen live at CP-I2). */
+    private val whatIfTurn = """{"intent":"what_if","intent_detail":"she says money talk is off limits","message_kind":"situation",
+      "people":[{"name":"You","role":"player"},{"name":"Meera","role":"player"}],
+      "options":[{"who":"You","do":"Suggest a monthly money check-in","posture":"repair"},{"who":"You","do":"Drop it for now","posture":"boundary"},
+        {"who":"Meera","do":"Listen and agree","posture":"receptive"},{"who":"Meera","do":"Get defensive","posture":"defensive"}],
+      "dims":["WELLBEING","RELATIONSHIPS","LONG_TERM_VALUE"],
+      "outcomes":[{"when":["Suggest a monthly money check-in","Listen and agree"],"for_you":["++","++","++"],"for_them":["+","+","+"]},
+        {"when":["Suggest a monthly money check-in","Get defensive"],"for_you":["0","0","0"],"for_them":["0","0","0"]},
+        {"when":["Drop it for now","Listen and agree"],"for_you":["0","0","0"],"for_them":["0","0","0"]},
+        {"when":["Drop it for now","Get defensive"],"for_you":["-","-","-"],"for_them":["0","0","0"]}],
+      "trust_delta":-10,"tension_delta":10,"relationship":"spouse"}"""
+
+    @Test fun cpi2_aHypotheticalTurnSavesNothingEvenWhenCallOneRepeatsItsMovesInTheMainFields() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(spouse(true), whatIfTurn))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("s").join()
+        controller.send("My wife told her sister about our loan. I want it kept private between us.")!!.join(); controller.awaitIdle()
+        val saved = gateway.activeScenario()
+        val commits = gateway.commits
+        controller.send("What if she says money talk is off limits?")!!.join(); controller.awaitIdle()
+        assertEquals("nothing saved on the what-if turn", saved, gateway.activeScenario())
+        assertEquals(commits, gateway.commits)
+        val d = llm.lastDirective!!
+        assertNotNull("the hypothetical ran on a copy", d["what_if"])
+        assertEquals("she says money talk is off limits", (d["what_if"] as JsonObject)["if"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun cpi2_anIntentTurnMarkedAsAFollowUpStillRunsTheEngine() = runBlocking {
+        val followUp = spouse(true).replace("\"relationship\":\"spouse\"}", "\"relationship\":\"spouse\",\"intent\":\"top_options\",\"message_kind\":\"followup_question\"}")
+        val gateway = CommittingGateway(start)
+        val llm = EngineEchoLlm(listOf(spouse(true), followUp))
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("s").join()
+        controller.send("My wife told her sister about our loan. I want it kept private between us.")!!.join(); controller.awaitIdle()
+        val coachCalls = llm.requests.count { it.purpose == "COACH" }
+        controller.send("What are my top options here?")!!.join(); controller.awaitIdle()
+        assertTrue("the engine ran and the coach got a directive", llm.requests.count { it.purpose == "COACH" } > coachCalls)
+        assertNotNull(llm.lastDirective!!["top_options"])
+    }
 }

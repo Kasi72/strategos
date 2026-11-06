@@ -41,12 +41,28 @@ object Compare {
 
     private fun norm(s: String) = s.trim().lowercase().replace(Regex("\\s+"), " ").trimEnd('.', '!')
 
-    /** The existing loose matcher's rule: exact (normalised) first, else the one option whose wording contains, or is contained in, it. */
+    private val STOP = setOf("a", "an", "the", "to", "of", "and", "or", "with", "him", "her", "them", "it", "you", "your", "i", "my", "on", "in", "for", "this", "that", "is", "be")
+    private fun words(s: String) = norm(s).split(Regex("[^a-z0-9]+")).filter { it.length > 1 && it !in STOP }.toSet()
+
+    /**
+     * The existing loose matcher's rule: exact (normalised) first, else the one option whose wording contains, or is contained in,
+     * it. Then (CP-I2: the user's short words, "confront him directly this week") the one option sharing the most content words,
+     * at least half of the user's, with no tie.
+     */
     fun match(view: Scenario, ownerId: String, label: String): Action? {
         val mine = view.actionsFor(ownerId)
         val n = norm(label)
         mine.firstOrNull { norm(it.label) == n }?.let { return it }
-        return mine.filter { val o = norm(it.label); o.isNotEmpty() && n.isNotEmpty() && (o.contains(n) || n.contains(o)) }.singleOrNull()
+        mine.filter { val o = norm(it.label); o.isNotEmpty() && n.isNotEmpty() && (o.contains(n) || n.contains(o)) }.singleOrNull()?.let { return it }
+        val want = words(label).takeIf { it.isNotEmpty() } ?: return null
+        val scored = mine.map { it to (words(it.label) intersect want).size }.filter { it.second * 2 >= want.size && it.second > 0 }.sortedByDescending { it.second }
+        return scored.firstOrNull()?.takeIf { top -> scored.count { it.second == top.second } == 1 }?.first
+    }
+
+    /** "A vs B" / "A or B" in one string (Call 1 sometimes writes the detail that way). */
+    fun split(text: String?): Pair<String, String>? {
+        val parts = text?.split(Regex("""(?i)\s+(?:vs\.?|versus|or)\s+"""), limit = 2)?.map { it.trim().trimEnd('?', '.') } ?: return null
+        return if (parts.size == 2 && parts.all { it.isNotEmpty() }) parts[0] to parts[1] else null
     }
 
     /** The fixed `why` lines, chosen by what the comparison found. */
@@ -57,8 +73,9 @@ object Compare {
     }
 
     suspend fun run(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult {
-        val wantA = input.detail?.moveA?.trim()?.takeIf { it.isNotEmpty() } ?: return IntentResult.None
-        val wantB = input.detail?.moveB?.trim()?.takeIf { it.isNotEmpty() } ?: return IntentResult.None
+        val fromChange = split(input.detail?.change)
+        val wantA = input.detail?.moveA?.trim()?.takeIf { it.isNotEmpty() } ?: fromChange?.first ?: return IntentResult.None
+        val wantB = input.detail?.moveB?.trim()?.takeIf { it.isNotEmpty() } ?: fromChange?.second ?: return IntentResult.None
         val ownerId = IntakeChecklist.self(input.view)?.id ?: return IntentResult.None
         val la = WalkAwayMask.text(wantA, input.deal); val lb = WalkAwayMask.text(wantB, input.deal)
         // Saved moves first; a move that isn't saved comes from the hypothetical, on a copy (I-D3).

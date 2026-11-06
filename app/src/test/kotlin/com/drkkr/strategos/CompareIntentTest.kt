@@ -113,4 +113,18 @@ class CompareIntentTest {
         // a clear margin is not too close
         assertEquals(Compare.A, block(IntentRouter().route(input(game(bold = 8.5 to 6.5, safe = 6.5 to 5.0, boldGap = 0.532), "Name the problem today", "Wait for a calm moment"))).better)
     }
+
+    @Test fun cpi2_aDetailWrittenAsOneStringAndTheUsersShortWordsStillMatch() = runBlocking {
+        assertEquals("wait one more month" to "confront him directly this week", Compare.split("wait one more month vs confront him directly this week"))
+        assertEquals("A" to "B", Compare.split("A or B?"))
+        assertEquals(null, Compare.split("just one move"))
+        val parsed = SketchParser.parse("""{"intent":"compare","intent_detail":"wait one more month vs confront him directly this week"}""")!!
+        assertEquals("wait one more month vs confront him directly this week", parsed.intentDetail?.change)
+        val s = game(bold = 7.0 to 1.5, safe = 7.5 to 6.0, boldGap = -1.0, safeGap = 1.0).let { g ->
+            g.copy(actions = g.actions.map { a -> when (a.id) { "bold" -> a.copy(label = "Name the pattern to Arjun directly this week"); "safe" -> a.copy(label = "Wait one more month and hope he delivers"); else -> a } })
+        }
+        val b = block(IntentRouter().route(RouteInput(Intent.COMPARE, s, detail = parsed.intentDetail, base = s)))
+        assertEquals("Wait one more month and hope he delivers", b.a.move)
+        assertEquals("Name the pattern to Arjun directly this week", b.b.move)
+    }
 }

@@ -45,9 +45,11 @@ object IdentifyGaps {
     private val REST = listOf("wants_fears", "their_options", "my_options", "goal", "limits")
 
     /** A negotiation: the deal frame exists, the relationship is one, or the user gave negotiation facts. */
-    fun negotiation(view: Scenario, deal: DealFrame?): Boolean = deal != null ||
-        RelationshipDomains.of(view.humanContext?.relationship, null, view.negotiationContext) == RelationshipDomain.NEGOTIATION ||
-        view.negotiationContext?.hasContent() == true
+    fun negotiation(view: Scenario, deal: DealFrame?): Boolean {
+        val domain = RelationshipDomains.of(view.humanContext?.relationship, null, view.negotiationContext)
+        if (view.humanContext?.relationship != null && domain.isClose) return false     // a loan to a brother is not a deal to walk away from (CP-I2)
+        return deal != null || domain == RelationshipDomain.NEGOTIATION || view.negotiationContext?.hasContent() == true
+    }
 
     /** The walk-away is known: the frame read one, or the user wrote one. */
     private fun walkAwayKnown(view: Scenario, deal: DealFrame?) = deal?.walkAway != null || view.negotiationContext?.reservationPoint?.isNotBlank() == true

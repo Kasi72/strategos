@@ -94,4 +94,11 @@ class IdentifyGapsTest {
             assertEquals(id, 1, text.count { it == '?' })
         }
     }
+
+    @Test fun cpi2_aLoanToABrotherIsNotADealToWalkAwayFrom() {
+        val s = vendor(HumanContext(relationship = "sibling")).copy(negotiationContext = com.drkkr.strategos.domain.model.NegotiationContext(aspirationPoint = "1.5 lakh"))
+        assertFalse(IdentifyGaps.negotiation(s, null))
+        assertTrue(IdentifyGaps.next(s, IntakeChecklist.gaps(s), null, null)?.id != IdentifyGaps.WALK_AWAY)
+        assertTrue(IdentifyGaps.negotiation(vendor(HumanContext(relationship = "vendor")), null))
+    }
 }

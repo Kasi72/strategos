@@ -117,8 +117,13 @@ data class IntentDetail(
     @Serializable(with = TextOrListSerializer::class) val move: String? = null
 )
 
+/** Seen live (CP-I2): Call 1 sometimes writes the detail as one string ("wait one more month vs confront him"); it is kept as `change`. */
 object IntentDetailSerializer : JsonTransformingSerializer<IntentDetail>(IntentDetail.serializer()) {
-    override fun transformDeserialize(element: JsonElement): JsonElement = if (element is JsonObject) element else JsonObject(emptyMap())
+    override fun transformDeserialize(element: JsonElement): JsonElement = when {
+        element is JsonObject -> element
+        element is JsonPrimitive && element.isString -> JsonObject(mapOf("change" to element))
+        else -> JsonObject(emptyMap())
+    }
 }
 
 /** The counterpart compared with "You". Every field is a closed word, read through [SketchHuman]. */

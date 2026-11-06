@@ -129,7 +129,8 @@ class OneShotTurn(
         // Phase G.2: a message that only asks about the PREVIOUS reply ("what is that?", "why?") is answered directly
         // from that reply, never by re-running the engine into a near-duplicate answer. Routed before the trajectory and
         // Bayesian updates below, so asking a question never moves trust/tension or the learned priors.
-        if (argon != null && parsed.messageKind == "followup_question") {
+        // Intent Dispatch: a turn that names an intent (what if, compare, …) goes to the engine, not the follow-up shortcut.
+        if (argon != null && parsed.messageKind == "followup_question" && parsed.intentKind == com.drkkr.strategos.domain.intent.Intent.STANDARD) {
             val prior = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
             if (!prior.isNullOrBlank()) {
                 onActivity("Answering your question…")
@@ -143,7 +144,10 @@ class OneShotTurn(
             }
         }
         // BLUEPRINT-QUESTION: §D.1 says a point after every turn; a reply with no deltas and no archetype says nothing new, so it adds none.
-        if (argon != null && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
+        // I-D3: a hypothetical turn (what if, compare, their reaction, plan ahead) on an existing model saves nothing: not the
+        // scenario, not the trajectory. Its moves run on a copy (the what_if sketch's ops, or else the main sketch's).
+        val hypothetical = parsed.intentKind in HYPOTHETICAL_INTENTS && loaded.actions.isNotEmpty()
+        if (argon != null && !hypothetical && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
             argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype, parsed.backstoryOnly)
         }
         // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
@@ -151,6 +155,8 @@ class OneShotTurn(
         val scenario = if (argon != null) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
         val learned = if (argon != null) tacticLearningFor(cid, scenario, parsed.counterpartObservedReaction) else null
         val converted = SketchConverter.toOps(parsed, scenario, learned = learned)
+        val hypotheticalOps = if (!hypothetical) emptyList() else
+            parsed.whatIf?.let { w -> runCatching { SketchConverter.toOps(w, scenario).ops }.getOrNull() }?.takeIf { it.isNotEmpty() } ?: converted.ops
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
         if (converted.support) onSupport()
         // A follow-up that only restates what is already saved has nothing to add. With a model in place that is not a
@@ -160,7 +166,10 @@ class OneShotTurn(
         val understood = mutableListOf<String>()
         // ID2.3: what this turn saved, for the "advice changed because" lines (Kotlin's own descriptions of the ops).
         val turnOps = mutableListOf<com.drkkr.strategos.domain.agent.ChangeOp>()
-        if (converted.ops.isEmpty()) {
+        if (hypothetical) {
+            nothingNew = true                                                    // I-D3: nothing from this turn is saved
+            DebugLog.d { "HYPOTHETICAL ${parsed.intentKind.word}: ${hypotheticalOps.size} ops on a copy, none saved" }
+        } else if (converted.ops.isEmpty()) {
             if (converted.ask != null || !hasModel) {
                 conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(converted.ask ?: COULD_NOT_READ))
                 return TurnResult.Done
@@ -245,7 +254,7 @@ class OneShotTurn(
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
-                    whatIfOps = if (converted.support) emptyList() else parsed.whatIf?.let { w -> runCatching { SketchConverter.toOps(w, after).ops }.getOrNull() }.orEmpty())
+                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -404,7 +413,7 @@ class OneShotTurn(
             // ID3.3: asked for, or on its own when the pick is FRAGILE or the labels favoured one option everywhere.
             topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
                 ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))
-                    com.drkkr.strategos.domain.intent.TopOptions.of(view, powered.recommendedMove, dominatedIds).takeIf { it.isNotEmpty() } else null)
+                    com.drkkr.strategos.domain.intent.TopOptions.of(view, powered.recommendedMove, dominatedIds).takeIf { it.size >= 2 } else null)
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
@@ -413,7 +422,7 @@ class OneShotTurn(
                 payloadJson = com.drkkr.strategos.domain.human.power.PowerReadCodec.encode(read), uiKind = UiKind.POWER_READ)
         }
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
-        if (directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
+        if (intent !in HYPOTHETICAL_INTENTS && directive.delivery?.timing == com.drkkr.strategos.domain.human.Timing.AFTER_COOLING && directive.moveToImplement != null &&
             s.humanContext?.pendingCooling != directive.moveToImplement) {
             apply(cid, sid, s, listOf(com.drkkr.strategos.domain.agent.ChangeOp(
                 com.drkkr.strategos.domain.agent.OpType.SET_SCENARIO_FIELDS, rationale = "A reminder to ask how it went",
@@ -896,6 +905,10 @@ class OneShotTurn(
         private const val MAX_DIGEST_CHARS = 1_500
         private const val MIN_FOLLOWUP_CHARS = 20
         const val CLARIFY_LEAD = "Before I call it, let me get this right —"
+        /** I-D3: turns whose moves only ever run on a copy. */
+        private val HYPOTHETICAL_INTENTS = setOf(
+            com.drkkr.strategos.domain.intent.Intent.WHAT_IF, com.drkkr.strategos.domain.intent.Intent.COMPARE,
+            com.drkkr.strategos.domain.intent.Intent.THEIR_REACTION, com.drkkr.strategos.domain.intent.Intent.PLAN_AHEAD)
 
         /** COMPANION REPLY prompt (~250 tokens). The words come from the model; every fact comes from the engine's result. */
         const val COACH_PROMPT = """You are Strategos, a calm, warm companion who helps a person think through a hard personal decision. You are not a therapist and you do not diagnose.

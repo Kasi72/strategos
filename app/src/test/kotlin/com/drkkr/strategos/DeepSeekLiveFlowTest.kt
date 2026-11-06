@@ -138,6 +138,7 @@ class DeepSeekLiveFlowTest {
             for ((i, m) in messages.withIndex()) {
                 val callsBefore = r.llm.calls.size
                 val dirsBefore = r.directives.size
+                val savedBefore = r.gateway.activeScenario()
                 val shown = r.say(m)
                 val st = r.controller.state.value
                 val turnCalls = r.llm.calls.drop(callsBefore)
@@ -223,6 +224,13 @@ class DeepSeekLiveFlowTest {
                 out.append("\n(i) INTENT\n")
                 out.append("  intent=${sketch?.intentKind?.word ?: "-"} handler=${sketch?.intentKind?.takeIf { it != com.drkkr.strategos.domain.intent.Intent.STANDARD }?.word ?: "none"}\n")
                 val turnDirective = r.directives.drop(dirsBefore).lastOrNull()?.let { Json.parseToJsonElement(it).jsonObject }
+                // I-D3 check: nothing from the hypothetical is saved (its own options/people never appear in the saved scenario)
+                val savedAfter = r.gateway.activeScenario()
+                val hypo = sketch?.whatIf
+                val leaked = if (hypo == null || savedAfter == null) emptyList() else
+                    hypo.options.map { it.label }.filter { l -> savedAfter.actions.any { it.label.equals(l, true) } && savedBefore?.actions?.none { it.label.equals(l, true) } != false } +
+                    hypo.people.map { it.name }.filter { n -> savedAfter.stakeholders.any { it.name.equals(n, true) } && savedBefore?.stakeholders?.none { it.name.equals(n, true) } != false }
+                out.append("  saved_changed=${savedBefore != savedAfter} what_if_leaked=${leaked.ifEmpty { "none" }}\n")
                 for (k in listOf("changed_since_last", "next_question", "what_if", "compare", "top_options", "their_reaction", "confidence"))
                     out.append("  $k=${turnDirective?.get(k) ?: "-"}\n")
                 out.append("\n(b2) GAME MODEL (compile -> IEDS -> solve)\n")
