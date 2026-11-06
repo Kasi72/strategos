@@ -2,6 +2,8 @@ package com.drkkr.strategos
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.drkkr.strategos.data.db.DatabaseKeyManager
+import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.repo.SaveResult
 import com.drkkr.strategos.data.storage.ScenarioStorage
 import com.drkkr.strategos.domain.model.AnalysisSnapshot
@@ -22,15 +24,20 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class LegacyMigrationInstrumentedTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
+    // TC_ID_E2E_02: the containers here open a database of their own (not the app's), with their own key, deleted in @After.
+    private val tag = "legacy_" + java.util.UUID.randomUUID().toString().replace("-", "").take(12)
+    private val dbName = "$tag.db"
+    private fun newContainer() = AppContainer(context, openDatabase = {
+        DbFactory.openEncrypted(it, DatabaseKeyManager(it, "$tag.key", "${tag}_alias").getOrCreatePassphrase(), dbName)
+    })
 
     @Before @After fun wipe() {
-        context.deleteDatabase("strategos.db")
-        File(context.noBackupFilesDir, "db.key").delete()
+        OwnDatabase.delete(context, dbName, "$tag.key", "${tag}_alias")
         context.deleteSharedPreferences("strategos_scenarios")
     }
 
     @Test
-    fun legacyScenariosAppearAfterUpgradeAndSaveStillWorks() = runBlocking {
+    fun TC_ID_E2E_02_legacyScenariosAppearAfterUpgradeAndSaveStillWorks() = runBlocking {
         val legacy = ScenarioStorage(context)
         val a = CrisisManagementTemplate.create().copy(title = "Legacy A", version = 3)
         val b = Scenario(id = "legacy-b", title = "Legacy B")
@@ -38,7 +45,7 @@ class LegacyMigrationInstrumentedTest {
         legacy.saveSnapshot(AnalysisSnapshot(scenarioId = a.id, scenarioVersion = 3, scenarioHash = "h", selectedModuleIds = listOf("m"),
             executiveStatus = "X", candidateCount = 1, overallConfidence = 0.5, reportHash = "r", scenarioJson = "{}"))
 
-        val container = AppContainer(context)
+        val container = newContainer()
         container.prepareStorage()
         val repo = container.scenarioRepository.also { it.load() }
 
@@ -49,7 +56,7 @@ class LegacyMigrationInstrumentedTest {
         assertTrue(saved is SaveResult.Success)
 
         // A second process start does not migrate again and does not duplicate anything.
-        val again = AppContainer(context)
+        val again = newContainer()
         again.prepareStorage()
         assertEquals(2, again.scenarioRepository.also { it.load() }.scenarios.value.size)
         // The 1.x store is kept in 2.0.
@@ -57,8 +64,8 @@ class LegacyMigrationInstrumentedTest {
     }
 
     @Test
-    fun freshInstallHasNoScenariosAndNoLegacyKeyIsCreated() = runBlocking {
-        val container = AppContainer(context)
+    fun TC_ID_E2E_02_freshInstallHasNoScenariosAndNoLegacyKeyIsCreated() = runBlocking {
+        val container = newContainer()
         container.prepareStorage()
         assertTrue(container.scenarioRepository.also { it.load() }.scenarios.value.isEmpty())
         assertFalse(File(context.applicationInfo.dataDir, "shared_prefs/strategos_scenarios.xml").exists())

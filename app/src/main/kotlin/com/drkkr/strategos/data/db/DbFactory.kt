@@ -76,7 +76,18 @@ object DbFactory {
         // DEBUG BUILDS ONLY: an unencrypted copy of the database so a developer can read conversations with
         // `adb shell run-as` (see scripts/pull-debug-db.sh). A release build always uses the encrypted file below.
         if (com.drkkr.strategos.BuildConfig.DEBUG) return openPlainForDebug(context, passphrase)
-        return Room.databaseBuilder(context, StrategosDatabase::class.java, "strategos.db")
+        return openEncrypted(context, passphrase)
+    }
+
+    const val DB_NAME = "strategos.db"
+
+    /**
+     * The SQLCipher database, in every build type. [name] lets the instrumented tests use a file of their own, so they never
+     * share state with the app's database or with each other (TC_ID_E2E_02).
+     */
+    fun openEncrypted(context: Context, passphrase: ByteArray, name: String = DB_NAME): StrategosDatabase {
+        System.loadLibrary("sqlcipher")
+        return Room.databaseBuilder(context, StrategosDatabase::class.java, name)
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
             .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
@@ -91,7 +102,7 @@ object DbFactory {
      */
     private fun openPlainForDebug(context: Context, passphrase: ByteArray): StrategosDatabase {
         val plain = context.getDatabasePath(PLAIN_DEBUG_DB)
-        val encrypted = context.getDatabasePath("strategos.db")
+        val encrypted = context.getDatabasePath(DB_NAME)
         if (!plain.exists() && encrypted.exists()) {
             try {
                 plain.parentFile?.mkdirs()

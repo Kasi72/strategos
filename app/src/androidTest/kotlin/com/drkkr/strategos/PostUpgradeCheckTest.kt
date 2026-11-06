@@ -32,4 +32,25 @@ class PostUpgradeCheckTest {
         assertEquals(setOf("Seed One (1.x)", "Seed Two (1.x)"), repo.scenarios.value.map { it.title }.toSet())
         assertTrue(repo.recoverableRecords.value.isEmpty())
     }
+
+    /**
+     * TC_ID_E2E_02, scripts/upgrade-check.sh: skipped unless run with `-e upgradeCheck 1`, after the `main` build's
+     * ManualSeedDemoTest seeded the app and this branch's APK was installed over it. Does not wipe anything.
+     */
+    @Test
+    fun TC_ID_E2E_02_upgradeKeepsTheProjectConversationAndJournal() = runBlocking {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("upgradeCheck") == "1")
+        val container = AppContainer(InstrumentationRegistry.getInstrumentation().targetContext)
+        container.prepareStorage()
+        val repo = container.scenarioRepository.also { it.load() }
+        val project = repo.scenarios.value.firstOrNull { it.title == "Loan for my brother" }
+        val threads = project?.let { com.drkkr.strategos.data.repo.ConversationRepository(container.database!!).listThreads(it.id) }.orEmpty()
+        val messages = threads.sumOf { com.drkkr.strategos.data.repo.ConversationRepository(container.database!!).messages(it.id).size }
+        val journal = project?.let { container.journalRepository!!.linkedEntries(it.id, 10) }.orEmpty()
+        println("UPGRADE-CHECK|storageError=${container.storageError}|project=${project != null}|threads=${threads.size}|messages=$messages|journal=${journal.size}")
+        assertTrue("the project survived the upgrade", project != null)
+        assertTrue("its conversations survived (threads=${threads.size})", threads.size >= 2)
+        assertTrue("its messages survived ($messages)", messages >= 5)
+        assertTrue("the journal entry survived", journal.isNotEmpty())
+    }
 }
