@@ -61,14 +61,23 @@ object GameModelCompiler {
             utility[pi][idx] = entry.payoff.weighted(weights)
         }
 
-        // Fill missing cells with proxy 0.0 and track coverage. Partial payoff tables are
-        // common in multi-player chat scenarios; hard-failing them blocks all Stage 5 handlers.
+        // Fill missing cells and track coverage. Partial payoff tables are common in multi-player chat scenarios; hard-failing
+        // them blocks all Stage 5 handlers. The fill is NEUTRAL: the player's own mean over its known cells (0.0 sits below every
+        // real cell on the weighted 0–10 scale, so it made any option with a gap look dominated). Filled cells are marked in
+        // GameIR.proxy so no dominance claim rests on them. A player with no known cell takes the mean of every known cell
+        // (all its cells are then marked, so it gets no dominance claims at all); a table with no payoff at all fails.
         var missing = 0
+        val proxy = Array(playerIds.size) { BooleanArray(totalProfiles) }
+        val allKnown = utility.flatMap { u -> u.filter { !it.isNaN() } }
+        if (allKnown.isEmpty()) return CompileResult.Failure(listOf(CompileError.MissingPayoffProfiles(totalProfiles * playerIds.size, totalProfiles * playerIds.size)))
         for (pi in playerIds.indices) {
+            val known = utility[pi].filter { !it.isNaN() }
+            val neutral = (known.ifEmpty { allKnown }).average()
             for (idx in 0 until totalProfiles) {
                 val v = utility[pi][idx]
                 if (v.isNaN()) {
-                    utility[pi][idx] = 0.0
+                    utility[pi][idx] = neutral
+                    proxy[pi][idx] = true
                     missing++
                 } else if (!v.isFinite()) {
                     errors += CompileError.NonFinitePayoff(playerIds[pi], idx)
@@ -88,7 +97,8 @@ object GameModelCompiler {
             strategyCounts = strategyCounts,
             utility = utility.map { it },
             gameClass = gameClass,
-            coveragePct = coveragePct
+            coveragePct = coveragePct,
+            proxy = if (missing == 0) emptyList() else proxy.toList()
         )
         return CompileResult.Success(
             // Reactive ("tempting") options are not real candidates; leave them out when projecting an N×M game to 2×2.

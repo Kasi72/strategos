@@ -111,7 +111,8 @@ object GameArchetypeDetector {
         }
         return ir.copy(
             actionIds = listOf(keep[0].map { ir.actionIds[0][it] }, keep[1].map { ir.actionIds[1][it] }),
-            strategyCounts = counts, utility = util.toList()
+            // the 2×2 projection is only read for its archetype; a mask of the old shape must not travel with it
+            strategyCounts = counts, utility = util.toList(), proxy = emptyList()
         )
     }
 

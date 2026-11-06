@@ -19,8 +19,15 @@ data class GameIR(
     val gameClass: GameClass,
     val coveragePct: Int,
     /** Named archetype detected by [GameArchetypeDetector]; [GameArchetype.GENERIC] when no pattern matched. */
-    val archetype: GameArchetype = GameArchetype.GENERIC
+    val archetype: GameArchetype = GameArchetype.GENERIC,
+    /**
+     * proxy[playerIndex][profileIndex] is true when that cell had no payoff and was filled in by the compiler.
+     * Empty = every cell is real (coveragePct == 100).
+     */
+    val proxy: List<BooleanArray> = emptyList()
 ) {
+    fun isProxy(player: Int, profileIndex: Int): Boolean = proxy.isNotEmpty() && proxy[player][profileIndex]
+
     val playerCount: Int get() = playerIds.size
     val profileCount: Int get() = strategyCounts.fold(1, Int::times)
 

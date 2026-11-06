@@ -84,10 +84,11 @@ object IteratedDominancePruner {
         val profile = IntArray(ir.playerCount)
         return opponentProfilesAll(ir, player, profile) { opponentProfile ->
             opponentProfile[player] = dominator
-            val payD = ir.utility[player][ir.profileIndex(opponentProfile)]
+            val iD = ir.profileIndex(opponentProfile)
             opponentProfile[player] = dominated
-            val payd = ir.utility[player][ir.profileIndex(opponentProfile)]
-            payD > payd
+            val id = ir.profileIndex(opponentProfile)
+            // A filled-in cell is not evidence: no dominance claim rests on one.
+            !ir.isProxy(player, iD) && !ir.isProxy(player, id) && ir.utility[player][iD] > ir.utility[player][id]
         }
     }
 
@@ -125,13 +126,14 @@ object IteratedDominancePruner {
         val newStrategyCounts = surviving.map { it.size }
         val newProfileCount   = newStrategyCounts.fold(1, Int::times)
         val newUtility        = Array(ir.playerCount) { DoubleArray(newProfileCount) }
+        val newProxy          = Array(ir.playerCount) { BooleanArray(newProfileCount) }
         val newProfile        = IntArray(ir.playerCount)
 
         fun fill(p: Int, oldProfile: IntArray) {
             if (p == ir.playerCount) {
                 val newIdx = profileIndex(newProfile, newStrategyCounts)
                 val oldIdx = ir.profileIndex(oldProfile)
-                for (pl in 0 until ir.playerCount) newUtility[pl][newIdx] = ir.utility[pl][oldIdx]
+                for (pl in 0 until ir.playerCount) { newUtility[pl][newIdx] = ir.utility[pl][oldIdx]; newProxy[pl][newIdx] = ir.isProxy(pl, oldIdx) }
                 return
             }
             surviving[p].forEachIndexed { newA, oldA ->
@@ -150,7 +152,8 @@ object IteratedDominancePruner {
         val newIr = ir.copy(
             actionIds = newActionIds,
             strategyCounts = newStrategyCounts,
-            utility = newUtility.map { it }
+            utility = newUtility.map { it },
+            proxy = if (ir.proxy.isEmpty()) emptyList() else newProxy.toList()
         )
         return newIr to eliminatedNames
     }
