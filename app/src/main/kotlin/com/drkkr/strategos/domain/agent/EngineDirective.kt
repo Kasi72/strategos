@@ -95,6 +95,8 @@ data class EngineDirective(
     val compare: com.drkkr.strategos.domain.intent.CompareBlock? = null,
     /** ID3.3: best / upside / insurance. In the JSON as `top_options` only when set. */
     val topOptions: List<com.drkkr.strategos.domain.intent.TopOption>? = null,
+    /** ID3.4: their likely reaction, in words. In the JSON as `their_reaction` only when set. */
+    val theirReaction: com.drkkr.strategos.domain.intent.TheirReactionBlock? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -167,6 +169,7 @@ data class EngineDirective(
         whatIf?.let { put("what_if", it.toJson()) }
         compare?.let { put("compare", it.toJson()) }
         topOptions?.takeIf { it.isNotEmpty() }?.let { put("top_options", com.drkkr.strategos.domain.intent.TopOptions.toJson(it)) }
+        theirReaction?.let { put("their_reaction", it.toJson()) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }

@@ -18,6 +18,8 @@ sealed class IntentResult {
     data class Compare(val block: CompareBlock) : IntentResult()
     /** ID3.3: up to three moves in three roles. */
     data class TopOptionsList(val options: List<TopOption>) : IntentResult()
+    /** ID3.4: how they would likely take a move. */
+    data class TheirReaction(val block: TheirReactionBlock) : IntentResult()
 }
 
 /**

@@ -29,10 +29,14 @@ object EngineTools {
     fun topOptions(input: RouteInput): IntentResult =
         TopOptions.of(input.view, input.decide(input.view), input.dominated).takeIf { it.isNotEmpty() }?.let { IntentResult.TopOptionsList(it) } ?: IntentResult.None
 
+    /** ID3.4: their likely reaction to a move, in words. */
+    suspend fun theirReaction(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = TheirReaction.run(input, pipeline)
+
     /** The handlers the router uses in the app. An intent answers [IntentResult.None] until its step. */
     val handlers: IntentHandlers = object : IntentHandlers {
         override suspend fun whatIf(input: RouteInput) = EngineTools.whatIf(input)
         override suspend fun compare(input: RouteInput) = EngineTools.compare(input)
         override suspend fun topOptions(input: RouteInput) = EngineTools.topOptions(input)
+        override suspend fun theirReaction(input: RouteInput) = EngineTools.theirReaction(input)
     }
 }
