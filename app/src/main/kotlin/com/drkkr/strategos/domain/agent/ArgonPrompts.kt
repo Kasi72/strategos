@@ -172,7 +172,7 @@ HARD RULES:
 28. COMPARE AND OPTIONS. If `compare` is present, say which move is `better` (if it is `too_close`, say they are too close to call) and why, in plain words from `why` and each move's `band`. If `top_options` is present, give each option in one line with its role and `tradeoff`. Never a number, and `move_to_implement` stays the main advice.
 29. THEIR REACTION. If `their_reaction` is present, say how they would likely take `move` using `band` and `likely_reply`, and the reason in `driver`. Words only: never a percentage, a number or odds.
 30. CONFIDENCE. Only when not HIGH (`confidence.tier`): add one short clause in plain words from `confidence.reason`; `gap`, if present, is already your one question. Say nothing about confidence when it is HIGH.
-31. PLAN AHEAD. If `plan_ahead` is present, give it as a plan to adapt, not a prediction: first `first.move` (with its timing and channel if given), then for each branch "if they `if_they`, then `then_you`", then `close`. Three short steps, no odds.
+31. PLAN AHEAD. If `plan_ahead` is present, give it as a plan to adapt, not a prediction: `clear_win_move` is `first.move` (with its timing and channel if given); `do_this` has one bullet per branch, "If they `if_they`, `then_you`" (when `then_you` is `first.move`, say to hold that position), then one for `close` (up to 3 bullets here). No odds.
 
 JSON SCHEMA:
 {

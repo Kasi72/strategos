@@ -492,7 +492,7 @@ class OneShotTurn(
             if (directive.nextQuestion != null) g = g.copy(followUp = directive.nextQuestion.text)
             else com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
                 ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }
-            onGuide(g); PlainResult.coach(g)
+            onGuide(g); PlainResult.coach(g, planAhead = directive.planAhead != null)
         }
         else {
             // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.

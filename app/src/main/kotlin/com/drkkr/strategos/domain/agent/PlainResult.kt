@@ -16,6 +16,8 @@ object PlainResult {
     private const val MAX_WATCH = 2
     const val FOOTER = "This is a best guess based on what you told me. Tell me what happened or what's different, and I'll update it."
 
+    /** ID4.1: `do_this` bullets on a plan-ahead turn: up to two branches and the close. */
+    const val PLAN_DOS = 3
     /** Phone-screen budget for a coach answer, in characters. */
     const val COACH_MAX_CHARS = 950
     const val COACH_FOOTER = "A best guess from what you told me. Tell me what happens next."
@@ -82,8 +84,12 @@ object PlainResult {
         }.trim()
     }
 
-    /** The coach answer on one phone screen: at most 2 bullets per list, 2 sentences per paragraph, [COACH_MAX_CHARS] in all. */
-    fun coach(g: CoachGuideSketch): String {
+    /**
+     * The coach answer on one phone screen: at most 2 bullets per list, 2 sentences per paragraph, [COACH_MAX_CHARS] in all.
+     * ID4.1: a plan-ahead turn ([planAhead]) may show [PLAN_DOS] `do_this` bullets (the branches and the close; the clear-win
+     * move is the plan's first step).
+     */
+    fun coach(g: CoachGuideSketch, planAhead: Boolean = false): String {
         fun sentences(t: String, n: Int) = Regex("(?<=[.!?])\\s+").split(t.trim()).take(n).joinToString(" ")
         fun render(dos: Int, donts: Int) = buildString {
             if (g.whatHappened.isNotBlank()) appendLine("What's happening underneath: ${sentences(g.whatHappened, 2)}")
@@ -95,7 +101,8 @@ object PlainResult {
             append(sentences(g.followUp, 3).ifBlank { COACH_FOOTER })
         }.trim()
         // Trim from the end if a long reply still doesn't fit: second don't, second do, then the lists' tails.
-        return listOf(2 to 2, 2 to 1, 1 to 1, 1 to 0).map { (d, n) -> render(d, n) }.firstOrNull { it.length <= COACH_MAX_CHARS } ?: render(1, 0)
+        val steps = if (planAhead) listOf(PLAN_DOS to 1, PLAN_DOS to 0) else emptyList()
+        return (steps + listOf(2 to 2, 2 to 1, 1 to 1, 1 to 0)).map { (d, n) -> render(d, n) }.firstOrNull { it.length <= COACH_MAX_CHARS } ?: render(1, 0)
     }
 
     private fun ownerOf(s: Scenario) = IntakeChecklist.self(s)

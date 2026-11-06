@@ -157,6 +157,15 @@ class PlanAheadTest {
         val p = ArgonPrompts.ENGINE_COACH_PROMPT
         assertTrue(p.contains("\n31. PLAN AHEAD"))
         assertTrue(p.contains("plan to adapt, not a prediction"))
+        assertTrue(p.contains("up to 3 bullets here"))
         assertTrue(TacticId.PUT_IT_IN_WRITING in PlanAhead.LOCK_IN)
+    }
+
+    @Test fun aPlanAheadReplyShowsThreeDoBullets_otherRepliesTwo() {
+        val g = com.drkkr.strategos.domain.agent.CoachGuideSketch(clearWinMove = "Write to him today.",
+            doThis = listOf("If he engages, hold your figure.", "If he holds firm, hold that position.", "Send a one-line written summary."))
+        fun bullets(t: String) = t.lines().count { it.startsWith("• ") }
+        assertEquals(3, bullets(com.drkkr.strategos.domain.agent.PlainResult.coach(g, planAhead = true)))
+        assertEquals(2, bullets(com.drkkr.strategos.domain.agent.PlainResult.coach(g)))
     }
 }
