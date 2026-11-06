@@ -207,6 +207,28 @@ class DeepSeekLiveFlowTest {
                     (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Failed)?.let { out.append("  reason=${it.reason.take(400)}\n") }
                     (ctx.result as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.let { out.append("  archetype=${it.ir.archetype}\n") }
                     out.append("  coalition=${ctx.coalitionResult?.values ?: "-"} mechanism=${ctx.mechanismHint?.type ?: "-"}\n")
+                    // Dominance audit: coverage, which cells were proxy-filled (0.0), round-1 vs iterated dominance, and overlap with the directive's moves.
+                    (com.drkkr.strategos.domain.game.GameModelCompiler.compile(saved) as? com.drkkr.strategos.domain.game.CompileResult.Success)?.ir?.let { ir ->
+                        val label = { id: String -> saved.actions.firstOrNull { it.id == id }?.label ?: id }
+                        val who = { id: String -> saved.stakeholders.firstOrNull { it.id == id }?.name ?: id }
+                        val proxyCells = ir.utility.sumOf { u -> u.count { it == 0.0 } }
+                        out.append("  DOMINANCE AUDIT: coveragePct=${ir.coveragePct} cellsAt0.0=$proxyCells of ${ir.utility.sumOf { it.size }} players=${ir.playerCount} strategies=${ir.strategyCounts}\n")
+                        if (ir.playerCount == 2) {
+                            for (p in 0..1) {
+                                val q = 1 - p
+                                fun pay(a: Int, b: Int) = ir.utility[p][ir.profileIndex(if (p == 0) intArrayOf(a, b) else intArrayOf(b, a))]
+                                for (a in 0 until ir.strategyCounts[p]) out.append("    ${who(ir.playerIds[p])} | ${label(ir.actionIds[p][a]).take(60)} | " +
+                                    (0 until ir.strategyCounts[q]).joinToString(" ") { b -> "%.2f".format(pay(a, b)) } + "\n")
+                                val round1 = (0 until ir.strategyCounts[p]).filter { a -> (0 until ir.strategyCounts[p]).any { b -> b != a && (0 until ir.strategyCounts[q]).all { c -> pay(b, c) > pay(a, c) } } }
+                                out.append("    round-1 dominated for ${who(ir.playerIds[p])}: ${round1.map { label(ir.actionIds[p][it]).take(50) }}\n")
+                            }
+                        }
+                        val pr = com.drkkr.strategos.domain.game.IteratedDominancePruner.prune(ir)
+                        out.append("  iterated (rounds=${pr.rounds}): ${pr.eliminated.filterValues { it.isNotEmpty() }.map { (pid, ids) -> "${who(pid)}: ${ids.map { label(it).take(50) }}" }}\n")
+                        val moves = listOfNotNull(d?.let { (it["recommended_move"] as? JsonPrimitive)?.contentOrNull }, d?.let { (it["safe_fallback_move"] as? JsonPrimitive)?.contentOrNull }, d?.let { (it["complementary_move"] as? JsonPrimitive)?.contentOrNull }, d?.let { (it["move_to_implement"] as? JsonPrimitive)?.contentOrNull })
+                        val listed = d?.get("dominated_strategies")?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+                        out.append("  OVERLAP directive move listed as dominated: ${moves.distinct().filter { m -> listed.any { it.contains("$m (dominated)") } }.ifEmpty { listOf("none") }}\n")
+                    }
                 }
 
                 // Negotiation Numbers: the frame this turn's engine built (same inputs as OneShotTurn), what it ruled out, and the reply's figures.

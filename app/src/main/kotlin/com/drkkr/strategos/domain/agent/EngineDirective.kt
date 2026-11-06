@@ -397,8 +397,11 @@ object EngineDirectiveBuilder {
             analysisIntegrity = analysisIntegrity,
             clarification = clarification,
             gameTheoreticPattern = gameTheoreticPattern,
-            // The solver's dominance view and the pathway ranking can disagree; never tell the coach its own pick is dominated.
-            dominatedStrategies = dominatedStrategies.filterNot { it.contains("${recommended.label} (dominated)") },
+            // The solver's dominance view and the pathway ranking can disagree; never tell the coach that a move it is given
+            // (the pick, the safe fallback or the complementary move) is dominated.
+            dominatedStrategies = listOfNotNull(recommended.label, fallback?.label, complementary?.label).let { given ->
+                dominatedStrategies.filterNot { d -> given.any { d.endsWith(": $it (dominated)") || d == "$it (dominated)" } }
+            },
             extensiveFormPath = extensiveFormPath,
             opponentRationality = opponentRationality,
             confidenceLevel = confidence,
