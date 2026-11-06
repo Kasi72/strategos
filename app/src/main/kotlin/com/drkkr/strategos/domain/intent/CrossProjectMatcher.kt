@@ -50,12 +50,29 @@ data class CrossProjectInsight(val projectId: String, val title: String, val sha
  * Archived projects never match; deleted ones are not in the list. Strong matches first, then the most recently updated.
  */
 object CrossProjectMatcher {
-    const val SAME_PERSON = "the same person: %s"
+    const val SAME_PERSON = "the same person (%s)"
     const val SAME_PATTERN = "the same kind of situation, and the same sign: %s"
     const val OUTCOME_WORKED = "what you did there went well: %s"
     const val TACTIC_WORKED = "this worked with them before: %s"
     /** An outcome at or above this rating (1–5) counts as having gone well. */
     const val GOOD_RATING = 4
+
+    /** The fixed sentence for the insight (ID4.3: used when the coach's reply leaves it out). */
+    const val SENTENCE = "Like in “%s”, this involves %s."
+    const val WORKED_SENTENCE = " Back then, %s."
+
+    fun sentence(i: CrossProjectInsight): String =
+        SENTENCE.format(i.title, i.shared) + (i.whatWorked?.let { WORKED_SENTENCE.format(it) } ?: "")
+
+    /**
+     * [whatHappened] with the insight as its second sentence when it doesn't already name the project's title (the coach is
+     * asked to by rule 32; live it sometimes doesn't). Only the first sentence is kept before it, so the phone view shows it.
+     */
+    fun ensureIn(whatHappened: String, i: CrossProjectInsight): String {
+        if (whatHappened.contains(i.title, ignoreCase = true)) return whatHappened
+        val first = Regex("(?<=[.!?])\\s+").split(whatHappened.trim()).firstOrNull().orEmpty()
+        return listOf(first, sentence(i)).filter { it.isNotBlank() }.joinToString(" ")
+    }
 
     /** The shown-once key for this conversation and matched project. */
     fun shownKey(conversationId: String, projectId: String) = "xproj_shown:$conversationId:$projectId"

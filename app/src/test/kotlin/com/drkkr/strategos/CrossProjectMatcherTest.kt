@@ -27,7 +27,7 @@ class CrossProjectMatcherTest {
         val m = CrossProjectMatcher.match(current, listOf(p("a", people = listOf("Asha")), p("b", people = listOf("karthik"), title = "CRM renewal")))!!
         assertEquals(MatchStrength.STRONG, m.strength)
         assertEquals("CRM renewal", m.title)
-        assertEquals("the same person: Karthik", m.shared)
+        assertEquals("the same person (Karthik)", m.shared)
         val json = m.toJson().toString()
         assertTrue(json.contains("\"title\"") && json.contains("\"shared\""))
         // the same rule as the people carry-over on the Overview
@@ -81,5 +81,15 @@ class CrossProjectMatcherTest {
         // the prior alone (no record) is not one
         val prior = s.copy(humanContext = s.humanContext!!.copy(tacticSuccess = mapOf(TacticId.PUT_IT_IN_WRITING.name to listOf(1.0, 1.0))))
         assertNull(CrossProjectMatcher.features(prior).whatWorked)
+    }
+
+    @Test fun theSentenceIsAddedWhenTheCoachLeftItOut_once() {
+        val m = CrossProjectMatcher.match(current, listOf(p("b", people = listOf("Karthik"), title = "CRM renewal")))!!
+        val added = CrossProjectMatcher.ensureIn("He is pushing hard. You want one year. Keep it calm.", m)
+        assertEquals("He is pushing hard. Like in “CRM renewal”, this involves the same person (Karthik).", added)
+        val kept = "Like the CRM renewal, it's Karthik again. He is pushing hard."
+        assertEquals(kept, CrossProjectMatcher.ensureIn(kept, m))
+        val worked = m.copy(whatWorked = CrossProjectMatcher.OUTCOME_WORKED.format("Asked for a one-year term"))
+        assertTrue(CrossProjectMatcher.ensureIn("Hi.", worked).endsWith("Back then, what you did there went well: Asked for a one-year term."))
     }
 }

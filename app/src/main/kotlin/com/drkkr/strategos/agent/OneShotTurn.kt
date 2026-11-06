@@ -408,7 +408,8 @@ class OneShotTurn(
             val others = otherProjects(s.id)
             val shown = others.filter { settings.crossProjectShown(cid, it.id) }.map { it.id }.toSet()
             com.drkkr.strategos.domain.intent.CrossProjectMatcher.match(com.drkkr.strategos.domain.intent.CrossProjectMatcher.features(s), others, shown)
-        }.getOrNull()
+                .also { m -> DebugLog.d { "CROSS_PROJECT others=${others.size} shown=${shown.size} match=${m?.strength ?: "none"}" } }
+        }.onFailure { DebugLog.d { "CROSS_PROJECT failed: ${it::class.simpleName}" } }.getOrNull()
         // ID2.3: the advice changed since last turn, on a standard turn that saved changes (built in Kotlin from the ops).
         val diff = if (!powered.ready) null else com.drkkr.strategos.domain.intent.RecommendationDiff.of(
             intent, previousMove, powered.recommendedMove, turnOps, turnBefore, s, com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.id, deal)
@@ -499,6 +500,8 @@ class OneShotTurn(
             // One optional, plain-words question about the negotiation (fallback, lowest acceptable, ideal...), never repeated in this thread.
             val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
             // ID2.4: the gap question is the closing line, and the only question (I-D6); otherwise the optional negotiation one.
+            // ID4.3: the cross-project sentence is in the reply even when the coach left it out (fixed template, Kotlin's own data).
+            directive.crossProject?.let { x -> g = g.copy(whatHappened = com.drkkr.strategos.domain.intent.CrossProjectMatcher.ensureIn(g.whatHappened, x)) }
             if (directive.nextQuestion != null) g = g.copy(followUp = directive.nextQuestion.text)
             else com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
                 ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }

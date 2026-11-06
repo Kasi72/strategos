@@ -186,7 +186,7 @@ class IntentFlowTest {
         controller.send("My wife Meera told her sister about our loan. I want it kept private between us.")!!.join(); controller.awaitIdle()
         val first = llm.lastDirective!!["cross_project"] as JsonObject
         assertEquals("Holiday plans with Meera", first["title"]!!.jsonPrimitive.content)
-        assertEquals("the same person: Meera", first["shared"]!!.jsonPrimitive.content)
+        assertEquals("the same person (Meera)", first["shared"]!!.jsonPrimitive.content)
         assertTrue(settings.crossProjectShown(controller.state.value.conversationId!!, "other"))
         controller.send("She did it again today.")!!.join(); controller.awaitIdle()
         assertTrue("a second engine turn ran", llm.requests.count { it.purpose == "COACH" } >= 2)
