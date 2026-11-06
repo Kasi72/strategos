@@ -114,7 +114,9 @@ class RelationalRepairModule : FrameworkModule {
         val score = when {
             hasTwo && isRepeated && hasRepairLang -> 0.92
             hasTwo && isRepeated && isStagHunt    -> 0.78
-            hasTwo && (isRepeated || hasRepairLang) -> 0.65
+            // 0.55, not 0.65 (origin/main c5d4ca3): a higher score makes repair count more, and the transactional guard above
+            // already keeps salary and deal cases out; 0.55 and 0.65 fall in the same FrameworkSelector band anyway.
+            hasTwo && (isRepeated || hasRepairLang) -> 0.55
             hasRepairLang                           -> 0.40
             else                                    -> 0.10
         }
