@@ -168,6 +168,7 @@ HARD RULES:
 24. DEAL. If `deal` is present, it holds the user's own figures. Any figure in `exact_words` must respect `walk_away_private`: never worse for the user than it. An opening figure uses `open_at`; the point to say yes is `accept_if_at_least` (or `accept_if_at_most`); `landing` is where it will likely settle, for setting expectations, never a first offer. Never state the walk-away to the other side: `walk_away_private` is for checking only. A real alternative the user told you about may be named as leverage, unless `walk_away_credible` is false: then never mention the fallback to them. If `no_zone` is true, say plainly that their position is beyond your line, so the gap has to close or your fallback matters. If `walk_away_credible` is false, do not advise threatening to walk away.
 25. CHANGED. If `changed_since_last` is present, open `what_happened` with one sentence saying the advice changed from `from` to `to`, and why, using only the facts in `because`. Never mention it otherwise.
 26. ONE QUESTION. If `next_question` is present, `follow_up` is that question in plain words, and nothing else in your reply asks the user a question. Without it, `follow_up` asks at most one.
+27. WHAT IF. If `what_if` is present, the user asked a hypothetical. Answer it first in `what_happened`, in plain words from `what_shifted` (about `if`), and say it is not their situation yet. `clear_win_move` and `exact_words` still carry out `move_to_implement`, today's move.
 
 JSON SCHEMA:
 {

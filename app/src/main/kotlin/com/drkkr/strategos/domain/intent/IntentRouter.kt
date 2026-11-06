@@ -3,6 +3,7 @@ package com.drkkr.strategos.domain.intent
 import com.drkkr.strategos.domain.agent.ChangeOp
 import com.drkkr.strategos.domain.agent.IntentDetail
 import com.drkkr.strategos.domain.model.Scenario
+import com.drkkr.strategos.domain.negotiation.DealFrame
 
 /**
  * What an intent handler produced for the turn (BLUEPRINT §4.2). [None] for `standard`, for a support turn, and for an
@@ -10,6 +11,8 @@ import com.drkkr.strategos.domain.model.Scenario
  */
 sealed class IntentResult {
     object None : IntentResult()
+    /** ID3.1: the hypothetical, run on a copy. */
+    data class WhatIf(val block: WhatIfBlock) : IntentResult()
 }
 
 /**
@@ -22,16 +25,24 @@ data class RouteInput(
     val whatIfOps: List<ChangeOp> = emptyList(),
     val detail: IntentDetail? = null,
     /** A support or safety turn: no handler runs (I-D4). */
-    val support: Boolean = false
+    val support: Boolean = false,
+    /** The analysis view BEFORE the walk-away, fallback and Human Layer steps: what a hypothetical's ops apply to. */
+    val base: Scenario = view,
+    /** The main turn's own chain (walk-away view and mask, fallback shift, Human Layer), so a variant gets exactly the same steps. */
+    val prepare: (Scenario) -> Scenario = { it },
+    /** The engine's pick on a prepared view, through the directive's own guards (walk-away, dominance, stated floor); null = none. */
+    val decide: (Scenario) -> String? = { null },
+    /** The user's figures, for masking any words a block repeats. */
+    val deal: DealFrame? = null
 )
 
 /** One handler per non-standard intent. Each returns [IntentResult.None] until its step (ID3.1–ID4.1) fills it in. */
 interface IntentHandlers {
-    fun whatIf(input: RouteInput): IntentResult = IntentResult.None
-    fun compare(input: RouteInput): IntentResult = IntentResult.None
-    fun topOptions(input: RouteInput): IntentResult = IntentResult.None
-    fun theirReaction(input: RouteInput): IntentResult = IntentResult.None
-    fun planAhead(input: RouteInput): IntentResult = IntentResult.None
+    suspend fun whatIf(input: RouteInput): IntentResult = IntentResult.None
+    suspend fun compare(input: RouteInput): IntentResult = IntentResult.None
+    suspend fun topOptions(input: RouteInput): IntentResult = IntentResult.None
+    suspend fun theirReaction(input: RouteInput): IntentResult = IntentResult.None
+    suspend fun planAhead(input: RouteInput): IntentResult = IntentResult.None
 }
 
 /**
@@ -39,7 +50,7 @@ interface IntentHandlers {
  * Kotlin function runs; the engine still chooses the move). Pure: handlers work on copies and nothing is saved.
  */
 class IntentRouter(private val handlers: IntentHandlers = EngineTools.handlers) {
-    fun route(input: RouteInput): IntentResult {
+    suspend fun route(input: RouteInput): IntentResult {
         if (input.support) return IntentResult.None
         return when (input.intent) {
             Intent.STANDARD -> IntentResult.None

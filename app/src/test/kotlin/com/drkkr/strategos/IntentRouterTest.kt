@@ -27,14 +27,14 @@ class IntentRouterTest {
     private class Recorder : IntentHandlers {
         val calls = mutableListOf<String>()
         private fun hit(name: String): IntentResult { calls += name; return IntentResult.None }
-        override fun whatIf(input: RouteInput) = hit("what_if")
-        override fun compare(input: RouteInput) = hit("compare")
-        override fun topOptions(input: RouteInput) = hit("top_options")
-        override fun theirReaction(input: RouteInput) = hit("their_reaction")
-        override fun planAhead(input: RouteInput) = hit("plan_ahead")
+        override suspend fun whatIf(input: RouteInput) = hit("what_if")
+        override suspend fun compare(input: RouteInput) = hit("compare")
+        override suspend fun topOptions(input: RouteInput) = hit("top_options")
+        override suspend fun theirReaction(input: RouteInput) = hit("their_reaction")
+        override suspend fun planAhead(input: RouteInput) = hit("plan_ahead")
     }
 
-    @Test fun TC_ID_INT_03_exactlyOneHandlerPerIntent_noneForStandard() {
+    @Test fun TC_ID_INT_03_exactlyOneHandlerPerIntent_noneForStandard() = kotlinx.coroutines.runBlocking {
         for (i in Intent.entries) {
             val r = Recorder()
             IntentRouter(r).route(RouteInput(i, Fx.loanFamily()))
@@ -44,17 +44,18 @@ class IntentRouterTest {
         for (i in Intent.entries) assertSame(IntentResult.None, IntentRouter().route(RouteInput(i, Fx.loanFamily())))
     }
 
-    @Test fun TC_ID_INT_04_aSupportTurnRunsNoHandler() {
+    @Test fun TC_ID_INT_04_aSupportTurnRunsNoHandler() = kotlinx.coroutines.runBlocking {
         val sketch = SketchParser.parse("""{"support":true,"intent":"what_if","what_if":{"options":[{"who":"You","do":"Leave tonight","posture":"boundary"}]}}""")!!
         assertEquals(Intent.WHAT_IF, sketch.intentKind)
         val r = Recorder()
         assertSame(IntentResult.None, IntentRouter(r).route(RouteInput(sketch.intentKind, Fx.loanFamily(), support = true)))
         assertEquals("no handler on a support turn", emptyList<String>(), r.calls)
+        Unit
     }
 
     private fun keys(json: String) = Json.parseToJsonElement(json).jsonObject.keys
 
-    @Test fun TC_ID_INT_05_aStandardTurnKeepsThePowerModeBaselineKeys() {
+    @Test fun TC_ID_INT_05_aStandardTurnKeepsThePowerModeBaselineKeys() = kotlinx.coroutines.runBlocking {
         val fixtures = listOf("loanFamily" to Fx.loanFamily(), "pd" to Fx.pd(), "pdWithInfluencer" to Fx.pdWithInfluencer(), "pdAiPayoffs1" to Fx.pdAiPayoffs(1),
             "hlRaise" to Fx.hlRaise(), "hlLoan" to Fx.hlLoan(), "hlSpouse" to Fx.hlSpouse()) + Fx.templates().mapIndexed { i, s -> "template$i" to s }
         for ((name, s) in fixtures) {
@@ -75,6 +76,6 @@ class IntentRouterTest {
             val actual = EngineDirectiveBuilder.build(s, AnalysisPipeline().run(s), null).toJson().toString()
             assertEquals("keys for human/$name", keys(javaClass.getResource("/human/$name.json")!!.readText()), keys(actual))
         }
-        assertTrue(fixtures.size >= 11)
+        assertTrue(fixtures.size >= 11); Unit
     }
 }

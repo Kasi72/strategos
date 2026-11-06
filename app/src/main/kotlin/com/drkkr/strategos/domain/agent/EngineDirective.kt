@@ -89,6 +89,8 @@ data class EngineDirective(
     val changedSinceLast: com.drkkr.strategos.domain.intent.RecommendationDiff? = null,
     /** ID2.4: the one question for the end of the reply (I-D6). In the JSON as `next_question` only when set. */
     val nextQuestion: com.drkkr.strategos.domain.intent.NextQuestion? = null,
+    /** ID3.1: the hypothetical's result. In the JSON as `what_if` only when set. */
+    val whatIf: com.drkkr.strategos.domain.intent.WhatIfBlock? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -158,6 +160,7 @@ data class EngineDirective(
         deal?.let { put("deal", it.toJson()) }
         changedSinceLast?.let { put("changed_since_last", it.toJson()) }
         nextQuestion?.let { put("next_question", it.text) }
+        whatIf?.let { put("what_if", it.toJson()) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }

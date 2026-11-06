@@ -19,6 +19,11 @@ object EngineTools {
     fun pick(view: Scenario, pipeline: AnalysisPipeline = AnalysisPipeline()): String? =
         analyze(view, pipeline).report?.pathways?.firstOrNull { it.label == RECOMMENDED }?.actionId
 
-    /** The handlers the router uses in the app. Every intent answers [IntentResult.None] until its step. */
-    val handlers: IntentHandlers = object : IntentHandlers {}
+    /** ID3.1: the hypothetical on a copy, through the main turn's own chain. */
+    suspend fun whatIf(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = WhatIfHandler.run(input, pipeline)
+
+    /** The handlers the router uses in the app. An intent answers [IntentResult.None] until its step. */
+    val handlers: IntentHandlers = object : IntentHandlers {
+        override suspend fun whatIf(input: RouteInput) = EngineTools.whatIf(input)
+    }
 }

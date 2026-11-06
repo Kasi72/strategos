@@ -294,7 +294,7 @@ class OneShotTurn(
         val recentForDeal = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString("\n") { it.text }
         val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(raw.negotiationContext, raw.humanContext, text, recent = recentForDeal)
         // CP-N: the user's option labels carry no walk-away or fallback figure in the view ("your ceiling", "your other option").
-        val negotiated = com.drkkr.strategos.domain.negotiation.WalkAwayMask.apply(com.drkkr.strategos.domain.negotiation.NegotiationView.apply(raw, deal), deal)
+        val negotiated = com.drkkr.strategos.domain.intent.TurnChain.negotiated(raw, deal)
         // ID1.6: each side's fallback moves the refusal cells (after the label checks, on the Kotlin values). In memory only.
         // The pick is computed with and without it; the fixed line is added only when it changed the pick.
         val lock = settings.powerLock()
@@ -315,9 +315,14 @@ class OneShotTurn(
             )
         }
         // ID2.2: exactly one handler for the turn's intent, on copies of the view; none on a support turn (I-D4).
-        val intentResult = if (support) com.drkkr.strategos.domain.intent.IntentResult.None else withContext(Dispatchers.Default) {
+        val intentResult = if (support || intent == com.drkkr.strategos.domain.intent.Intent.STANDARD) com.drkkr.strategos.domain.intent.IntentResult.None
+        else withContext(Dispatchers.Default) {
             runCatching {
-                com.drkkr.strategos.domain.intent.IntentRouter().route(com.drkkr.strategos.domain.intent.RouteInput(intent, view, whatIfOps, intentDetail))
+                // A variant goes through exactly this turn's steps and the directive's own guards (I-D4).
+                val prepare = com.drkkr.strategos.domain.intent.TurnChain.prepare(deal, fallback.sides)
+                val decide = com.drkkr.strategos.domain.intent.TurnChain.decide(deal, com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text))
+                com.drkkr.strategos.domain.intent.IntentRouter().route(com.drkkr.strategos.domain.intent.RouteInput(
+                    intent, view, whatIfOps, intentDetail, base = raw, prepare = prepare, decide = decide, deal = deal))
             }.getOrDefault(com.drkkr.strategos.domain.intent.IntentResult.None)
         }
         DebugLog.d { "INTENT ${intent.word} -> ${intentResult::class.simpleName}" }
@@ -384,7 +389,8 @@ class OneShotTurn(
             return buildClarify(listOf(walkAwayAsk.text))
         }
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
-            changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready })
+            changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready },
+            whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready })
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
