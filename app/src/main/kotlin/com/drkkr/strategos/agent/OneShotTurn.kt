@@ -250,7 +250,10 @@ class OneShotTurn(
             var guide: CoachGuideSketch? = null
             val engineBody = if (argon != null) {
                 engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
-                    userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor)
+                    userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
+                    // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
+                    intent = parsed.intentKind, intentDetail = parsed.intentDetail,
+                    whatIfOps = if (converted.support) emptyList() else parsed.whatIf?.let { w -> runCatching { SketchConverter.toOps(w, after).ops }.getOrNull() }.orEmpty())
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -282,7 +285,11 @@ class OneShotTurn(
         quickMode: Boolean = false,
         support: Boolean = false,
         /** Power Mode: this turn's manipulative request, if any (read from this turn's sketch, never a saved one). */
-        userAsksFor: String? = null
+        userAsksFor: String? = null,
+        /** Intent Dispatch: what the user asked for this turn (never stored), its detail, and the hypothetical's ops. */
+        intent: com.drkkr.strategos.domain.intent.Intent = com.drkkr.strategos.domain.intent.Intent.STANDARD,
+        intentDetail: com.drkkr.strategos.domain.agent.IntentDetail? = null,
+        whatIfOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList()
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -312,6 +319,13 @@ class OneShotTurn(
                 com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view, contextText = recentUserText)
             )
         }
+        // ID2.2: exactly one handler for the turn's intent, on copies of the view; none on a support turn (I-D4).
+        val intentResult = if (support) com.drkkr.strategos.domain.intent.IntentResult.None else withContext(Dispatchers.Default) {
+            runCatching {
+                com.drkkr.strategos.domain.intent.IntentRouter().route(com.drkkr.strategos.domain.intent.RouteInput(intent, view, whatIfOps, intentDetail))
+            }.getOrDefault(com.drkkr.strategos.domain.intent.IntentResult.None)
+        }
+        DebugLog.d { "INTENT ${intent.word} -> ${intentResult::class.simpleName}" }
         // I-H6: a pick that only exists because of one of the Human Layer's constants is reported as fragile.
         val humanFragile = withContext(Dispatchers.Default) {
             runCatching { com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(negotiated, com.drkkr.strategos.domain.analysis.AnalysisPipeline(), fallback.sides) }.getOrDefault(false)
