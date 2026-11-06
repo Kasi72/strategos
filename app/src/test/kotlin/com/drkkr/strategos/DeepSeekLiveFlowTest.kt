@@ -188,8 +188,8 @@ class DeepSeekLiveFlowTest {
                         out.append("  [ID1] label_issues=${issues.ifEmpty { listOf("none") }} numeric_payoffs=$numeric/${sc.payoffs.size} confidence=${str("confidence_level")}\n")
                         // ID1.6: the fallback inputs, and whether the fixed line (the shift changed the pick) is in the why.
                         val why = str("recommended_why").orEmpty()
-                        val shiftLine = com.drkkr.strategos.domain.human.FallbackShift.STRONG_LINE in why || com.drkkr.strategos.domain.human.FallbackShift.WEAK_LINE in why
-                        out.append("  [ID1.6] your_alternative=${sc.humanContext?.yourAlternative} their_alternative=${sc.humanContext?.theirAlternative} walk_away_credible=${(d["deal"] as? kotlinx.serialization.json.JsonObject)?.get("walk_away_credible")} fallback_shift_changed_pick=$shiftLine\n")
+                        val shiftLine = with(com.drkkr.strategos.domain.human.FallbackShift) { listOf(STRONG_LINE, WEAK_LINE, THEIR_STRONG_LINE, THEIR_WEAK_LINE).filter { it in why } }.ifEmpty { false }
+                        out.append("  [ID1.6] your_alternative=${sc.humanContext?.yourAlternative} their_alternative=${sc.humanContext?.theirAlternative} pending=${sc.humanContext?.pending?.filterKeys { it.endsWith("Alternative") }} batna_written=${sc.negotiationContext?.batna?.isNotBlank() == true}/${sc.negotiationContext?.counterpartBatna?.isNotBlank() == true} sides_without_frame=${com.drkkr.strategos.domain.human.FallbackShift.yours(sc, null)}/${com.drkkr.strategos.domain.human.FallbackShift.theirs(sc)} walk_away_credible=${(d["deal"] as? kotlinx.serialization.json.JsonObject)?.get("walk_away_credible")} fallback_shift_changed_pick=$shiftLine\n")
                     }
                     out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")
                     r.gateway.activeScenario()?.let { sc ->
