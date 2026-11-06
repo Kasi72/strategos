@@ -44,6 +44,7 @@ sealed interface CompileError {
     data class MissingPayoffProfiles(val missing: Int, val total: Int) : CompileError
     data class NonFinitePayoff(val playerId: String, val profileIndex: Int) : CompileError
     data class DuplicateActionId(val actionId: String, val playerId: String) : CompileError
+    data class TooManyProfiles(val found: Long, val limit: Int) : CompileError
 }
 
 /** Result of [GameModelCompiler.compile]. */

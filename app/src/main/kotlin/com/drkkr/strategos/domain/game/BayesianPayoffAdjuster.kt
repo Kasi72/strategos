@@ -84,7 +84,7 @@ object BayesianPayoffAdjuster {
                 val pOppAction = priorProb(userPosture, oppPosture, pSoftens, pBoundary, pEscalates, nOpp)
                 val uniform = 1.0 / nOpp
                 val scale = (pOppAction / uniform).coerceIn(MIN_SCALE, MAX_SCALE)
-                newUserUtil[profileIdx] *= scale
+                newUserUtil[profileIdx] = (newUserUtil[profileIdx] * scale).coerceIn(0.0, 10.0)
             }
         }
 

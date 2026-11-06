@@ -50,6 +50,8 @@ object IteratedDominancePruner {
             if (dominated.isNotEmpty()) toEliminate[p] = dominated
         }
         if (toEliminate.isEmpty()) return null
+        // Guard: if elimination would leave any player with 0 strategies, stop IEDS here.
+        if (toEliminate.any { (p, elim) -> ir.strategyCounts[p] - elim.size < 1 }) return null
         return buildReducedIR(ir, toEliminate)
     }
 

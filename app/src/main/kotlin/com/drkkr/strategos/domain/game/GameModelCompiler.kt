@@ -48,7 +48,12 @@ object GameModelCompiler {
         if (errors.isNotEmpty()) return CompileResult.Failure(errors)
 
         val strategyCounts = playerIds.map { actionMap[it]!!.size }
-        val totalProfiles = strategyCounts.fold(1, Int::times)
+        val totalProfilesLong = strategyCounts.fold(1L, Long::times)
+        if (totalProfilesLong > limits.maxGameProfiles) {
+            errors += CompileError.TooManyProfiles(totalProfilesLong, limits.maxGameProfiles)
+            return CompileResult.Failure(errors)
+        }
+        val totalProfiles = totalProfilesLong.toInt()
 
         // Build utility matrices — NaN for missing cells.
         val utility = Array(playerIds.size) { DoubleArray(totalProfiles) { Double.NaN } }
@@ -133,7 +138,7 @@ object GameModelCompiler {
         utility: Array<DoubleArray>
     ): GameClass {
         if (playerIds.size == 2) {
-            val totalProfiles = strategyCounts.fold(1, Int::times)
+            val totalProfiles = strategyCounts.fold(1L, Long::times).toInt()
             val isZeroSum = (0 until totalProfiles).all { i ->
                 kotlin.math.abs(utility[0][i] + utility[1][i]) < 1e-9
             }
