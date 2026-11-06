@@ -55,6 +55,24 @@ class NegotiationDirectiveTest {
         assertFalse(deal.keys.toString(), deal.keys.any { "fallback" in it })
     }
 
+    @Test fun withNoFrameTheWalkAwayAndTheFallbackNeverReachTheCoach() {
+        val base = seller(NegotiationContext(reservationPoint = "somewhere around 40-45k", batna = "another job at 42k", aspirationPoint = "50k"))
+        // extraction wrote the walk-away into a saved goal as well
+        val s = base.copy(stakeholders = base.stakeholders.mapIndexed { i, p -> if (i == 0) p.copy(goals = listOf("get at least 40k this year")) else p })
+        assertEquals(null, DealFrame.build(s.negotiationContext, s.humanContext, ""))
+        val json = directiveJson(s).toString()
+        for (secret in listOf("40-45k", "around 40", "42k", "another job", "at least 40k", "BATNA", "Walk-away")) assertFalse("$secret in $json", json.contains(secret))
+        // no frame: no target either, so the directive stays the baseline (I-N1)
+        assertFalse(json, json.contains("Target outcome"))
+    }
+
+    @Test fun withAFrameOnlyTheTargetIsAKnownFact() {
+        val json = directiveJson(seller(NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k", batna = "105k", counterpartReservation = "120k")))
+        val facts = json.getValue("known_stakeholder_facts").toString()
+        assertTrue(facts, facts.contains("Target outcome: 130k"))
+        assertFalse(facts, facts.contains("Walk-away") || facts.contains("BATNA") || facts.contains("100k") || facts.contains("105k"))
+    }
+
     @Test fun TC_NG_DIR_02_noFrameNoDealKey() {
         val s = Fx.hlRaise()
         assertFalse(EngineDirectiveBuilder.build(s, AnalysisPipeline().run(s), null).toJson().containsKey("deal"))

@@ -385,7 +385,8 @@ class OneShotTurn(
             com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
             else -> INTERPRET_MAX_TOKENS
         }
-        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal)
+        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
+            band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
             var g = reply.guide().copy(pill = pillFor(directive), watchFor = directive.watchFor.map { "${it.sign} ${it.protect}" },
@@ -575,8 +576,10 @@ class OneShotTurn(
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
     private suspend fun interpret(
         cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS,
-        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
+        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null,
+        band: com.drkkr.strategos.domain.negotiation.DealCheck.PrivateBand? = null
     ): CoachReply? {
+        fun dealOk(r: CoachReply) = com.drkkr.strategos.domain.negotiation.DealCheck.usable(r, deal) && com.drkkr.strategos.domain.negotiation.DealCheck.usableWithoutFrame(r, band)
         val priorRoundCtx = priorRound(cid)
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
@@ -602,14 +605,14 @@ class OneShotTurn(
             val reply = CoachReply.parse(r.output.assistantText())
             // Negotiation Numbers: a reply whose advice crosses the walk-away, or tells them the walk-away or the fallback, is not used either.
             if (reply != null && reply.implements(directive.moveToImplement) && !reply.namesSomethingBanned() &&
-                com.drkkr.strategos.domain.negotiation.DealCheck.usable(reply, deal)) {
+                dealOk(reply)) {
                 if (!reply.hasPlaceholder()) return reply
                 usable = reply
             }
-            DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()} dealOk=${reply?.let { com.drkkr.strategos.domain.negotiation.DealCheck.usable(it, deal) }}" }
+            DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()} dealOk=${reply?.let { dealOk(it) }}" }
             // A walk-away leak is told back to the coach before its retry: the same request again would leak the same way,
             // because the person's own message carries the figure.
-            if (attempt == 0 && reply != null && !com.drkkr.strategos.domain.negotiation.DealCheck.usable(reply, deal)) request = request.copy(input = withNote(input, DEAL_RETRY_NOTE))
+            if (attempt == 0 && reply != null && !dealOk(reply)) request = request.copy(input = withNote(input, DEAL_RETRY_NOTE))
         }
         return usable?.stripped()
     }

@@ -58,6 +58,24 @@ class DealGuardTest {
         assertTrue(DealCheck.usableAnswer("Say the number once.", null))
     }
 
+    @Test fun withNoFrameARangeWalkAwayIsStillKeptOutOfWhatIsSaid() {
+        val nc = NegotiationContext(reservationPoint = "somewhere around 40–45k", batna = "another offer at 44k", aspirationPoint = "50k")
+        assertNull(DealFrame.build(nc, null, ""))
+        val band = DealCheck.band(nc, null)!!
+        assertEquals(40_000.0, band.low, 0.0); assertEquals(45_000.0, band.high, 0.0)
+        // the floor said to them, or advice to state it, is rejected
+        assertFalse(DealCheck.usableWithoutFrame(reply(exact = "I'm hoping for 50k. My floor is 45k."), band))
+        assertFalse(DealCheck.usableWithoutFrame(reply(clear = "Then state your floor of 45k clearly."), band))
+        assertFalse(DealCheck.usableWithoutFrame(reply(doThis = listOf("Tell them 42k is the least you'll take")), band))
+        // their offer, the real alternative and the target may be named; the floor kept private is fine
+        assertTrue(DealCheck.usableWithoutFrame(reply(exact = "I have another offer at 44k and I'm hoping for 50k. I have a firm limit."), band))
+        assertTrue(DealCheck.usableWithoutFrame(reply(clear = "Ask for 50k; keep your floor to yourself."), band))
+        // no walk-away figure at all, or a frame that already checks it: no band
+        assertNull(DealCheck.band(NegotiationContext(reservationPoint = "a fair raise"), null))
+        assertNull(DealCheck.band(NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"), DealFrame.build(NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"), null, "")))
+        assertTrue(DealCheck.usableWithoutFrame(reply(exact = "My floor is 45k."), null))
+    }
+
     @Test fun theirOfferNamedAsTheirsIsNotAdviceToTakeIt() {
         val raise = DealFrame.build(NegotiationContext(reservationPoint = "10%", aspirationPoint = "15%"), null, "")!!
         // describing their offer is fine

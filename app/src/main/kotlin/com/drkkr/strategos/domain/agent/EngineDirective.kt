@@ -391,7 +391,7 @@ object EngineDirectiveBuilder {
             stressVerdict = if (fragile) "FRAGILE" else "ROBUST", stressFlip = flipText,
             moveToImplement = if (fragile && fallback != null) fallback.label else recommended.label,
             // CP-N: the walk-away and the fallback never reach the coach as a figure (a saved fear, a limit or last turn's move can carry one).
-            knownFacts = knownFacts(s, previousMove?.let { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) }, recommended.label).map { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) },
+            knownFacts = knownFacts(s, previousMove?.let { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) }, recommended.label, deal).map { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, deal) },
             bayesianLearningNote = BayesianUpdater.learningNote(s),
             dynamicArchetype = dynamicArchetype,
             analysisIntegrity = analysisIntegrity,
@@ -411,14 +411,31 @@ object EngineDirectiveBuilder {
     }
 
     /** Fears, wants and limits already saved, plus the previous turn's move when it is not the same as this one's. */
-    private fun knownFacts(s: Scenario, previousMove: String?, recommendedLabel: String): List<String> = buildList {
+    /**
+     * The negotiation context gives only the target here (with a deal frame; without one the directive stays the baseline, I-N1).
+     * The walk-away and the fallback are never facts: with a frame the walk-away reaches the coach as `walk_away_private` only.
+     * Without a frame (a range, mixed units) nothing masks them, so a fact that carries one of their figures is left out.
+     */
+    private fun knownFacts(s: Scenario, previousMove: String?, recommendedLabel: String,
+                           deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null): List<String> = buildList {
+        s.negotiationContext?.aspirationPoint?.takeIf { deal != null && it.isNotBlank() }?.let { add("Target outcome: ${it.take(100)}") }
         s.stakeholders.forEach { p ->
             p.fears.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} fears: $it") }
             p.goals.firstOrNull()?.takeIf { it.isNotBlank() }?.let { add("${p.name} wants: $it") }
         }
         s.constraints.filter { it.id != com.drkkr.strategos.domain.negotiation.NegotiationView.CONSTRAINT_ID }.forEach { c -> add("Limit: ${c.label}") }
         if (previousMove != null && previousMove != recommendedLabel) add("Last turn's recommended move: $previousMove")
-    }.take(MAX_KNOWN_FACTS)
+    }.let { facts -> if (deal != null) facts else facts.filterNot { carriesPrivateFigure(it, s.negotiationContext) } }.take(MAX_KNOWN_FACTS)
+
+    private val wholeNumber = Regex("""\d[\d,.]*""")
+
+    /** True when [fact] names a number from the walk-away or the fallback as written ("40" or "45" from "between 40 and 45k"). */
+    private fun carriesPrivateFigure(fact: String, nc: com.drkkr.strategos.domain.model.NegotiationContext?): Boolean {
+        nc ?: return false
+        fun nums(t: String) = wholeNumber.findAll(t).map { it.value.trimEnd('.', ',').replace(",", "") }.filter { it.isNotEmpty() }.toSet()
+        val private = nums(nc.reservationPoint) + nums(nc.batna)
+        return private.isNotEmpty() && nums(fact).any { it in private }
+    }
 
     /** The previous turn's recommended move, read from the report digest stored before this turn overwrites it. */
     fun previousRecommendedMove(reportJson: String?): String? {

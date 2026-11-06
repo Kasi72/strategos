@@ -34,6 +34,42 @@ object DealCheck {
     /** Sentence breaks, including after a closing quote ('...?" If he pushes'). */
     private val sentence = Regex("""(?<=[.!?;\n]["”]?)\s+""")
 
+    /**
+     * The walk-away when no frame could be built from it (a range like "40–45k", or figures in mixed units): nothing is masked
+     * then, and the person's own message carries the figure, so the reply is checked against the band the walk-away spans.
+     * [fallback] figures may still be named (a real alternative is leverage, CP-N ng6).
+     */
+    data class PrivateBand(val low: Double, val high: Double, val unit: Amount.Unit, val fallback: List<Amount>) {
+        fun secret(a: Amount): Boolean = a.unit == unit && a.value >= low * (1 - WalkAwayMask.CLOSE) && a.value <= high * (1 + WalkAwayMask.CLOSE) &&
+            fallback.none { it.unit == a.unit && WalkAwayMask.near(a.value, it.value) }
+    }
+
+    /** The [PrivateBand] for a walk-away that builds no frame; null when it has no figure (or a frame exists, [frame]). */
+    fun band(nc: com.drkkr.strategos.domain.model.NegotiationContext?, frame: DealFrame?): PrivateBand? {
+        if (frame?.walkAway != null || nc == null) return null
+        val ends = DealNumbers.figures(nc.reservationPoint)
+        if (ends.isEmpty() || ends.map { it.unit }.distinct().size != 1) return null
+        var low = ends.minOf { it.value }
+        val high = ends.maxOf { it.value }
+        // "40–45k": the suffix belongs to both ends, so a bare 40 next to 45,000 is 40,000
+        if (low > 0 && high / low >= SCALE_GAP) low *= Math.pow(10.0, Math.round(Math.log10(high / low)).toDouble())
+        return PrivateBand(minOf(low, high), maxOf(low, high), ends.first().unit, DealNumbers.figures(nc.batna))
+    }
+
+    private const val SCALE_GAP = 50.0
+
+    /** No frame: nothing in the band in what is said to them, in the advice as speech, and no advice to reveal the walk-away. */
+    fun usableWithoutFrame(reply: CoachReply, band: PrivateBand?): Boolean {
+        band ?: return true
+        fun hasBand(t: String) = DealNumbers.figures(t).any { band.secret(it) }
+        val advice = listOf(reply.clearWinMove, reply.exactWords, reply.followUp) + reply.doThis
+        if (hasBand(reply.exactWords)) return false
+        if (advice.any { advisesReveal(it) }) return false
+        return (listOf(reply.clearWinMove, reply.followUp) + reply.doThis).none { t ->
+            quoted.findAll(t).any { hasBand(it.value) } || t.split(sentence).any { s -> speech.containsMatchIn(s) && hasBand(s) }
+        }
+    }
+
     fun usable(reply: CoachReply, frame: DealFrame?): Boolean {
         if (frame?.walkAway == null) return true
         val advice = listOf(reply.clearWinMove, reply.exactWords, reply.followUp) + reply.doThis
