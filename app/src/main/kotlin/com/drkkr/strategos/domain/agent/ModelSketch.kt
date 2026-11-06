@@ -2,11 +2,13 @@ package com.drkkr.strategos.domain.agent
 
 import com.drkkr.strategos.domain.human.DeliveryTags
 import com.drkkr.strategos.domain.human.HumanContext
+import com.drkkr.strategos.domain.game.RubricPayoffs
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -208,13 +210,25 @@ data class SketchPerson(
 @Serializable
 data class SketchOption(@SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "", val posture: String? = null)
 
+/**
+ * One outcome as Call 1 wrote it. Intent Dispatch ID1.1: each cell is a label (`++ + 0 - --` or the words), read by
+ * [com.drkkr.strategos.domain.game.RubricPayoffs]; an older reply's numbers are still read. The raw cells are kept as they came,
+ * and [SketchConverter] fills [scores], [forYou] and [forThem] with numbers once the turn's dimensions are known, before
+ * [PostureContrast] runs.
+ */
 @Serializable
 data class SketchOutcome(
-    val picks: Map<String, String> = emptyMap(), val scores: Map<String, List<Double>> = emptyMap(),
+    val picks: Map<String, String> = emptyMap(),
+    @SerialName("scores") val rawScores: Map<String, List<JsonElement>> = emptyMap(),
     // BLUEPRINT-QUESTION: the §5.1 prompt writes outcomes as when/for_you/for_them (first and second player), not picks/scores. Both are read.
     @SerialName("when") val whenPicks: List<String> = emptyList(),
-    @SerialName("for_you") val forYou: List<Double> = emptyList(),
-    @SerialName("for_them") val forThem: List<Double> = emptyList()
+    @SerialName("for_you") val rawForYou: List<JsonElement> = emptyList(),
+    @SerialName("for_them") val rawForThem: List<JsonElement> = emptyList(),
+    @Transient val scores: Map<String, List<Double>> = emptyMap(),
+    @Transient val forYou: List<Double> = emptyList(),
+    @Transient val forThem: List<Double> = emptyList(),
+    /** Some cell came as a number, not a label (provenance [com.drkkr.strategos.domain.game.RubricPayoffs.AI_SCORED_NUMERIC]). */
+    @Transient val numeric: Boolean = false
 )
 
 @Serializable
@@ -255,6 +269,21 @@ object SketchConverter {
     private const val RATIONALE = "From your description"
     private val DEFAULT_DIMS = listOf(PayoffDimension.WELLBEING, PayoffDimension.RELATIONSHIPS, PayoffDimension.COST)
     private val nonRef = Regex("[^a-z0-9_]+")
+
+    /**
+     * ID1.1: every outcome's cells as numbers in [dims] order (labels through [RubricPayoffs]; an older reply's numbers as they
+     * were). A player whose cells have a missing one, or too few, gets no numbers for that outcome, so that entry stays missing.
+     */
+    internal fun numbers(outcomes: List<SketchOutcome>, dims: List<PayoffDimension>): List<SketchOutcome> = outcomes.map { o ->
+        val you = RubricPayoffs.row(o.rawForYou, dims)
+        val them = RubricPayoffs.row(o.rawForThem, dims)
+        val byName = o.rawScores.mapValues { RubricPayoffs.row(it.value, dims) }
+        o.copy(
+            forYou = you?.values.orEmpty(), forThem = them?.values.orEmpty(),
+            scores = byName.mapNotNull { (k, r) -> r?.let { k to it.values } }.toMap(),
+            numeric = you?.numeric == true || them?.numeric == true || byName.values.any { it?.numeric == true }
+        )
+    }
 
     /** The one clarifying question, unless the model echoed the prompt's instruction instead of asking (seen live). */
     private fun askOf(sketch: ModelSketch): String? =
@@ -411,6 +440,7 @@ object SketchConverter {
                 .distinct().takeIf { it.size in 3..6 } ?: DEFAULT_DIMS
         }
         val playerList = players.toList()
+        val labelled = numbers(sketch.outcomes, dims)
         /** Exact (normalised) match first; otherwise the owner's one option whose wording contains, or is contained in, the pick. */
         fun optionFor(pid: String, label: String): String? {
             optionIds["$pid|$label"]?.let { return it }
@@ -424,20 +454,25 @@ object SketchConverter {
         val seen = mutableSetOf<String>()
         val youKey = playerList.firstOrNull { nameOf[it] == "you" } ?: playerList.firstOrNull()
         val otherKey = playerList.firstOrNull { it != youKey }
+        /** The outcome's picks as player name → option label, in the form the loop below matches on. */
+        fun picksOf(o: SketchOutcome): Map<String, String> =
+            if (o.whenPicks.size >= 2 && playerList.size >= 2) playerList.take(2).mapIndexed { i, pid -> nameOf.getValue(pid) to key(o.whenPicks[i]) }.toMap()
+            else o.picks.entries.associate { key(it.key) to key(it.value) }
+        val numericPicks = labelled.filter { it.numeric }.map { picksOf(it) }.toSet()
         val outcomes = if (youKey != null && otherKey != null) {
-            val contrasted = PostureContrast.apply(sketch.outcomes, sketch.options, nameOf.getValue(youKey), nameOf.getValue(otherKey), dims)
+            val contrasted = PostureContrast.apply(labelled, sketch.options, nameOf.getValue(youKey), nameOf.getValue(otherKey), dims)
             // Phase F.6: the learned priors already live on `s` (OneShotTurn applies BayesianUpdater before calling toOps).
             val other = s.stakeholders.firstOrNull { it.id == otherKey }
             BayesianPayoffAdjustment.apply(
                 contrasted, sketch.options, nameOf.getValue(youKey),
                 other?.probSoftensOnRepair ?: BayesianUpdater.DEFAULT_SOFTENS, other?.probRespectsBoundary ?: BayesianUpdater.DEFAULT_BOUNDARY
             )
-        } else sketch.outcomes
+        } else labelled
         for (o in outcomes) {
             // The Argon form: when = [first player's option, second player's option], scores in the same player order.
             val byOrder = o.whenPicks.size >= 2 && playerList.size >= 2
-            val picks = if (byOrder) playerList.take(2).mapIndexed { i, pid -> nameOf.getValue(pid) to key(o.whenPicks[i]) }.toMap()
-                        else o.picks.entries.associate { key(it.key) to key(it.value) }
+            val picks = picksOf(o)
+            val rationale = if (picks in numericPicks) "$RATIONALE · ${RubricPayoffs.AI_SCORED_NUMERIC}" else RATIONALE
             val profile = playerList.map { pid ->
                 val label = picks[nameOf[pid]] ?: return@map null
                 val aid = optionFor(pid, label) ?: return@map null
@@ -452,7 +487,7 @@ object SketchConverter {
                 if (values.size < dims.size) continue
                 if (!seen.add("$pid|" + picksList.joinToString(",") { it.action })) continue
                 ops += ChangeOp(
-                    OpType.SET_PAYOFF, stakeholder = pid, profile = picksList, rationale = RATIONALE,
+                    OpType.SET_PAYOFF, stakeholder = pid, profile = picksList, rationale = rationale,
                     values = dims.mapIndexed { i, d -> DimValue(d, values[i].coerceIn(0.0, 10.0)) }
                 )
             }
