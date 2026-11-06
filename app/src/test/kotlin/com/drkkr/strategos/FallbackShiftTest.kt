@@ -241,4 +241,17 @@ class FallbackShiftTest {
             assertFalse(l.contains("BATNA", ignoreCase = true)); assertFalse(l.any { it.isDigit() })
         }
     }
+
+    @Test fun TC_ID_ALT_09_aBareWalkAwayIsNotTheirFallbackInTheUsersWords() {
+        for (bare in listOf("they could walk away", "no deal", "let you walk", "He'd just leave.")) assertFalse(bare, FallbackShift.namesAlternative(bare))
+        assertTrue(FallbackShift.namesAlternative("they have another supplier lined up"))
+        fun theirs(text: String) = FallbackShift.theirs(vendor(HumanContext(relationship = "vendor", pending = mapOf("theirAlternative" to "strong")))
+            .copy(negotiationContext = NegotiationContext(counterpartBatna = text)))
+        assertNull(theirs("they could walk away"))
+        assertNull(theirs("no deal"))
+        assertEquals(FallbackShift.Strength.STRONG, theirs("they have another supplier lined up"))
+        // a confirmed word is the user's own already, whatever the text says
+        assertEquals(FallbackShift.Strength.STRONG, FallbackShift.theirs(vendor(HumanContext(relationship = "vendor", theirAlternative = "strong"))
+            .copy(negotiationContext = NegotiationContext(counterpartBatna = "no deal"))))
+    }
 }

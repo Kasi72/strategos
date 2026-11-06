@@ -89,4 +89,17 @@ class RecommendationDiffTest {
         for (i in Intent.entries.filter { it != Intent.STANDARD })
             assertNull(i.word, RecommendationDiff.of(i, "Confront", pick(two), ops, one, two, IntakeChecklist.self(two)?.id))
     }
+
+    @Test fun TC_ID_DIFF_04_thePreviousPickIsMatchedToThisTurnsRewordedOptions() {
+        val (_, one) = turn(sketch(q(confrontWins)), Scenario(id = "d", title = "Talk", decisionOwner = "You"))
+        val (ops, two) = turn(sketch(q(waitWins), fear = "being blamed"), one)
+        val owner = IntakeChecklist.self(two)?.id
+        // last turn's pick, as Call 1 worded it then; this turn's option is "Confront"
+        val reworded = "Confront her about it"
+        val sent = RecommendationDiff.of(Intent.STANDARD, reworded, "Wait", ops, one, two, owner)
+        assertNotNull("matched to Confront, and the pick is now Wait", sent)
+        assertEquals(reworded, sent!!.from); assertEquals("Wait", sent.to)
+        assertNull("matched to the pick itself: the same advice reworded", RecommendationDiff.of(Intent.STANDARD, "Wait it out a while", "Wait", ops, one, two, owner))
+        assertNull("no option matches: no claim", RecommendationDiff.of(Intent.STANDARD, "Ask her sister for advice", "Wait", ops, one, two, owner))
+    }
 }

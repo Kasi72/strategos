@@ -324,9 +324,15 @@ class OneShotTurn(
             )
         }
         // ID2.2: exactly one handler for the turn's intent, on copies of the view; none on a support turn (I-D4).
+        // ID3.7: dominance is pruned among the moves left after the walk-away and reactive exclusion, so a valid move dominated
+        // only by an excluded one survives. The solver's own run above is unchanged.
+        val exclusionFirst = com.drkkr.strategos.domain.intent.ExclusionFirst.filtered(view)
+        val pruneAfterExclusion = if (exclusionFirst === view) gameContext.pruneResult else withContext(Dispatchers.Default) {
+            runCatching { com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(exclusionFirst, contextText = recentUserText).pruneResult }.getOrNull()
+        }
         // The user's moves the pruner eliminated (never offered as an option by an intent block).
         val ownerId = com.drkkr.strategos.domain.agent.IntakeChecklist.self(view)?.id
-        val dominatedIds = gameContext.pruneResult?.eliminated?.get(ownerId).orEmpty().toSet()
+        val dominatedIds = pruneAfterExclusion?.eliminated?.get(ownerId).orEmpty().toSet()
         val intentResult = if (support || intent == com.drkkr.strategos.domain.intent.Intent.STANDARD) com.drkkr.strategos.domain.intent.IntentResult.None
         else withContext(Dispatchers.Default) {
             runCatching {
@@ -351,7 +357,7 @@ class OneShotTurn(
                 val dims = it.strategyCounts.joinToString("×")
                 "${it.playerCount}-player game ($dims)"
             }
-        val dominated = gameContext.pruneResult?.let { pruneRes ->
+        val dominated = pruneAfterExclusion?.let { pruneRes ->
             pruneRes.eliminated.flatMap { (pid, acts) ->
                 val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
                 acts.map { act ->

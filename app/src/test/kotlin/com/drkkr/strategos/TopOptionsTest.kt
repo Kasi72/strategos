@@ -89,4 +89,24 @@ class TopOptionsTest {
         val d = EngineDirectiveBuilder.build(s, AnalysisPipeline().run(s), null).copy(topOptions = TopOptions.of(s, "Talk it through tonight", emptySet())).toJson()
         assertEquals(2, d["top_options"]!!.jsonArray.size)
     }
+
+    @Test fun TC_ID_TOP_05_aMoveDominatedOnlyByAWalkAwayCrossingMoveSurvives() {
+        val raw = game(listOf(
+            Triple("Hold at the asking price", "boundary", 7.0 to 5.0),
+            Triple("Accept 90k today", "repair", 9.0 to 7.0),                 // crosses the 100k walk-away; dominates the next one
+            Triple("Offer a small discount", "repair", 8.0 to 6.5),           // dominated only by the 90k move
+            Triple("Ask what budget they have", "repair", 6.0 to 5.5)),
+            nc = NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"))
+        val view = NegotiationView.apply(raw, DealFrame.build(raw.negotiationContext, null, ""))
+        // before: the pruner drops the discount because of the excluded move
+        val before = GameModelService.analyzeWithContext(view, contextText = "").pruneResult?.eliminated?.get("you").orEmpty().toSet()
+        assertTrue(before.toString(), "m2" in before)
+        // after: the walk-away move is set aside first, and the discount survives
+        assertEquals(setOf("m1"), com.drkkr.strategos.domain.intent.ExclusionFirst.excluded(view))
+        val after = com.drkkr.strategos.domain.intent.ExclusionFirst.dominated(view)
+        assertFalse(after.toString(), "m2" in after)
+        val moves = TopOptions.of(view, "Hold at the asking price", after).map { it.move }
+        assertTrue(moves.toString(), "Offer a small discount" in moves)
+        assertFalse("Accept 90k today" in moves)
+    }
 }

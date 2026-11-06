@@ -44,7 +44,11 @@ data class RecommendationDiff(val from: String, val to: String, val because: Lis
             val from = WalkAwayMask.text(previousMove, deal)
             val to = WalkAwayMask.text(pick, deal)
             if (same(from, to)) return null
-            if (after.actions.none { it.stakeholderId == ownerId && same(WalkAwayMask.text(it.label, deal), from) }) return null
+            // ID3.7: Call 1 rewords its options every turn, so the previous pick is matched to this turn's options with the
+            // compare matcher. Matched to the pick itself: the same advice reworded, no notice. No match: we can't show a change.
+            ownerId ?: return null
+            val matched = Compare.match(WalkAwayMask.apply(after, deal), ownerId, from) ?: return null
+            if (same(matched.label, to)) return null
             // Facts first; a payoff line ("Set outcome for …") only says the scores moved, so it comes last.
             val ordered = accepted.filter { it.type != OpType.SET_PAYOFF && it.type != OpType.SET_SCENARIO_FIELDS } +
                 accepted.filter { it.type == OpType.SET_PAYOFF }
