@@ -236,8 +236,11 @@ object EngineDirectiveBuilder {
 
     // Audit caveats from the report engine are for the Report screen; the coach should not repeat them to the user.
     private val auditCaveat = Regex("""(?i)no evidence sources recorded[^.]*\.?|one or more hard constraints are unassessed[^.]*\.?""")
+    // The report's "Aligns with target: …" note is for the Report screen; the coach gets the target through the deal frame only.
+    private val targetNote = Regex("""\s*Aligns with target: [^\n]*?\.(?=\s|$)""")
+
     private fun cleanWhy(raw: String): String =
-        raw.replace(auditCaveat, " ").replace(Regex("""\s*—\s*(?=\s|$)"""), "").replace(Regex("""\s{2,}"""), " ").trim()
+        raw.replace(auditCaveat, " ").replace(targetNote, " ").replace(Regex("""\s*—\s*(?=\s|$)"""), "").replace(Regex("""\s{2,}"""), " ").trim()
 
     fun build(
         s: Scenario, pr: PipelineResult, stress: StressResult?,
@@ -304,7 +307,8 @@ object EngineDirectiveBuilder {
         val guessedOutcomes = cov.filled < cov.expected
         val fragile = flipsToBad || guessedOutcomes || humanFragile
         val flipText = flip?.let { f ->
-            "if ${f.stakeholder}'s outcome for \"${f.profileLabel}\" were ${if (f.direction == StressDirection.IMPROVE) "better" else "worse"}, the pick would move to ${f.newRecommended ?: "no clear pick"}"
+            val moveDesc = f.newRecommended?.let { "shift to $it" } ?: "lose its clear ranking"
+            "If ${f.stakeholder}'s situation changes, the best move could $moveDesc."
         } ?: "how they take this depends on how you put it, so the pick could change if they react more or less strongly than assumed".takeIf { humanFragile }
 
         // A second calm move: close in score, or the one the stress test flips to. It is blended in, not swapped for the first.

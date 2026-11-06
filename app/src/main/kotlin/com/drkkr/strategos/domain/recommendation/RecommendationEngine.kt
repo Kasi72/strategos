@@ -24,6 +24,7 @@ data class ScoreBreakdown(
     val feasibility: Double = 0.0,
     val stakeholderViability: Double = 0.0,
     val ethicalCompliance: Double = 0.0,
+    val negotiationAlignment: Double = 1.0,
     val calculationBasis: String = "Unknown"
 )
 
@@ -247,7 +248,7 @@ class RecommendationEngine {
                 val w = result.confidence
                 val frameworkRelevance = result.applicability.score
                 val inputCompleteness = scenario.completenessScore() / 100.0
-                val evidenceQuality = (scenario.evidenceQuality() / 100.0)
+                val evidenceQuality = if (scenario.evidenceSources.isEmpty()) 0.4 else (scenario.evidenceQuality() / 100.0)
                 val robustness = when (result.calculationStatus) {
                     CalculationStatus.CALCULATED -> 0.85
                     CalculationStatus.PARTIALLY_CALCULATED -> 0.60
@@ -256,8 +257,9 @@ class RecommendationEngine {
                 val feasibility = (5 - linkedAction.implementationDifficulty).coerceAtLeast(0) / 4.0
                 val stakeholderViability = if (scenario.stakeholders.any { it.canVeto && it.credibility < 4 }) 0.6 else 0.85
                 val ethicalCompliance = if (linkedAction.legalStatus == LegalStatus.PROHIBITED) 0.0 else 1.0
+                val negotiationAlignment = negotiationAlignmentFactor(scenario, linkedAction)
                 val factor = frameworkRelevance * inputCompleteness * evidenceQuality *
-                    robustness * feasibility * stakeholderViability * ethicalCompliance
+                    robustness * feasibility * stakeholderViability * ethicalCompliance * negotiationAlignment
                 val contribution = factor * w
 
                 val bd = ScoreBreakdown(
@@ -268,6 +270,7 @@ class RecommendationEngine {
                     feasibility = feasibility,
                     stakeholderViability = stakeholderViability,
                     ethicalCompliance = ethicalCompliance,
+                    negotiationAlignment = negotiationAlignment,
                     calculationBasis = if (scenario.evidenceSources.isEmpty()) "Proxy (no evidence)" else result.calculationStatus.name
                 )
 
@@ -378,8 +381,11 @@ class RecommendationEngine {
 
         fun rationale(c: DecisionCandidate, label: String): String = buildString {
             append("$label.")
+            val nc = scenario.negotiationContext
+            if (nc != null && nc.aspirationPoint.isNotBlank()) {
+                append(" Aligns with target: ${nc.aspirationPoint.take(80)}.")
+            }
             val caveats = mutableListOf<String>()
-            if (evidenceEmpty) caveats += "No evidence sources recorded — results are structural proxy estimates only."
             if (c.constraintStatusSummary == ConstraintStatus.UNKNOWN) caveats += "One or more hard constraints are unassessed — verify compliance before committing."
             if (caveats.isNotEmpty()) {
                 append(" ")
@@ -418,9 +424,18 @@ class RecommendationEngine {
             return pathways
         }
 
-        // Recommended: highest-scoring fully feasible, or if none, highest with unknown constraint
-        val best = feasible.firstOrNull { it.feasibilityStatus == FeasibilityStatus.FEASIBLE }
-            ?: feasible.first()
+        // Recommended: prefer decision-owner actions; fall back to all feasible
+        val ownerId = scenario.stakeholders.firstOrNull {
+            it.name.equals("You", ignoreCase = true) ||
+            (scenario.decisionOwner.isNotBlank() && (it.name == scenario.decisionOwner || it.id == scenario.decisionOwner))
+        }?.id
+        val ownerFeasible = if (ownerId != null) {
+            feasible.filter { c ->
+                scenario.actions.firstOrNull { it.id == c.actionId }?.stakeholderId == ownerId
+            }.takeIf { it.isNotEmpty() } ?: feasible
+        } else feasible
+        val best = ownerFeasible.firstOrNull { it.feasibilityStatus == FeasibilityStatus.FEASIBLE }
+            ?: ownerFeasible.first()
         pathways += DecisionPathway(
             label = "Recommended", actionId = best.actionId,
             action = best.actionLabel,
@@ -598,6 +613,16 @@ class RecommendationEngine {
         if (unvetoConfirmed.isNotEmpty()) items += MissingInfoItem(
             "Veto-holder commitments unconfirmed: ${unvetoConfirmed.joinToString { it.name }}",
             "Implementation may be blocked without confirmed support")
+        val negKeywords = listOf("negotiat", "salary", "raise", "contract", "offer", "deal", "bargain", "wage")
+        val looksNegotiation = negKeywords.any {
+            scenario.title.lowercase().contains(it) || scenario.description.lowercase().contains(it)
+        }
+        if (looksNegotiation && scenario.negotiationContext == null) {
+            items += MissingInfoItem(
+                "No negotiation context entered",
+                "BATNA and walk-away point affect which move is recommended"
+            )
+        }
         return items
     }
 
@@ -637,6 +662,14 @@ class RecommendationEngine {
                 }
             }
         }
+    }
+
+    private fun negotiationAlignmentFactor(scenario: Scenario, action: Action): Double {
+        val nc = scenario.negotiationContext ?: return 1.0
+        val label = action.label.lowercase()
+        val concessionKeywords = listOf("accept", "settle", "concede", "give in", "walk away", "decline offer", "take less", "lower my ask")
+        if (nc.reservationPoint.isNotBlank() && concessionKeywords.any { label.contains(it) }) return 0.75
+        return 1.0
     }
 
     private fun emptyReport(scenario: Scenario): DecisionReport {

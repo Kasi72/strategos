@@ -15,7 +15,17 @@ object MechanismAdvisor {
 
     /** [extraText]: recent user messages, passed in memory only (the Talk flow never writes them into the scenario's description). */
     fun detect(scenario: Scenario, extraText: String = ""): MechanismHint? {
-        val text = "${scenario.title} ${scenario.description} $extraText".lowercase()
+        val parts = buildList {
+            add(scenario.title)
+            add(scenario.description)
+            scenario.stakeholders.forEach { s ->
+                add(s.notes)
+                s.goals.forEach { add(it) }
+            }
+            scenario.actions.forEach { add(it.label) }
+            add(extraText)
+        }
+        val text = parts.filter { it.isNotBlank() }.joinToString(" ").lowercase()
         val hasDesignTrigger = DESIGN_TRIGGER.any { text.contains(it) }
         val type = when {
             AUCTION_KEYWORDS.any { text.contains(it) } -> MechanismType.AUCTION

@@ -309,13 +309,19 @@ class OneShotTurn(
         }
         val gameResult = gameContext.result
         val previousMove = EngineDirectiveBuilder.previousRecommendedMove(previousReportJson)
-        val gtPattern = EngineDirectiveBuilder.archetypeLabel(
-            (gameResult as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.ir?.archetype?.name
-        )
+        val solvedIr = (gameResult as? com.drkkr.strategos.domain.game.GameAnalysisResult.Solved)?.ir
+        val gtPattern = EngineDirectiveBuilder.archetypeLabel(solvedIr?.archetype?.name)
+            ?: solvedIr?.takeIf { it.archetype == com.drkkr.strategos.domain.game.GameArchetype.GENERIC }?.let {
+                val dims = it.strategyCounts.joinToString("×")
+                "${it.playerCount}-player game ($dims)"
+            }
         val dominated = gameContext.pruneResult?.let { pruneRes ->
             pruneRes.eliminated.flatMap { (pid, acts) ->
                 val name = view.stakeholders.firstOrNull { it.id == pid }?.name ?: pid
-                acts.map { act -> "$name: ${view.actions.firstOrNull { it.id == act }?.label ?: act} (dominated)" }
+                acts.map { act ->
+                    val label = view.actions.firstOrNull { it.id == act }?.label ?: act
+                    "$name: $label (dominated)"
+                }
             }
         }.orEmpty()
         val extensiveFormPath = gameContext.biResult?.equilibriumPath.orEmpty()

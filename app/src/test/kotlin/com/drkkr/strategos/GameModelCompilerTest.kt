@@ -97,12 +97,15 @@ class GameModelCompilerTest {
     }
 
     @Test
-    fun `fails with MissingPayoffProfiles when payoffs incomplete`() {
+    fun `compiles with proxy fill when payoffs incomplete, coveragePct reflects partial coverage`() {
+        // prisoner() has 2 players × 4 profiles = 8 payoff cells; drop half the payoffs
         val s = prisoner().copy(payoffs = prisoner().payoffs.take(4))
         val result = GameModelCompiler.compile(s)
-        assertTrue(result is CompileResult.Failure)
-        val errs = (result as CompileResult.Failure).errors
-        assertTrue(errs.any { it is CompileError.MissingPayoffProfiles })
+        // Partial payoff tables now compile successfully with 0.0 proxy filling
+        assertTrue("partial payoffs must still compile", result is CompileResult.Success)
+        val ir = (result as CompileResult.Success).ir
+        assertTrue("coveragePct must be < 100 when payoffs are partial", ir.coveragePct < 100)
+        assertTrue("coveragePct must be > 0 when some payoffs are present", ir.coveragePct > 0)
     }
 
     @Test
