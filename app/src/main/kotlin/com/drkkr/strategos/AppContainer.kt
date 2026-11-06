@@ -6,6 +6,7 @@ import com.drkkr.strategos.agent.CounselDeps
 import com.drkkr.strategos.agent.KeyVault
 import com.drkkr.strategos.data.db.DatabaseKeyManager
 import com.drkkr.strategos.data.db.DbFactory
+import com.drkkr.strategos.data.db.DebugDbExport
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.migration.LegacySource
 import com.drkkr.strategos.data.migration.LegacyStorageMigrator
@@ -45,7 +46,9 @@ import java.io.File
  */
 class AppContainer(
     private val context: Context,
-    private val openDatabase: (Context) -> StrategosDatabase = { DbFactory.open(it, DatabaseKeyManager(it).getOrCreatePassphrase()) },
+    private val openDatabase: (Context) -> StrategosDatabase = { c ->
+        DbFactory.open(c, DatabaseKeyManager(c).getOrCreatePassphrase()).also { db -> if (BuildConfig.DEBUG) DebugDbExport.afterOpen(c, db) }
+    },
     private val llmOverride: LlmClient? = null,
     private val journalCipherOverride: TextCipher? = null
 ) {

@@ -124,8 +124,8 @@ abstract class E2eBase {
     }
 
     /** Taps a clickable element by its click action, wherever it sits on screen (under the floating composer too). */
-    protected fun clickAction(t: String) =
-        rule.onAllNodes(androidx.compose.ui.test.hasText(t) and androidx.compose.ui.test.hasClickAction())[0]
+    protected fun clickAction(t: String, substring: Boolean = false) =
+        rule.onAllNodes(androidx.compose.ui.test.hasText(t, substring = substring) and androidx.compose.ui.test.hasClickAction())[0]
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
 
     protected fun hasText(t: String, substring: Boolean = false) = rule.onAllNodesWithText(t, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()

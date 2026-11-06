@@ -14,7 +14,7 @@ class OnboardingE2e : E2eBase() {
     @Test fun TC_ID_E2E_01_ONB_01_firstRunWithNoKeyOpensSettingsWithTheKeyBoxReady() {
         reset(withKey = false, onboarded = false); launch()
         waitForText("Say it the way you’d tell a friend.")
-        text("Describe a situation", substring = true).performClick()
+        clickAction("Describe a situation", substring = true)
         waitForText(NUDGE, substring = true)
         waitForText("Paste key")
         assertTrue(!hasText("Say it the way you’d tell a friend."))
