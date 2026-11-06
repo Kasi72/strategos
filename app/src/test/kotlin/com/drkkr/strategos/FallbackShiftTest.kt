@@ -12,6 +12,7 @@ import com.drkkr.strategos.domain.model.Action
 import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.GameRole
 import com.drkkr.strategos.domain.model.MultiPayoff
+import com.drkkr.strategos.domain.model.NegotiationContext
 import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.PayoffEntry
 import com.drkkr.strategos.domain.model.Scenario
@@ -196,5 +197,48 @@ class FallbackShiftTest {
         val own = strong.copy(payoffs = strong.payoffs.map { it.copy(factStatus = FactStatus.USER_ESTIMATE) })
         assertTrue("a pick that exists only at the default shift is fragile", HumanSensitivity.pickChanges(own, flip.sides, edge))
         assertFalse("without the shift there is nothing to flip", HumanSensitivity.pickChanges(own, FallbackShift.Sides(null, null), edge))
+    }
+
+    @Test fun TC_ID_ALT_07_aPendingFallbackCountsOnlyWhenTheUserWroteThatFallbackInTheirOwnWords() {
+        val pendingYours = HumanContext(relationship = "vendor", pending = mapOf("yourAlternative" to "strong"))
+        val written = vendor(pendingYours).copy(negotiationContext = NegotiationContext(batna = "the other vendor who quoted lower"))
+        assertEquals(FallbackShift.Strength.STRONG, FallbackShift.yours(written, null))
+        assertEquals(cell(written, "you", "hold", "no").getValue(R) + 0.5, cell(shift(written), "you", "hold", "no").getValue(R), E)
+        val unwritten = vendor(pendingYours)
+        assertNull(FallbackShift.yours(unwritten, null))
+        assertSame("pending alone stays ignored", unwritten, shift(unwritten))
+        // their side: pending + the counterpart's fallback in the user's words
+        val pendingTheirs = HumanContext(relationship = "vendor", pending = mapOf("theirAlternative" to "weak"))
+        val theirs = vendor(pendingTheirs).copy(negotiationContext = NegotiationContext(counterpartBatna = "no other buyer this quarter"))
+        assertEquals(cell(theirs, "k", "give", "no").getValue(R) - 0.5, cell(shift(theirs), "k", "give", "no").getValue(R), E)
+        assertTrue("pending without their fallback in words", vendor(pendingTheirs).let { shift(it) === it })
+        // a confirmed word still wins over a pending one
+        val both = vendor(HumanContext(relationship = "vendor", yourAlternative = "weak", pending = mapOf("yourAlternative" to "strong")))
+            .copy(negotiationContext = NegotiationContext(batna = "another vendor"))
+        assertEquals(FallbackShift.Strength.WEAK, FallbackShift.yours(both, null))
+    }
+
+    @Test fun TC_ID_ALT_08_eachSideGetsItsLineWhenItsShiftAloneChangesThePick_bothWhenOnlyTogether() {
+        val ctx = HumanContext(relationship = "vendor", yourAlternative = "strong", theirAlternative = "strong")
+        val s = vendor(ctx)
+        // a stand-in pick that only their refusal cell can tip: their side alone flips it, yours alone doesn't
+        val theirsOnly: (Scenario) -> String? = { v -> if (cell(v, "k", "give", "no").getValue(R) > 5.3) "hold" else "give" }
+        val one = FallbackShift.effect(s, null, false, false, theirsOnly)
+        assertTrue(one.pickChanged)
+        assertEquals(listOf(FallbackShift.THEIR_STRONG_LINE), one.lines)
+        // a pick that needs both: 4.0 + 5.0 = 9.0; either alone 9.5, both 10.0, threshold 9.7
+        val together: (Scenario) -> String? = { v -> if (cell(v, "you", "hold", "no").getValue(R) + cell(v, "k", "give", "no").getValue(R) > 9.7) "hold" else "give" }
+        val two = FallbackShift.effect(s, null, false, false, together)
+        assertEquals(listOf(FallbackShift.STRONG_LINE, FallbackShift.THEIR_STRONG_LINE), two.lines)
+        assertEquals("${FallbackShift.STRONG_LINE} ${FallbackShift.THEIR_STRONG_LINE}", two.line)
+        // their weak line, alone
+        val weak = vendor(HumanContext(relationship = "vendor", theirAlternative = "weak"))
+        val w = FallbackShift.effect(weak, null, false, false, pick = { v -> if (cell(v, "k", "give", "no").getValue(R) < 4.7) "hold" else "give" })
+        assertEquals(listOf(FallbackShift.THEIR_WEAK_LINE), w.lines)
+        // no change, no line
+        assertTrue(FallbackShift.effect(s, null, false, false, pick = { "give" }).lines.isEmpty())
+        for (l in listOf(FallbackShift.THEIR_STRONG_LINE, FallbackShift.THEIR_WEAK_LINE)) {
+            assertFalse(l.contains("BATNA", ignoreCase = true)); assertFalse(l.any { it.isDigit() })
+        }
     }
 }

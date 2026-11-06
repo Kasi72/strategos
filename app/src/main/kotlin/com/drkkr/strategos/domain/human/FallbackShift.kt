@@ -24,6 +24,8 @@ object FallbackShift {
     /** Shown only when the shift changed the pick (fixed text: never the word BATNA, never a figure). */
     const val STRONG_LINE = "You have a solid fallback, so a firmer move costs you less if they say no."
     const val WEAK_LINE = "Your fallback is thin, so a no would cost you more; the safer move comes first."
+    const val THEIR_STRONG_LINE = "They have a solid alternative, so a softer ask is less likely to be refused."
+    const val THEIR_WEAK_LINE = "They have little else to turn to, so a firmer ask is less risky."
     /** ID2.4: the key-gap question when your fallback is unknown and it would change the pick. */
     const val QUESTION = "If this falls through, what would you do instead?"
 
@@ -32,19 +34,30 @@ object FallbackShift {
         val none: Boolean get() = yours == null && theirs == null
     }
 
-    /** The outcome for the turn: the view to analyse, and the fixed line when the shift changed the pick. */
-    data class Effect(val view: Scenario, val sides: Sides, val pickChanged: Boolean, val line: String?)
+    /** The outcome for the turn: the view to analyse, and the fixed lines when the shift changed the pick. */
+    data class Effect(val view: Scenario, val sides: Sides, val pickChanged: Boolean, val lines: List<String>) {
+        /** The lines as one piece of the why, or null when there are none. */
+        val line: String? get() = lines.takeIf { it.isNotEmpty() }?.joinToString(" ")
+    }
 
     private fun word(w: String?): Strength? = when (w) { "strong" -> Strength.STRONG; "weak", "none" -> Strength.WEAK; else -> null }
+
+    /**
+     * A side's confirmed word, or (CP-I1b) its pending word when the user wrote that side's fallback in their own words: the
+     * negotiation block's `batna` for yours, `counterpartBatna` for theirs (the rule `StrategicCatalog.realFallback` uses).
+     */
+    private fun value(view: Scenario, key: String, confirmed: String?, ownWords: String?): String? =
+        confirmed ?: view.humanContext?.pending?.get(key)?.takeIf { ownWords?.isNotBlank() == true }
 
     /** Your side: the deal frame decides when it knows (credible = strong); else your own word. */
     fun yours(view: Scenario, deal: DealFrame?): Strength? = when (deal?.walkAwayCredible) {
         true -> Strength.STRONG
         false -> Strength.WEAK
-        null -> word(view.humanContext?.yourAlternative)
+        null -> word(value(view, "yourAlternative", view.humanContext?.yourAlternative, view.negotiationContext?.batna))
     }
 
-    fun theirs(view: Scenario): Strength? = word(view.humanContext?.theirAlternative)
+    fun theirs(view: Scenario): Strength? =
+        word(value(view, "theirAlternative", view.humanContext?.theirAlternative, view.negotiationContext?.counterpartBatna))
 
     /**
      * The sides that apply this turn, or both null when the shift is off: a close relationship (in a marriage a "strong
@@ -97,8 +110,8 @@ object FallbackShift {
     }
 
     /**
-     * The shift for the turn, with the pick computed with and without it. [line] is set only when the pick changed and your side
-     * has a known fallback (the two fixed lines speak about yours).
+     * The shift for the turn, with the pick computed with and without it. When it changed the pick, each side's shift is tried
+     * alone: a side whose shift alone changes the pick gets its line; when neither alone does (only both together), both do.
      */
     fun effect(
         view: Scenario, deal: DealFrame?, support: Boolean, powerLock: Boolean, pick: (Scenario) -> String?,
@@ -106,10 +119,18 @@ object FallbackShift {
     ): Effect {
         val sides = sides(view, deal, support, powerLock)
         val shifted = apply(view, sides, c)
-        if (shifted === view) return Effect(view, sides, false, null)
-        val changed = runCatching { pick(HumanizedView.apply(shifted, c)) != pick(HumanizedView.apply(view, c)) }.getOrDefault(false)
-        val line = if (!changed) null else when (sides.yours) { Strength.STRONG -> STRONG_LINE; Strength.WEAK -> WEAK_LINE; null -> null }
-        return Effect(shifted, sides, changed, line)
+        if (shifted === view) return Effect(view, sides, false, emptyList())
+        return runCatching {
+            val before = pick(HumanizedView.apply(view, c))
+            if (pick(HumanizedView.apply(shifted, c)) == before) return Effect(shifted, sides, false, emptyList())
+            fun alone(s: Sides) = apply(view, s, c).let { v -> v !== view && pick(HumanizedView.apply(v, c)) != before }
+            val yourLine = when (sides.yours) { Strength.STRONG -> STRONG_LINE; Strength.WEAK -> WEAK_LINE; null -> null }
+            val theirLine = when (sides.theirs) { Strength.STRONG -> THEIR_STRONG_LINE; Strength.WEAK -> THEIR_WEAK_LINE; null -> null }
+            val mine = yourLine?.takeIf { alone(Sides(sides.yours, null)) }
+            val theirs = theirLine?.takeIf { alone(Sides(null, sides.theirs)) }
+            val lines = if (mine == null && theirs == null) listOfNotNull(yourLine, theirLine) else listOfNotNull(mine, theirs)
+            Effect(shifted, sides, true, lines)
+        }.getOrDefault(Effect(shifted, sides, false, emptyList()))
     }
 
     /**
