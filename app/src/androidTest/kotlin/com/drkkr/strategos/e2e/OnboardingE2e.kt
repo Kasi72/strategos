@@ -8,14 +8,16 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class OnboardingE2e : E2eBase() {
+    private companion object { const val NUDGE = "Add your AI key to get started." }
 
-    @Test fun TC_E2E_ONB_01_firstRunShowsWelcomeThenDescribe() {
+    /** TC_ID_E2E_01. Since 28 Oct (c489ef9): with no key saved, the first button opens Settings with a short explanation and the key box ready. */
+    @Test fun TC_ID_E2E_01_ONB_01_firstRunWithNoKeyOpensSettingsWithTheKeyBoxReady() {
         reset(withKey = false, onboarded = false); launch()
         waitForText("Say it the way you’d tell a friend.")
         text("Describe a situation", substring = true).performClick()
-        waitForText("What’s on your mind?")
-        text("Back").performClick()
-        waitForText("Say it the way you’d tell a friend.")
+        waitForText(NUDGE, substring = true)
+        waitForText("Paste key")
+        assertTrue(!hasText("Say it the way you’d tell a friend."))
     }
 
     @Test fun TC_E2E_ONB_02_skippedOnceOnboardedOrWhenProjectsExist() {

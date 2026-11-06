@@ -33,14 +33,16 @@ class OverviewE2e : E2eBase() {
         waitForText("MOMENTUM")
     }
 
-    @Test fun TC_E2E_OVR_03_startChatOpensTalkForThatProject() {
+    /** TC_ID_E2E_01. Since 28 Oct (0d88c0a) the Talk header has no project name; the title is shown on the Overview. */
+    @Test fun TC_ID_E2E_01_OVR_03_startChatOpensTalkForThatProject() {
         reset(withKey = false); seedProject("Loan for my brother"); launch()
         openOverview("Loan for my brother")
         text("Start chat").performClick()
         waitForDesc("Back to overview")
-        waitForText("Loan for my brother")
+        assertTrue("no project name in the Talk header", !hasText("Loan for my brother"))
         desc("Back to overview").performClick()
         waitForText("Start chat")
+        waitForText("Loan for my brother")   // the title, where it is shown now
     }
 
     @Test fun TC_E2E_OVR_04_backReturnsToProjects() {

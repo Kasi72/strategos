@@ -53,6 +53,8 @@ abstract class E2eBase {
             s.setAiEnabled(true); s.setConsentVersion(AgentConfig.CONSENT_VERSION); s.setModel(AgentConfig.DEFAULT_MODEL)
         }
         ctx.getSharedPreferences("calm_ui", Context.MODE_PRIVATE).edit().putBoolean("onboarded", onboarded).commit()
+        // Process-wide UI state an earlier no-key test may have set (it pushed "Test key" under the keyboard in SET_03).
+        com.drkkr.strategos.ui.calm.settings.SettingsNudge.on = false
         container.scenarioRepository.load()
     }
 

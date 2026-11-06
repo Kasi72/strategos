@@ -31,15 +31,18 @@ class ProjectsE2e : E2eBase() {
         desc("Send").assertIsEnabled()
     }
 
-    @Test fun TC_E2E_PRJ_03_sendWithoutAKeyCreatesTheProjectAndOpensTalk() {
+    /** TC_ID_E2E_01. Since 28 Oct (c489ef9): sending with no key opens Settings with the key box ready; no project is made and the draft is kept. */
+    @Test fun TC_ID_E2E_01_PRJ_03_sendWithoutAKeyOpensSettingsAndKeepsTheDraft() {
         reset(withKey = false); launch()
         waitForText("What's on your mind?")
         typeInto(0, "Quarrel with my landlord about the deposit")
         desc("Send").performClick()
-        waitForText("Quarrel with my landlord about the deposit", substring = true)
-        waitForDesc("Back to overview")
-        desc("Back to overview").performClick()
-        waitForText("Quarrel with my landlord about the deposit", substring = true)   // Overview or list, project exists
+        waitForText("Add your AI key to get started.", substring = true)
+        waitForText("Paste key")
+        assertTrue("no project before a key is set", container.scenarioRepository.scenarios.value.isEmpty())
+        openTab("Projects")
+        waitForText("Quarrel with my landlord about the deposit")   // the draft is still in the box
+        desc("Send").assertIsEnabled()
     }
 
     @Test fun TC_E2E_PRJ_04_tapOpensTheOverviewNotTheChat() {
