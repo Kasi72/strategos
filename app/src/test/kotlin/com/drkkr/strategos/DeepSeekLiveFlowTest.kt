@@ -156,6 +156,8 @@ class DeepSeekLiveFlowTest {
                 if (sketch == null) out.append("  (no parseable extraction)\n") else {
                     sketch.options.groupBy { it.owner }.forEach { (who, opts) -> out.append("  $who: ${opts.joinToString(" | ") { "${it.label} <${it.posture}>" }}\n") }
                     out.append("  archetype=${sketch.archetype} trust_delta=${sketch.trustDelta} tension_delta=${sketch.tensionDelta} backstory_only=${sketch.backstoryOnly} support=${sketch.support}\n")
+                    // Intent Dispatch: the turn's intent, and Call 1's readiness flag (logged only since ID2.4; Kotlin decides)
+                    out.append("  [ID2] intent=${sketch.intentKind.word} detail=${sketch.intentDetail} what_if=${sketch.whatIf != null} call1_enough_to_recommend=${sketch.enoughToRecommend} (not gating)\n")
                     // Human Layer fields, raw (what the model wrote) and then as Kotlin reads them (closed vocabularies only).
                     out.append("  HUMAN raw: relationship=${sketch.relationship} power=${sketch.power} status_quo=${sketch.statusQuo} status_quo_for_them=${sketch.statusQuoForThem} deadline=${sketch.deadline} their_vulnerable=${sketch.theirVulnerable} your_state=${sketch.yourState} their_state=${sketch.theirState} their_tactics=${sketch.theirTactics} last_attempt_tags=${sketch.lastAttemptTags} steps=${sketch.stepsForThemToSayYes} goal_is=${sketch.goalIs}\n")
                     out.append("  HUMAN option_tags raw: ${sketch.optionTags}\n")
@@ -189,6 +191,7 @@ class DeepSeekLiveFlowTest {
                         // ID1.6: the fallback inputs, and whether the fixed line (the shift changed the pick) is in the why.
                         val why = str("recommended_why").orEmpty()
                         val shiftLine = with(com.drkkr.strategos.domain.human.FallbackShift) { listOf(STRONG_LINE, WEAK_LINE, THEIR_STRONG_LINE, THEIR_WEAK_LINE).filter { it in why } }.ifEmpty { false }
+                        out.append("  [ID2] changed_since_last=${d["changed_since_last"] ?: "-"} next_question=${str("next_question") ?: "-"}\n")
                         out.append("  [ID1.6] your_alternative=${sc.humanContext?.yourAlternative} their_alternative=${sc.humanContext?.theirAlternative} pending=${sc.humanContext?.pending?.filterKeys { it.endsWith("Alternative") }} batna_written=${sc.negotiationContext?.batna?.isNotBlank() == true}/${sc.negotiationContext?.counterpartBatna?.isNotBlank() == true} sides_without_frame=${com.drkkr.strategos.domain.human.FallbackShift.yours(sc, null)}/${com.drkkr.strategos.domain.human.FallbackShift.theirs(sc)} walk_away_credible=${(d["deal"] as? kotlinx.serialization.json.JsonObject)?.get("walk_away_credible")} fallback_shift_changed_pick=$shiftLine\n")
                     }
                     out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")

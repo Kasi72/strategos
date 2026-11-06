@@ -137,15 +137,20 @@ object FallbackShift {
      * ID2.4's key gap: in a negotiation where your fallback is unknown, does the pick differ between a strong one and a weak one?
      * Their side is shifted as it would be this turn. False whenever the shift is off for the turn.
      */
-    fun unknownFallbackMatters(view: Scenario, deal: DealFrame?, support: Boolean, powerLock: Boolean, pick: (Scenario) -> String?): Boolean {
-        val ctx = view.humanContext
-        val negotiation = deal != null || RelationshipDomains.of(ctx?.relationship, null, view.negotiationContext) == RelationshipDomain.NEGOTIATION
-        if (!negotiation) return false
-        val s = if (ctx == null) Sides(null, null) else sides(view, deal, support, powerLock)
-        if (ctx == null || s.yours != null) return false
-        if (support || powerLock || RelationshipDomains.of(ctx.relationship, null, view.negotiationContext).isClose) return false
-        val strong = apply(view, s.copy(yours = Strength.STRONG))
-        val weak = apply(view, s.copy(yours = Strength.WEAK))
-        return runCatching { pick(HumanizedView.apply(strong)) != pick(HumanizedView.apply(weak)) }.getOrDefault(false)
+    fun unknownFallbackMatters(view: Scenario, deal: DealFrame?, support: Boolean, powerLock: Boolean, pick: (Scenario) -> String?): Boolean =
+        unknownMatters(view, deal, support, powerLock, pick, yourSide = true)
+
+    /** The same for THEIR fallback (ID2.4: "what could they do instead?"). */
+    fun unknownTheirFallbackMatters(view: Scenario, deal: DealFrame?, support: Boolean, powerLock: Boolean, pick: (Scenario) -> String?): Boolean =
+        unknownMatters(view, deal, support, powerLock, pick, yourSide = false)
+
+    private fun unknownMatters(view: Scenario, deal: DealFrame?, support: Boolean, powerLock: Boolean, pick: (Scenario) -> String?, yourSide: Boolean): Boolean {
+        val ctx = view.humanContext ?: return false
+        val negotiation = deal != null || RelationshipDomains.of(ctx.relationship, null, view.negotiationContext) == RelationshipDomain.NEGOTIATION
+        if (!negotiation || support || powerLock || RelationshipDomains.of(ctx.relationship, null, view.negotiationContext).isClose) return false
+        val s = sides(view, deal, support, powerLock)
+        if ((if (yourSide) s.yours else s.theirs) != null) return false
+        fun with(x: Strength) = apply(view, if (yourSide) s.copy(yours = x) else s.copy(theirs = x))
+        return runCatching { pick(HumanizedView.apply(with(Strength.STRONG))) != pick(HumanizedView.apply(with(Strength.WEAK))) }.getOrDefault(false)
     }
 }

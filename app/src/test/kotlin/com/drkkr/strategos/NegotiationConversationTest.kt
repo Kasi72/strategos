@@ -75,9 +75,10 @@ class NegotiationConversationTest {
     }
 
     // ── ask BEFORE answering ─────────────────────────────────────────────────────────────────────────────────
-    @Test fun `a thin negotiation is asked two plain questions before the answer`() {
+    // Intent Dispatch ID2.4 (I-D6, one question per turn): this was two questions; now the first one only.
+    @Test fun `a thin negotiation is asked one plain question before the answer`() {
         val qs = NegotiationQuestions.beforeAnswering("I want to ask my manager for a raise", null, emptyList())
-        assertEquals(listOf(NegotiationQuestions.Field.BATNA, NegotiationQuestions.Field.RESERVATION), qs.map { it.field })
+        assertEquals(listOf(NegotiationQuestions.Field.BATNA), qs.map { it.field })
     }
 
     @Test fun `no pre-questions once two of the three key facts are known, or once already asked`() {

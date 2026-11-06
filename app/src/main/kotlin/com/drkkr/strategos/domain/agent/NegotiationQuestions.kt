@@ -45,14 +45,15 @@ object NegotiationQuestions {
     }
 
     /**
-     * Up to two plain questions to ask BEFORE answering: only for a negotiation, only when at least two of the three core facts
-     * (fallback, lowest acceptable, ideal) are still unknown, and only once per thread, so the user can always skip them and still get an answer.
+     * One plain question to ask BEFORE answering (Intent Dispatch I-D6: one question per turn; it was up to two): only for a
+     * negotiation, only when at least two of the three core facts (fallback, lowest acceptable, ideal) are still unknown, and only
+     * once per thread, so the user can always skip it and still get an answer.
      */
     fun beforeAnswering(userText: String, nc: NegotiationContext?, earlierAssistantText: List<String>): List<Question> {
         if (!looksLikeNegotiation(userText)) return emptyList()
         if (ALL.any { q -> earlierAssistantText.any { it.contains(q.text) } }) return emptyList()
         val unknown = ALL.filter { it.field in CORE && missing(nc, it.field) }
-        return if (unknown.size >= 2) unknown.take(2) else emptyList()
+        return if (unknown.size >= 2) unknown.take(1) else emptyList()
     }
 
     /** Adds [q] to the coach's closing line as one more sentence, marked optional. */

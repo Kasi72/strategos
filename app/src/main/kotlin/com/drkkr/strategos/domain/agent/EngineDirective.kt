@@ -87,6 +87,8 @@ data class EngineDirective(
     val fallbackLine: String? = null,
     /** ID2.3: the advice changed since last turn on a turn that saved changes. In the JSON as `changed_since_last` only when set. */
     val changedSinceLast: com.drkkr.strategos.domain.intent.RecommendationDiff? = null,
+    /** ID2.4: the one question for the end of the reply (I-D6). In the JSON as `next_question` only when set. */
+    val nextQuestion: com.drkkr.strategos.domain.intent.NextQuestion? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -155,6 +157,7 @@ data class EngineDirective(
         if (watchFor.isNotEmpty()) putJsonArray("watch_for") { watchFor.forEach { w -> addJsonObject { put("sign", w.sign); put("protect", w.protect) } } }
         deal?.let { put("deal", it.toJson()) }
         changedSinceLast?.let { put("changed_since_last", it.toJson()) }
+        nextQuestion?.let { put("next_question", it.text) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }

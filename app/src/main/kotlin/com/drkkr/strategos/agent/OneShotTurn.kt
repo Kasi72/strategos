@@ -208,20 +208,9 @@ class OneShotTurn(
             }
         }
 
-        // Phase G.3 (ask first, then recommend): when Call 1 judges the input still too thin to rank honestly, ask the
-        // user 1-2 targeted questions to strengthen the model instead of ranking guessed outcomes. The ops extracted
-        // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go
-        // ahead and recommend with what we have, so the user is never stuck in a loop of questions.
-        // Concrete stakes (numbers) in the message mean there is something real to rank: do not hold the answer back for questions.
-        if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty() && !hasConcreteStakes(text)) {
-            val recentAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }.takeLast(CLARIFY_MAX)
-            val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { com.drkkr.strategos.domain.human.power.DeclineNotes.strip(it).startsWith(CLARIFY_LEAD) }
-            if (!askedTooMuch) {
-                conversations.append(cid, turnId, MessageRole.ASSISTANT, declined(buildClarify(parsed.clarifyingQuestions)))
-                afterTurn(cid)
-                return TurnResult.Done
-            }
-        }
+        // Intent Dispatch (decided at CP-I1): Kotlin decides whether there is enough to recommend (the engine's readiness and the D3
+        // gap rule, in engineGroundedReply). Call 1's `enough_to_recommend` is logged only; it no longer holds the answer back.
+        DebugLog.d { "ENOUGH_TO_RECOMMEND call1=${parsed.enoughToRecommend} (logged only, not gating)" }
 
         // One targeted follow-up request when options or outcome scores are missing (best effort: a failure here still
         // leaves a saved model and an honest answer).
@@ -375,8 +364,27 @@ class OneShotTurn(
         // ID2.3: the advice changed since last turn, on a standard turn that saved changes (built in Kotlin from the ops).
         val diff = if (!powered.ready) null else com.drkkr.strategos.domain.intent.RecommendationDiff.of(
             intent, previousMove, powered.recommendedMove, turnOps, turnBefore, s, com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.id, deal)
+        // ID2.4: one question at most (I-D6), from Kotlin's gap list; the fallback gaps count first when their answer would flip the pick.
+        val earlierAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
+        val nextQuestion = if (support) null else withContext(Dispatchers.Default) {
+            runCatching {
+                val gapPick = com.drkkr.strategos.domain.human.HumanSensitivity.pick(com.drkkr.strategos.domain.analysis.AnalysisPipeline())
+                val flips = buildSet {
+                    if (com.drkkr.strategos.domain.human.FallbackShift.unknownFallbackMatters(negotiated, deal, support, lock, gapPick)) add(com.drkkr.strategos.domain.intent.IdentifyGaps.YOUR_FALLBACK)
+                    if (com.drkkr.strategos.domain.human.FallbackShift.unknownTheirFallbackMatters(negotiated, deal, support, lock, gapPick)) add(com.drkkr.strategos.domain.intent.IdentifyGaps.THEIR_FALLBACK)
+                }
+                com.drkkr.strategos.domain.intent.IdentifyGaps.next(negotiated, com.drkkr.strategos.domain.agent.IntakeChecklist.gaps(s), stress, deal, flips, earlierAssistant)
+            }.getOrNull()
+        }
+        // D3: a negotiation move that carries a figure while no walk-away is known asks first (the walk-away), instead of advising.
+        val walkAwayAsk = com.drkkr.strategos.domain.intent.IdentifyGaps.walkAwayQuestion()
+        if (powered.ready && !support && earlierAssistant.none { it.contains(walkAwayAsk.text) } &&
+            com.drkkr.strategos.domain.intent.IdentifyGaps.askFirst(negotiated, deal, powered.recommendedMove)) {
+            DebugLog.d { "ASK_FIRST D3: a figure in the pick and no walk-away" }
+            return buildClarify(listOf(walkAwayAsk.text))
+        }
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
-            changedSinceLast = diff)
+            changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready })
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
@@ -404,6 +412,8 @@ class OneShotTurn(
             // No confident pick yet. Still answer THIS message in the coach's own words; the fixed template ignores what was said.
             DebugLog.d { "FALLBACK engine has no pick (directive not ready); asking the coach to reflect on the message" }
             onActivity("Writing my reply…")
+            // ID2.4: Kotlin decides readiness; with a gap to ask about, ask it (one question) instead of reflecting.
+            if (nextQuestion != null) return buildClarify(listOf(nextQuestion.text))
             // Negotiation Numbers: the engine's own text and the reflection never offer an option that crosses the walk-away.
             val within = com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal)
             return reflect(cid, turnId, s, within, text)?.takeIf { com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(it), deal) }
@@ -426,7 +436,9 @@ class OneShotTurn(
                 tactics = directive.delivery?.tactics.orEmpty().map { it.id.name })
             // One optional, plain-words question about the negotiation (fallback, lowest acceptable, ideal...), never repeated in this thread.
             val earlier = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
-            com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
+            // ID2.4: the gap question is the closing line, and the only question (I-D6); otherwise the optional negotiation one.
+            if (directive.nextQuestion != null) g = g.copy(followUp = directive.nextQuestion.text)
+            else com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
                 ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }
             onGuide(g); PlainResult.coach(g)
         }
@@ -589,16 +601,6 @@ class OneShotTurn(
         }
     }
 
-    /**
-     * True when the user's message already carries concrete stakes: two or more distinct figures (an offer, a cap, a walk-away,
-     * a price), or one figure in a message long enough to describe the situation. Extraction always proposes three options, so
-     * option count cannot tell a thin message from a complete one; figures can.
-     */
-    private fun hasConcreteStakes(text: String): Boolean {
-        val figures = Regex("""\d+(?:[.,]\d+)?""").findAll(text).map { it.value }.toSet().size
-        return figures >= 2 || (figures >= 1 && text.length >= 200)
-    }
-
     /** Summary from the prior negotiation round (if this thread has one), formatted for the coach. */
     private suspend fun priorRound(cid: String): String {
         val priorId = conversations.get(cid)?.priorRoundConversationId ?: return ""
@@ -743,7 +745,7 @@ class OneShotTurn(
 
     /** Phase G.3: the ask-first reply — a short lead the controller can also detect, then the 1-2 questions. */
     private fun buildClarify(questions: List<String>): String {
-        val qs = questions.map { it.trim() }.filter { it.isNotEmpty() }.take(2)
+        val qs = questions.map { it.trim() }.filter { it.isNotEmpty() }.take(1)     // I-D6: one question per turn
         return if (qs.size == 1) "$CLARIFY_LEAD ${qs[0]}"
         else CLARIFY_LEAD + qs.joinToString("") { "\n• $it" }
     }
@@ -873,7 +875,6 @@ class OneShotTurn(
         private const val MAX_PRIOR_CHARS = 1_200
         private const val MAX_DIGEST_CHARS = 1_500
         private const val MIN_FOLLOWUP_CHARS = 20
-        private const val CLARIFY_MAX = 2
         const val CLARIFY_LEAD = "Before I call it, let me get this right —"
 
         /** COMPANION REPLY prompt (~250 tokens). The words come from the model; every fact comes from the engine's result. */
