@@ -32,11 +32,15 @@ object EngineTools {
     /** ID3.4: their likely reaction to a move, in words. */
     suspend fun theirReaction(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = TheirReaction.run(input, pipeline)
 
+    /** ID4.1: the plan's first move and its branches (the delivery and the close are added after the directive). */
+    fun planAhead(input: RouteInput): IntentResult = PlanAhead.run(input)
+
     /** The handlers the router uses in the app. An intent answers [IntentResult.None] until its step. */
     val handlers: IntentHandlers = object : IntentHandlers {
         override suspend fun whatIf(input: RouteInput) = EngineTools.whatIf(input)
         override suspend fun compare(input: RouteInput) = EngineTools.compare(input)
         override suspend fun topOptions(input: RouteInput) = EngineTools.topOptions(input)
         override suspend fun theirReaction(input: RouteInput) = EngineTools.theirReaction(input)
+        override suspend fun planAhead(input: RouteInput) = EngineTools.planAhead(input)
     }
 }

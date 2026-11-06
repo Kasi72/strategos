@@ -89,6 +89,24 @@ object ResponseModel {
         return Likely(label, p)
     }
 
+    /**
+     * ID4.1: the counterpart's replies to [actionId], most likely first: their own options only, never an invented reply. The same
+     * noisy best reply over every option they have (a softmax of beta × their 0-10 score); with exactly a receptive and a
+     * defensive reply, the order is [receptiveProbability]'s (learned priors included). Options with no cell are left out.
+     */
+    fun replies(s: Scenario, ownerId: String, actionId: String, beta: Double): List<com.drkkr.strategos.domain.model.Action> {
+        val other = s.players().firstOrNull { it.id != ownerId } ?: return emptyList()
+        if (s.actions.none { it.id == actionId && it.stakeholderId == ownerId }) return emptyList()
+        val theirs = s.actionsFor(other.id).mapNotNull { r -> entry(s, other.id, ownerId, other.id, actionId, r.id)?.let { r to feel(s, it) } }
+        val pair = pair(s, ownerId, actionId)
+        if (theirs.size == 2 && pair != null && theirs.map { it.first.id }.toSet() == setOf(pair.receptiveId, pair.defensiveId)) {
+            val p = receptiveProbability(s, ownerId, actionId, beta)
+            if (p != null) return theirs.map { it.first }.sortedByDescending { if (it.id == pair.receptiveId) p else 1 - p }
+        }
+        // exp(beta × score) is monotone in the score, so the order is the scores' order (stable on ties: their option order)
+        return theirs.sortedByDescending { beta * it.second }.map { it.first }
+    }
+
     /** Their name, for the sentence. */
     fun otherName(s: Scenario, ownerId: String): String? = s.players().firstOrNull { it.id != ownerId }?.name
 }

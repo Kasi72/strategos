@@ -385,6 +385,22 @@ class OneShotTurn(
         // Power Mode: hardball moves join the delivery when they pay (I-P3); the decline note is set in any mode.
         val powerOn = settings.isPowerMode(cid)
         val (powered, powerPlan) = withPower(delivered, maskedRaw, powerOn, lock, support, snap?.trustScore)
+        // ID4.1: the plan's first move gets the directive's delivery, and a lock-in close (Power moves only from the Power plan).
+        val planAhead = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.PlanAhead)?.block?.takeIf { powered.ready && !support }?.let { block ->
+            runCatching {
+                val pickAction = ownerId?.let { o -> maskedRaw.actionsFor(o).firstOrNull { it.label.equals(powered.moveToImplement, ignoreCase = true) } }
+                val close = pickAction?.let { a ->
+                    com.drkkr.strategos.domain.intent.PlanAhead.close(maskedRaw, maskedRaw.humanContext, a, support,
+                        com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel), powerPlan,
+                        com.drkkr.strategos.domain.intent.PlanAhead.hasReceptiveBranch(view, block)) { id ->
+                        val hc = maskedRaw.humanContext ?: return@close null
+                        com.drkkr.strategos.domain.human.power.StrategicCatalog.tactics.firstOrNull { it.id == id }?.hint(maskedRaw, hc)
+                    }
+                }
+                com.drkkr.strategos.domain.intent.PlanAhead.finish(block, view, powered.moveToImplement,
+                    com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel), dominatedIds, powered.delivery, close)
+            }.getOrNull()
+        }
         // ID2.3: the advice changed since last turn, on a standard turn that saved changes (built in Kotlin from the ops).
         val diff = if (!powered.ready) null else com.drkkr.strategos.domain.intent.RecommendationDiff.of(
             intent, previousMove, powered.recommendedMove, turnOps, turnBefore, s, com.drkkr.strategos.domain.agent.IntakeChecklist.self(s)?.id, deal)
@@ -412,6 +428,7 @@ class OneShotTurn(
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
             compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready },
             theirReaction = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TheirReaction)?.block?.takeIf { powered.ready },
+            planAhead = planAhead,
             // ID3.5: on every engine turn with a pick.
             confidence = if (!powered.ready) null else com.drkkr.strategos.domain.intent.ConfidenceSummary.of(
                 powered.confidenceLevel, powered.stressVerdict == "FRAGILE", stress, powered.labelIssues, nextQuestion,

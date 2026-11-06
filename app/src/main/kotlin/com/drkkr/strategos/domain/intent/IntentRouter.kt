@@ -20,6 +20,8 @@ sealed class IntentResult {
     data class TopOptionsList(val options: List<TopOption>) : IntentResult()
     /** ID3.4: how they would likely take a move. */
     data class TheirReaction(val block: TheirReactionBlock) : IntentResult()
+    /** ID4.1: three exchanges; the delivery and the close are added once the directive has them ([PlanAhead.finish]). */
+    data class PlanAhead(val block: PlanAheadBlock) : IntentResult()
 }
 
 /**

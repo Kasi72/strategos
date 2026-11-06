@@ -231,7 +231,7 @@ class DeepSeekLiveFlowTest {
                     hypo.options.map { it.label }.filter { l -> savedAfter.actions.any { it.label.equals(l, true) } && savedBefore?.actions?.none { it.label.equals(l, true) } != false } +
                     hypo.people.map { it.name }.filter { n -> savedAfter.stakeholders.any { it.name.equals(n, true) } && savedBefore?.stakeholders?.none { it.name.equals(n, true) } != false }
                 out.append("  saved_changed=${savedBefore != savedAfter} what_if_leaked=${leaked.ifEmpty { "none" }}\n")
-                for (k in listOf("changed_since_last", "next_question", "what_if", "compare", "top_options", "their_reaction", "confidence"))
+                for (k in listOf("changed_since_last", "next_question", "what_if", "compare", "top_options", "their_reaction", "plan_ahead", "cross_project", "confidence"))
                     out.append("  $k=${turnDirective?.get(k) ?: "-"}\n")
                 out.append("\n(b2) GAME MODEL (compile -> IEDS -> solve)\n")
                 val saved = r.gateway.activeScenario()
