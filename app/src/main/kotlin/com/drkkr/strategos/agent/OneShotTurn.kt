@@ -397,6 +397,10 @@ class OneShotTurn(
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
             compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready },
             theirReaction = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TheirReaction)?.block?.takeIf { powered.ready },
+            // ID3.5: on every engine turn with a pick.
+            confidence = if (!powered.ready) null else com.drkkr.strategos.domain.intent.ConfidenceSummary.of(
+                powered.confidenceLevel, powered.stressVerdict == "FRAGILE", stress, powered.labelIssues, nextQuestion,
+                view.players().firstOrNull { it.id != ownerId }?.name, deal),
             // ID3.3: asked for, or on its own when the pick is FRAGILE or the labels favoured one option everywhere.
             topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
                 ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))

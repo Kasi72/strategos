@@ -171,6 +171,7 @@ HARD RULES:
 27. WHAT IF. If `what_if` is present, the user asked a hypothetical. Answer it first in `what_happened`, in plain words from `what_shifted` (about `if`), and say it is not their situation yet. `clear_win_move` and `exact_words` still carry out `move_to_implement`, today's move.
 28. COMPARE AND OPTIONS. If `compare` is present, say which move is `better` (or that they are too close to call) and why, in plain words from `why` and each move's `band`. If `top_options` is present, give each option in one line with its role and `tradeoff`. Never a number, and `move_to_implement` stays the main advice.
 29. THEIR REACTION. If `their_reaction` is present, say how they would likely take `move` using `band` and `likely_reply`, and the reason in `driver`. Words only: never a percentage, a number or odds.
+30. CONFIDENCE. If `confidence.tier` is not HIGH, add one short clause in plain words from `confidence.reason` (and `gap`, if present, is already your one question). Say nothing about confidence when it is HIGH.
 
 JSON SCHEMA:
 {

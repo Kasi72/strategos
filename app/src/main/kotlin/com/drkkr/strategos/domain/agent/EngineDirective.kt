@@ -97,6 +97,8 @@ data class EngineDirective(
     val topOptions: List<com.drkkr.strategos.domain.intent.TopOption>? = null,
     /** ID3.4: their likely reaction, in words. In the JSON as `their_reaction` only when set. */
     val theirReaction: com.drkkr.strategos.domain.intent.TheirReactionBlock? = null,
+    /** ID3.5: tier, fixed reason, missing fact. Set on every engine turn by the turn (never by the builder, so its snapshots hold). */
+    val confidence: com.drkkr.strategos.domain.intent.ConfidenceSummary? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -170,6 +172,7 @@ data class EngineDirective(
         compare?.let { put("compare", it.toJson()) }
         topOptions?.takeIf { it.isNotEmpty() }?.let { put("top_options", com.drkkr.strategos.domain.intent.TopOptions.toJson(it)) }
         theirReaction?.let { put("their_reaction", it.toJson()) }
+        confidence?.let { put("confidence", it.toJson()) }
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }
