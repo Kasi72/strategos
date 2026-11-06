@@ -219,6 +219,12 @@ class DeepSeekLiveFlowTest {
                 }
 
                 // Re-run the game-model stage on the scenario as saved after this turn, to show why R5 fields are or are not produced.
+                // ID3.6: (i) INTENT: the intent read, the handler that ran, and each new block's JSON (from the directive the coach got)
+                out.append("\n(i) INTENT\n")
+                out.append("  intent=${sketch?.intentKind?.word ?: "-"} handler=${sketch?.intentKind?.takeIf { it != com.drkkr.strategos.domain.intent.Intent.STANDARD }?.word ?: "none"}\n")
+                val turnDirective = r.directives.drop(dirsBefore).lastOrNull()?.let { Json.parseToJsonElement(it).jsonObject }
+                for (k in listOf("changed_since_last", "next_question", "what_if", "compare", "top_options", "their_reaction", "confidence"))
+                    out.append("  $k=${turnDirective?.get(k) ?: "-"}\n")
                 out.append("\n(b2) GAME MODEL (compile -> IEDS -> solve)\n")
                 val saved = r.gateway.activeScenario()
                 if (saved == null) out.append("  (no saved scenario)\n") else {
