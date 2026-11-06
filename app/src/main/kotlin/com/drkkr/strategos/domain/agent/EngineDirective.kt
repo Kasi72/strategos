@@ -318,7 +318,9 @@ object EngineDirectiveBuilder {
         // With a deal frame the walk-away is read in full and in its direction; without one, exactly as before (I-N1).
         val walk = deal?.walkAway
         fun belowFloor(a: Action?) = a != null &&
-            if (deal != null && walk != null) StatedFloor.leadsBelow(a.label, walk.value, deal.direction, walk.unit) else StatedFloor.leadsBelow(a.label, statedFloor)
+            if (deal != null && walk != null) StatedFloor.leadsBelow(a.label, walk.value, deal.direction, walk.unit) ||
+                com.drkkr.strategos.domain.negotiation.NegotiationView.crosses(a.label, deal)    // ID3.8: any figure, not only the first
+            else StatedFloor.leadsBelow(a.label, statedFloor)
         val calmActions = ownerActions.filter { !reactive(it) && !belowFloor(it) }
 
         // The recommendation. A reactive move can never be it: if the ranking put one first, take the best calm move instead.

@@ -91,6 +91,26 @@ class NegotiationViewTest {
         assertUntouched(s, v, listOf("a2", "a3"))
     }
 
+    /** ID3.8: every figure in an option is checked; one that crosses is enough. */
+    @Test fun TC_ID_WALK_01_anOptionWithTwoFiguresIsExcludedWhenEitherCrossesTheWalkAway() {
+        val s = seller(NegotiationContext(reservationPoint = "55k", aspirationPoint = "65k")).let { x ->
+            x.copy(actions = x.actions.map {
+                when (it.id) { "a1" -> it.copy(label = "Accept 60k or split near 52k"); "a2" -> it.copy(label = "Hold at 60k, floor at 56k"); else -> it }
+            })
+        }
+        val frame = frameOf(s)!!
+        assertTrue(NegotiationView.crosses("Accept 60k or split near 52k", frame))
+        assertFalse(NegotiationView.crosses("Hold at 60k, floor at 56k", frame))
+        assertFalse("a count is not a price", NegotiationView.crosses("Hold at 60k for 2 weeks", frame))
+        val v = NegotiationView.apply(s, frame)
+        val status = v.constraintAssessments.filter { it.constraintId == NegotiationView.CONSTRAINT_ID }.associate { it.actionId to it.status }
+        assertEquals(ConstraintStatus.VIOLATED, status["a1"])
+        assertNotEquals(ConstraintStatus.VIOLATED, status["a2"])
+        val pr = AnalysisPipeline().run(v)
+        assertTrue(pr.report!!.pathways.first { it.actionId == "a1" }.excluded)
+        assertNotEquals("Accept 60k or split near 52k", EngineDirectiveBuilder.build(v, pr, null, deal = frame).moveToImplement)
+    }
+
     @Test fun TC_NG_VIEW_03_noFrameReturnsTheSameInstance() {
         val s = seller()
         assertSame(s, NegotiationView.apply(s, null))

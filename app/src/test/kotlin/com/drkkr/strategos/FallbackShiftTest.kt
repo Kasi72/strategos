@@ -254,4 +254,17 @@ class FallbackShiftTest {
         assertEquals(FallbackShift.Strength.STRONG, FallbackShift.theirs(vendor(HumanContext(relationship = "vendor", theirAlternative = "strong"))
             .copy(negotiationContext = NegotiationContext(counterpartBatna = "no deal"))))
     }
+
+    @Test fun TC_ID_ALT_10_aBareWalkAwayIsNotYourFallbackInYourOwnWordsEither() {
+        assertFalse(FallbackShift.namesAlternative("I'd just walk away"))
+        assertTrue(FallbackShift.namesAlternative("I have an offer from Infosys"))
+        fun yours(text: String, deal: DealFrame? = null, confirmed: String? = null) = FallbackShift.yours(
+            vendor(HumanContext(relationship = "vendor", yourAlternative = confirmed, pending = mapOf("yourAlternative" to "strong")))
+                .copy(negotiationContext = NegotiationContext(batna = text)), deal)
+        assertNull(yours("I'd just walk away"))
+        assertEquals(FallbackShift.Strength.STRONG, yours("I have an offer from Infosys"))
+        // a confirmed value or a credible deal frame still counts, whatever the text says
+        assertEquals(FallbackShift.Strength.STRONG, yours("I'd just walk away", confirmed = "strong"))
+        assertEquals(FallbackShift.Strength.STRONG, yours("I'd just walk away", deal = deal(true)))
+    }
 }

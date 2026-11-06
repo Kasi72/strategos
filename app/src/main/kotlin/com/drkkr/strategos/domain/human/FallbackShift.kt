@@ -53,21 +53,21 @@ object FallbackShift {
     fun yours(view: Scenario, deal: DealFrame?): Strength? = when (deal?.walkAwayCredible) {
         true -> Strength.STRONG
         false -> Strength.WEAK
-        null -> word(value(view, "yourAlternative", view.humanContext?.yourAlternative, view.negotiationContext?.batna))
+        null -> word(value(view, "yourAlternative", view.humanContext?.yourAlternative, view.negotiationContext?.batna?.takeIf { namesAlternative(it) }))
     }
 
     fun theirs(view: Scenario): Strength? =
         word(value(view, "theirAlternative", view.humanContext?.theirAlternative, view.negotiationContext?.counterpartBatna?.takeIf { namesAlternative(it) }))
 
     private val NOTHING_NAMED = setOf(
-        "they", "he", "she", "them", "him", "her", "could", "can", "would", "will", "might", "may", "just", "simply", "probably",
+        "i", "we", "they", "he", "she", "them", "him", "her", "could", "can", "would", "will", "might", "may", "just", "simply", "probably",
         "walk", "walks", "walking", "away", "leave", "leaves", "no", "deal", "let", "you", "me", "us", "refuse", "refuses", "say", "says",
         "the", "a", "an", "it", "and", "or", "go", "elsewhere", "end", "talks", "quit", "pass", "decline", "nothing", "not", "do", "to", "off"
     )
 
     /**
      * ID3.7: the user's words for their fallback count only when they NAME one ("they have another supplier lined up"). "They could
-     * walk away", "no deal", "leave" or "let you walk" name nothing.
+     * walk away", "no deal", "leave" or "let you walk" name nothing. ID3.8: the same for yours ("I'd just walk away").
      */
     fun namesAlternative(text: String): Boolean =
         text.lowercase().replace("’", "'").split(Regex("[^a-z']+")).map { it.substringBefore("'") }.filter { it.isNotEmpty() }.any { it !in NOTHING_NAMED }

@@ -123,7 +123,11 @@ object DealCheck {
     private fun withoutTheirFigures(s: String): String =
         if (takesIt.containsMatchIn(s)) s else theirFigure.fold(s) { acc, r -> r.replace(acc, " ") }
 
-    private fun crosses(text: String, frame: DealFrame): Boolean {
+    /**
+     * True when any figure in [text] that reads as a price (within [PRICE_RANGE] of the walk-away, in the frame's unit) is on the
+     * wrong side of it. ID3.8: also the rule for option labels, so "Accept 60k or split near 52k" crosses a 55k floor.
+     */
+    fun crosses(text: String, frame: DealFrame): Boolean {
         val walk = frame.walkAway ?: return false
         return text.split(sentence).any { s ->
             DealNumbers.figures(withoutTheirFigures(s)).any { frame.compatible(it) && isPrice(it.value, walk.value) && frame.worse(it.value, walk.value) }

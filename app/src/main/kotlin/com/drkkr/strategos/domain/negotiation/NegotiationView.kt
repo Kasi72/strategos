@@ -59,12 +59,11 @@ object NegotiationView {
         return view.copy(constraints = view.constraints + limit, constraintAssessments = view.constraintAssessments + assessments)
     }
 
-    /** True when [label] carries exactly one figure, in the frame's unit, on the wrong side of the walk-away. */
-    fun crosses(label: String, frame: DealFrame): Boolean {
-        val walk = frame.walkAway ?: return false
-        val figure = DealNumbers.parse(label) ?: return false
-        return frame.compatible(figure) && frame.worse(figure.value, walk.value)
-    }
+    /**
+     * True when any figure in [label] crosses the walk-away (ID3.8, TC_ID_WALK_01: every figure is checked, not only a label's
+     * single one), by [DealCheck.crosses]'s rule: a price in the frame's unit on the wrong side; their quoted figure is not yours.
+     */
+    fun crosses(label: String, frame: DealFrame): Boolean = DealCheck.crosses(label, frame)
 
     /**
      * The saved analysis with every option that crosses the walk-away marked excluded, for the engine's own fallback text: when the
