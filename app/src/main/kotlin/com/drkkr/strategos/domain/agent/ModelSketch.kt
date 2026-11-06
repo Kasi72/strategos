@@ -84,8 +84,42 @@ data class ModelSketch(
     @SerialName("steps_for_them_to_say_yes") val stepsForThemToSayYes: JsonPrimitive? = null,
     @SerialName("goal_is") @Serializable(with = WordSerializer::class) val goalIs: String? = null,
     /** Power Mode: what the user explicitly asks the app to help them do, when it is manipulative (closed vocabulary, per turn). */
-    @SerialName("user_asks_for") @Serializable(with = WordSerializer::class) val userAsksFor: String? = null
+    @SerialName("user_asks_for") @Serializable(with = WordSerializer::class) val userAsksFor: String? = null,
+    /** Intent Dispatch ID2.1: what the user asks for this turn, a closed word read through [com.drkkr.strategos.domain.intent.Intent.of]. Never stored. */
+    @Serializable(with = WordSerializer::class) val intent: String? = null,
+    @SerialName("intent_detail") @Serializable(with = IntentDetailSerializer::class) val intentDetail: IntentDetail? = null,
+    /** The hypothetical, kept raw: read only through [whatIf], never by the save path (I-D3). */
+    @SerialName("what_if") val rawWhatIf: JsonElement? = null
+) {
+    /** ID2.1: the intent of the turn; unknown or missing is standard. */
+    val intentKind: com.drkkr.strategos.domain.intent.Intent get() = com.drkkr.strategos.domain.intent.Intent.of(intent)
+
+    /**
+     * The hypothetical as a sketch (same keys as the main one), one level only: a `what_if` inside it is dropped. Null when
+     * absent, empty or unreadable. Read by the intent handlers on copies; [SketchConverter] never reads it.
+     */
+    val whatIf: ModelSketch? get() {
+        val o = rawWhatIf as? JsonObject ?: return null
+        val inner = JsonObject(o - "what_if")
+        if (inner.isEmpty()) return null
+        return runCatching { WHAT_IF_JSON.decodeFromJsonElement(ModelSketch.serializer(), inner) }.getOrNull()
+    }
+}
+
+private val WHAT_IF_JSON = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+/** ID2.1: the moves or the change the intent is about, in the user's words. */
+@Serializable
+data class IntentDetail(
+    @Serializable(with = TextOrListSerializer::class) val change: String? = null,
+    @SerialName("move_a") @Serializable(with = TextOrListSerializer::class) val moveA: String? = null,
+    @SerialName("move_b") @Serializable(with = TextOrListSerializer::class) val moveB: String? = null,
+    @Serializable(with = TextOrListSerializer::class) val move: String? = null
 )
+
+object IntentDetailSerializer : JsonTransformingSerializer<IntentDetail>(IntentDetail.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement = if (element is JsonObject) element else JsonObject(emptyMap())
+}
 
 /** The counterpart compared with "You". Every field is a closed word, read through [SketchHuman]. */
 @Serializable

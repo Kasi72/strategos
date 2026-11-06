@@ -44,7 +44,9 @@ class HumanPromptTest {
         // pm6.1 added "(them, not who they care for)" to their_vulnerable in rule 20 (+30 chars), so the limit is 2,856 (actual 2,801).
         // Intent Dispatch id1.2 replaced rule 4's 0–10 sentence with the label wording and wrote the example's 36 scores as quoted
         // labels (+370 chars), so the limit is 3,226 (actual 3,171).
-        assertTrue("prompt grew by $growth chars", growth in 1..3226)
+        // Intent Dispatch id2.1 added rule 23 (the intent list with an example phrase each, "a hypothetical ONLY under what_if")
+        // and the schema keys intent, intent_detail, what_if (+479 chars), so the limit is 3,705 (actual 3,650).
+        assertTrue("prompt grew by $growth chars", growth in 1..3705)
     }
 
     @Test
