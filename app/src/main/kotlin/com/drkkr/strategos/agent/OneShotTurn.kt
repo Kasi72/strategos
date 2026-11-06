@@ -49,6 +49,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.UUID
 
@@ -583,7 +585,7 @@ class OneShotTurn(
                 put("content", background(cid) + priorRoundCtx + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
-        val request = LlmRequest(
+        var request = LlmRequest(
             settings.model(), input, tools = null, maxOutputTokens = maxTokens, temperature = INTERPRET_TEMPERATURE,
             purpose = "COACH", conversationId = cid, turnId = turnId, jsonObjectMode = true
         )
@@ -605,6 +607,9 @@ class OneShotTurn(
                 usable = reply
             }
             DebugLog.d { "INTERPRET not used (attempt ${attempt + 1}): parsed=${reply != null} echoed=${reply?.engineMove} wanted=${directive.moveToImplement} placeholder=${reply?.hasPlaceholder()} dealOk=${reply?.let { com.drkkr.strategos.domain.negotiation.DealCheck.usable(it, deal) }}" }
+            // A walk-away leak is told back to the coach before its retry: the same request again would leak the same way,
+            // because the person's own message carries the figure.
+            if (attempt == 0 && reply != null && !com.drkkr.strategos.domain.negotiation.DealCheck.usable(reply, deal)) request = request.copy(input = withNote(input, DEAL_RETRY_NOTE))
         }
         return usable?.stripped()
     }
@@ -811,6 +816,15 @@ class OneShotTurn(
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3
+        /** Sent with the coach's retry after its reply gave away the walk-away (DealCheck); the person's own message carries the figure. */
+        const val DEAL_RETRY_NOTE = "YOUR LAST REPLY WAS NOT USED: it gave away the walk-away. Keep `walk_away_private` private in every advice field and in `exact_words`: never write that figure, never tell them to state or name it, and never a figure worse for the user than it. Say \"I have a firm limit\" instead, and keep the same engine_move."
+
+        /** [input] with [note] put first in its last (user) message, so the directive stays the message's end. */
+        internal fun withNote(input: JsonArray, note: String): JsonArray {
+            val last = input.last().jsonObject
+            val content = last.getValue("content").jsonPrimitive.content
+            return JsonArray(input.dropLast(1) + buildJsonObject { put("role", "user"); put("content", "$note\n\n$content") })
+        }
         private const val RED_TEAM_TIMEOUT_MS = 5_000L
         private const val RED_TEAM_MAX_TOKENS = 120
         private const val RED_TEAM_TEMPERATURE = 0.5

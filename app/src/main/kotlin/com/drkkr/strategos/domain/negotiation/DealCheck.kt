@@ -73,10 +73,24 @@ object DealCheck {
     private fun advisesReveal(text: String): Boolean =
         text.split(sentence).any { s -> revealVerb.containsMatchIn(s) && walkAwayWords.containsMatchIn(s) && !negated.containsMatchIn(s) }
 
+    // Their figure named as theirs ("thanks for the 6% offer", "they offered me 6%", "6% is below what I can accept") describes their
+    // position, it is not advice to take it; "accept the 6% offer" or "settle for 6%" still is.
+    private const val FIG = """[$€£₹]?\d[\d,.]*\s*(?:%|percent|per cent|k|thousand|lakhs?|lacs?|crores?|cr|millions?|mn|m)?"""
+    private val theirFigure = listOf(
+        Regex("""(?i)\b(?:the|their|your|his|her|this|that|an?)\s+$FIG\s+(?:offer|quote|bid|proposal|raise|increase)\b"""),
+        Regex("""(?i)\b(?:offered|quoted|proposed|offer of)\s+(?:(?:me|us|you|him|her|them)\s+)?(?:(?:at|a|an|only|just)\s+)*$FIG"""),
+        Regex("""(?i)$FIG\s+is\s+(?:well\s+|far\s+)?(?:below|under|less than|short of|too low|not enough)\b""")
+    )
+    private val takesIt = Regex("""(?i)\b(?:accept|take|settle|agree to|go with|sign|lock in|close at)\w*\s+(?:\w+\s+){0,2}?$FIG""")
+
+    /** [s] with their figures removed when it does not also advise taking a figure. */
+    private fun withoutTheirFigures(s: String): String =
+        if (takesIt.containsMatchIn(s)) s else theirFigure.fold(s) { acc, r -> r.replace(acc, " ") }
+
     private fun crosses(text: String, frame: DealFrame): Boolean {
         val walk = frame.walkAway ?: return false
         return text.split(sentence).any { s ->
-            DealNumbers.figures(s).any { frame.compatible(it) && isPrice(it.value, walk.value) && frame.worse(it.value, walk.value) }
+            DealNumbers.figures(withoutTheirFigures(s)).any { frame.compatible(it) && isPrice(it.value, walk.value) && frame.worse(it.value, walk.value) }
         }
     }
 

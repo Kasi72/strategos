@@ -46,7 +46,12 @@ object WalkAwayMask {
         })
     }
 
-    private fun firm(t: String) = doubled.replace(t) { m -> "you have a firm ${m.groupValues[1].lowercase()}" }
+    /** "the your floor floor" (what masking makes of "Name the 100k floor") -> "a firm floor"; a bare "your floor floor" -> "your floor". */
+    private val doubledNoun = Regex("""(?i)\b(?:(the|a|an|my) )?your (ceiling|floor) \2\b""")
+
+    private fun firm(t: String) = doubledNoun.replace(doubled.replace(t) { m -> "you have a firm ${m.groupValues[1].lowercase()}" }) { m ->
+        if (m.groupValues[1].isNotEmpty()) "a firm ${m.groupValues[2].lowercase()}" else "your ${m.groupValues[2].lowercase()}"
+    }
 
     /** The user's option labels, masked. Null frame, or nothing to mask = the same instance (I-N1). */
     fun apply(view: Scenario, frame: DealFrame?): Scenario {

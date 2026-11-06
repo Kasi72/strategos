@@ -58,12 +58,27 @@ class DealGuardTest {
         assertTrue(DealCheck.usableAnswer("Say the number once.", null))
     }
 
+    @Test fun theirOfferNamedAsTheirsIsNotAdviceToTakeIt() {
+        val raise = DealFrame.build(NegotiationContext(reservationPoint = "10%", aspirationPoint = "15%"), null, "")!!
+        // describing their offer is fine
+        assertTrue(DealCheck.usable(reply(exact = "I appreciate the 6% offer. I have a firm limit; can we get closer to 15%?"), raise))
+        assertTrue(DealCheck.usable(reply(clear = "Tell your manager plainly that 6% is below what you can accept, and ask for a revised number."), raise))
+        assertTrue(DealCheck.usable(reply(doThis = listOf("They offered you 6%; ask what it would take to reach 15%.")), raise))
+        // taking it, or proposing a figure past the walk-away, is still rejected
+        assertFalse(DealCheck.usable(reply(clear = "Accept the 6% offer and revisit it next year."), raise))
+        assertFalse(DealCheck.usable(reply(exact = "Could we settle at 8%?"), raise))
+        assertFalse(DealCheck.usable(reply(exact = "I can't go below 10%."), raise))
+    }
+
     @Test fun aMaskedYourCeilingIsYourCeilingReadsAsAFirmCeiling() {
         assertEquals("Tell Karthik plainly that you have a firm ceiling and ask what he can do",
             WalkAwayMask.text("Tell Karthik plainly that $45,000 is your hard ceiling and ask what he can do", vendor))
         assertEquals("Remember that you have a firm ceiling.", WalkAwayMask.text("Remember that $45,000 a year is your ceiling.", vendor))
         val seller = DealFrame.build(NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"), null, "")!!
         assertEquals("Say that you have a firm floor", WalkAwayMask.text("Say that 100k is your floor", seller))
+        // "the 100k floor" no longer reads "the your floor floor"
+        assertEquals("Name a firm floor and the 130k target", WalkAwayMask.text("Name the 100k floor and the 130k target", seller))
+        assertEquals("Hold your floor", WalkAwayMask.text("Hold 100k floor", seller))
         // other masked sentences are left as they were
         assertEquals("State that you'll walk away above your ceiling", WalkAwayMask.text("State that you'll walk away above $45,000", vendor))
     }

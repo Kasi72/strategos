@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.agent.CounselController
 import com.drkkr.strategos.agent.CounselDeps
+import com.drkkr.strategos.agent.OneShotTurn
 import com.drkkr.strategos.data.db.DbFactory
 import com.drkkr.strategos.data.db.StrategosDatabase
 import com.drkkr.strategos.data.db.entities.ScenarioEntity
@@ -126,6 +127,35 @@ class NegotiationFlowTest {
         assertTrue(offered.toString(), offered.isEmpty())
         // the engine's own text never offers the option that crosses the walk-away, nor states the walk-away or the fallback
         assertFalse(reply, Regex("""100,000|100k|105,000|105k""").containsMatchIn(reply))
+    }
+
+    /** The coach gives the walk-away on its first try and stops once the retry note tells it why the reply was not used. */
+    private class LeaksUntilToldLlm(private val leaky: EngineEchoLlm, private val clean: EngineEchoLlm) : com.drkkr.strategos.llm.LlmClient by leaky {
+        val requests = mutableListOf<com.drkkr.strategos.llm.LlmRequest>()
+        override suspend fun create(req: com.drkkr.strategos.llm.LlmRequest): com.drkkr.strategos.llm.LlmResult {
+            requests += req
+            return if (req.input.toString().contains("YOUR LAST REPLY WAS NOT USED")) clean.create(req) else leaky.create(req)
+        }
+    }
+
+    @Test
+    fun aCoachReplyThatGivesTheWalkAwayIsRetriedWithTheReasonAndTheCleanRetryIsShown() = runBlocking {
+        val gateway = CommittingGateway(start)
+        val llm = LeaksUntilToldLlm(
+            EngineEchoLlm(listOf(sketch), exactWords = "I can't go below 100k, but I'd love 130k."),
+            EngineEchoLlm(listOf(sketch), exactWords = "I have a firm limit. I'm at 130k; what can you do?")
+        )
+        val controller = controllerWith(llm, gateway)
+        controller.bindScenario("deal").join()
+        controller.send("Asha wants my design work. I won't go below 100k, I'd love 130k, I think she can go to 120k. I have another client at 105k.")!!.join()
+        controller.awaitIdle()
+        val coach = llm.requests.filter { it.purpose == "COACH" }
+        assertEquals(2, coach.size)
+        assertFalse("the first try is the plain request", coach[0].input.toString().contains("YOUR LAST REPLY WAS NOT USED"))
+        assertTrue("the retry says why", coach[1].input.toString().contains(OneShotTurn.DEAL_RETRY_NOTE.take(40)))
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == "ASSISTANT" }.text
+        assertTrue("the clean retry is what the user sees:\n$reply", reply.contains("I have a firm limit"))
+        assertFalse(reply, Regex("""100,000|100k""").containsMatchIn(reply))
     }
 
     /** Delegates to [EngineEchoLlm], except the follow-up-answer call, which always gives the walk-away as a line to say. */
