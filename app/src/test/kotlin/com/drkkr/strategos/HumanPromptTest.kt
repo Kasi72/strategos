@@ -45,8 +45,9 @@ class HumanPromptTest {
         // Intent Dispatch id1.2 replaced rule 4's 0–10 sentence with the label wording and wrote the example's 36 scores as quoted
         // labels (+370 chars), so the limit is 3,226 (actual 3,171).
         // Intent Dispatch id2.1 added rule 23 (the intent list with an example phrase each, "a hypothetical ONLY under what_if")
-        // and the schema keys intent, intent_detail, what_if (+479 chars), so the limit is 3,705 (actual 3,650).
-        assertTrue("prompt grew by $growth chars", growth in 1..3705)
+        // and the schema keys intent, intent_detail, what_if (+479 chars), so the limit is 3,705 (actual 3,650). CP-I2 asked rule 23 to
+        // copy the matching option's wording into move_a/move_b/move (+26 chars), so the limit is 3,731 (actual 3,676).
+        assertTrue("prompt grew by $growth chars", growth in 1..3731)
     }
 
     @Test

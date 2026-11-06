@@ -36,7 +36,10 @@ class MaskWordingTest {
         assertEquals("Name a firm floor", WalkAwayMask.text("Name the 40k floor", seller).also { reads(it, seller) })
         assertEquals("Offer a firm ceiling", WalkAwayMask.text("Offer a \$45,000 ceiling", buyer).also { reads(it, buyer) })
         assertEquals("Your ceiling is where you stop.", WalkAwayMask.text("\$45,000 is where you stop.", buyer).also { reads(it, buyer) })
-        assertEquals("Say your ceiling is firm", WalkAwayMask.text("Say your ceiling is \$45,000", buyer).also { reads(it, buyer) })
+        assertEquals("Say you have a firm ceiling", WalkAwayMask.text("Say your ceiling is \$45,000", buyer).also { reads(it, buyer) })
+        // CP-I2, seen live
+        assertEquals("Tell Karthik you have a firm budget and ask what he can do", WalkAwayMask.text("Tell Karthik your budget is \$45,000 and ask what he can do", buyer).also { reads(it, buyer) })
+        assertEquals("State that you have a firm ceiling and say you'll go with the other vendor", WalkAwayMask.text("State \$45,000 as your firm ceiling and say you'll go with the other vendor", buyer).also { reads(it, buyer) })
         // a range that doesn't touch the walk-away is left alone
         assertEquals("Ask for around 55–60k", WalkAwayMask.text("Ask for around 55–60k", seller))
     }

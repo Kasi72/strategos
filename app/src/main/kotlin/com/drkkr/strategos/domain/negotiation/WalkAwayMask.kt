@@ -77,8 +77,15 @@ object WalkAwayMask {
         x = re("""$w$PERIOD is (your|my) (?:$ADJ)?($NOUN)\b""").replace(x) { m ->
             (if (m.groupValues[1].equals("my", true)) "${NEW}I have" else "${NEW}you have") + " a firm ${m.groupValues[2].lowercase()}"
         }
-        // "my floor is $40k" -> "my floor is firm"
-        x = re("""\b(your|my) ((?:$ADJ)?$NOUN) is $w$PERIOD""").replace(x) { m -> "${m.groupValues[1]} ${m.groupValues[2]} is firm" }
+        // "my floor is $40k" -> "my floor is firm"; "your budget is $45,000" -> "you have a firm budget" (CP-I2: "Tell him your budget
+        // is firm" read as advice to reveal it, so the coach's echo of the move was rejected)
+        x = re("""\b(your|my) (?:$ADJ)?($NOUN) is $w$PERIOD""").replace(x) { m ->
+            if (m.groupValues[1].equals("your", true)) "you have a firm ${m.groupValues[2].lowercase()}" else "${m.groupValues[1]} ${m.groupValues[2]} is firm"
+        }
+        // "State $45,000 as your firm ceiling" -> "State that you have a firm ceiling" (CP-I2: was "your ceiling as your ceiling")
+        x = re("""$w$PERIOD as (your|my) (?:$ADJ)?($NOUN)\b""").replace(x) { m ->
+            (if (m.groupValues[1].equals("my", true)) "that I have" else "that you have") + " a firm ${m.groupValues[2].lowercase()}"
+        }
         // "name your $45,000 ceiling" -> "name your ceiling"; "stick to my 40k" -> "stick to my floor"
         x = re("""\b(your|my|our) $w$PERIOD(?= (?:$ADJ)?$NOUN\b)""").replace(x) { m -> m.groupValues[1] }
         x = re("""\b(your|my|our) $w$PERIOD""").replace(x) { m -> "${m.groupValues[1]} $role" }

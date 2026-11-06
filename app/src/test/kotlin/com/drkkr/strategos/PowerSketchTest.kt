@@ -85,8 +85,8 @@ class PowerSketchTest {
         /**
          * Characters later packs added to the same prompt, measured exactly, so this budget still counts Power Mode's own growth
          * only: Intent Dispatch id1.2 (rule 4's label wording and the example's labels, +370) and id2.1 (rule 23 and the
-         * intent schema keys, +479).
+         * intent schema keys, +479; +26 at CP-I2 for copying the option's wording).
          */
-        const val LATER_PACKS_GROWTH = 370 + 479
+        const val LATER_PACKS_GROWTH = 370 + 479 + 26
     }
 }
