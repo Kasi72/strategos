@@ -7,8 +7,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 
 /**
- * The number each label stands for, on the existing 0–10 scale (Intent Dispatch BLUEPRINT §3.2). "Same as today" is the scale's
- * own neutral; the other steps sit evenly around it, two each side, inside the 0–10 range.
+ * The number each label stands for, on the 0–10 scale the payoffs have always used (Intent Dispatch BLUEPRINT §3.2). "Same as
+ * today" is that scale's midpoint; the other steps sit evenly around it, 1.5 apart, two each side, inside the 0–10 range.
  */
 data class RubricConstants(
     val muchBetter: Double = 8.5,
@@ -19,9 +19,9 @@ data class RubricConstants(
 ) {
     /** A source note per field (the pm6.1 rule: no unexplained constant). */
     val notes: Map<String, String> get() = mapOf(
-        "muchBetter" to "two steps above neutral on the extraction scale (\"5 = neutral / status quo\"), 1.5 below its top",
+        "muchBetter" to "two steps (2 × 1.5) above the midpoint, 1.5 below the scale's top",
         "better" to "one step (1.5) above neutral",
-        "same" to "the 0–10 scale's own neutral: the extraction prompt's \"5 = neutral / status quo\"",
+        "same" to "the midpoint of the 0–10 payoff scale (the old prompt's \"one number 0 to 10\"): no better, no worse than today",
         "worse" to "one step (1.5) below neutral",
         "muchWorse" to "two steps below neutral, 1.5 above the scale's floor"
     )

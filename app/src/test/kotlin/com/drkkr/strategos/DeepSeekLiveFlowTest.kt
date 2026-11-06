@@ -145,6 +145,10 @@ class DeepSeekLiveFlowTest {
                 out.append("CALLS: " + turnCalls.joinToString(" | ") { c -> "${c.purpose} in=${c.inTokens} out=${c.outTokens}/${c.maxOut} chars=${c.text.length} parses=${if (c.purpose == "TURN") SketchParser.tryParse(c.text).let { t -> if (t.isSuccess) "true" else "false WHY: " + t.exceptionOrNull()?.message?.take(240) } else "-"}" } + "\n")
                 out.append("error=${st.error} support=${st.supportVisible} trajectory=${st.trajectory?.let { "trust ${it.trustScore.toInt()} tension ${it.tensionScore.toInt()} | ${it.band}" }} calls=${turnCalls.map { it.purpose }}\n\n")
 
+                // Optional FLOW_RAW_TURN_DIR: Call 1's raw reply per message, to record as a test fixture (ID1.2, TC_ID_RUB_11).
+                System.getenv("FLOW_RAW_TURN_DIR")?.takeIf { it.isNotBlank() }?.let { dir ->
+                    turnCalls.firstOrNull { it.purpose == "TURN" }?.let { java.io.File(dir, "turn-${i + 1}.json").apply { parentFile?.mkdirs() }.writeText(it.text) }
+                }
                 out.append("(a) CALL 1 extracted options\n")
                 val sketch = turnCalls.firstOrNull { it.purpose == "TURN" }?.let { SketchParser.parse(it.text) }
                 if (sketch == null) out.append("  (no parseable extraction)\n") else {

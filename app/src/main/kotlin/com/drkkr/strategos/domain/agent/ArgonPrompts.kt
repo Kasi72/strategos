@@ -40,7 +40,7 @@ RULES:
 1. PEOPLE: "You" (role "player") and the ONE other person whose choice matters most (role "player"). Anyone else mentioned (relatives, friends, a therapist) is role "influencer". Write `wants` and `fears` ONLY for things the user said in their own words; for people merely mentioned leave them out. Never invent.
 2. OPTIONS: give "You" exactly 3 options, worded as plain actions the user could take, each with a `posture`: "repair" (a cooperative or repair move), "boundary" (a firm boundary move) and "reactive" (a tempting move the user might be pulled towards, for example double-texting, pleading, an ultimatum, silently caving). Give the other player exactly 2 CONTRASTING options: one with `posture` "receptive" (stays engaged and constructive) and one with `posture` "defensive" (shuts down, withdraws or leaves). Influencers have no options.
 3. dims: pick 3 from WELLBEING, RELATIONSHIPS, SAFETY, ETHICS, COST, LONG_TERM_VALUE, REPUTATION, EFFICIENCY.
-4. outcomes: one row for EVERY pair [your option, their option] (6 rows). `for_you` and `for_them` hold one number 0 to 10 per dim, in dims order.
+4. outcomes: one row for EVERY pair [your option, their option] (6 rows). `for_you` and `for_them` hold one label per dim, in dims order: "++" much better, "+" better, "0" the same as today, "-" worse, "--" much worse. For each player and dimension, say whether this combination leaves THEM much better, better, the same as today, worse or much worse. Judge each player from their own side. For COST, better means it costs them less.
 5. limits: ONLY things the user explicitly said must not happen. Otherwise [].
 6. archetype: CHICKEN_GAME, PRISONERS_DILEMMA, STAG_HUNT, ULTIMATUM, TRUST_GAME or RELATIONAL_REPAIR.
 7. trust_delta and tension_delta (each -20 to 20): how this message moved trust and tension between the two of them. 0 if nothing new happened.
@@ -81,12 +81,12 @@ JSON SCHEMA:
   ],
   "dims": ["WELLBEING", "RELATIONSHIPS", "LONG_TERM_VALUE"],
   "outcomes": [
-    {"when": ["Tell them calmly what you appreciate and what you need", "Open up and talk it through"], "for_you": [8, 9, 9], "for_them": [8, 8, 8]},
-    {"when": ["Tell them calmly what you appreciate and what you need", "Shut down and keep distance"], "for_you": [6, 6, 7], "for_them": [5, 5, 5]},
-    {"when": ["Hold your boundary and pause the topic for a day", "Open up and talk it through"], "for_you": [7, 7, 8], "for_them": [6, 7, 7]},
-    {"when": ["Hold your boundary and pause the topic for a day", "Shut down and keep distance"], "for_you": [6, 5, 6], "for_them": [5, 5, 5]},
-    {"when": ["Send several messages until they answer", "Open up and talk it through"], "for_you": [5, 5, 4], "for_them": [4, 4, 4]},
-    {"when": ["Send several messages until they answer", "Shut down and keep distance"], "for_you": [2, 2, 2], "for_them": [3, 2, 3]}
+    {"when": ["Tell them calmly what you appreciate and what you need", "Open up and talk it through"], "for_you": ["++", "++", "++"], "for_them": ["++", "++", "++"]},
+    {"when": ["Tell them calmly what you appreciate and what you need", "Shut down and keep distance"], "for_you": ["+", "+", "+"], "for_them": ["0", "0", "0"]},
+    {"when": ["Hold your boundary and pause the topic for a day", "Open up and talk it through"], "for_you": ["+", "+", "++"], "for_them": ["+", "+", "+"]},
+    {"when": ["Hold your boundary and pause the topic for a day", "Shut down and keep distance"], "for_you": ["+", "0", "+"], "for_them": ["0", "0", "0"]},
+    {"when": ["Send several messages until they answer", "Open up and talk it through"], "for_you": ["0", "0", "-"], "for_them": ["-", "-", "-"]},
+    {"when": ["Send several messages until they answer", "Shut down and keep distance"], "for_you": ["--", "--", "--"], "for_them": ["-", "--", "-"]}
   ],
   "limits": [],
   "ask": null,

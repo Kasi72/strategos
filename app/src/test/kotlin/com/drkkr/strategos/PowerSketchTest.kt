@@ -65,7 +65,7 @@ class PowerSketchTest {
         assertTrue(p.contains("probes_you"))
         for (v in HumanVocab.USER_ASKS_FOR) assertTrue(v, p.contains(v))
         assertTrue(p.contains("classify only what the user explicitly asks the app to help them do"))
-        val growth = p.length - START_OF_BRANCH_LENGTH
+        val growth = p.length - START_OF_BRANCH_LENGTH - LATER_PACKS_GROWTH
         assertTrue("grew by $growth", growth in 1..400)
     }
 
@@ -82,5 +82,10 @@ class PowerSketchTest {
     companion object {
         /** `EXTRACTION_PROMPT.length` when the power-mode branch was created (negotiation-numbers @ 36e5442). */
         const val START_OF_BRANCH_LENGTH = 11788
+        /**
+         * Characters later packs added to the same prompt, measured exactly, so this budget still counts Power Mode's own growth
+         * only: Intent Dispatch id1.2 (rule 4's label wording and the example's labels, +370).
+         */
+        const val LATER_PACKS_GROWTH = 370
     }
 }

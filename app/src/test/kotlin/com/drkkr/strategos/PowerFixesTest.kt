@@ -177,7 +177,7 @@ class PowerFixesTest {
         val p = ArgonPrompts.EXTRACTION_PROMPT
         assertTrue(p.contains("your_alternative: strong"))
         assertTrue(p.contains("they_depend_on_you: high"))
-        val growth = p.length - PowerSketchTest.START_OF_BRANCH_LENGTH
+        val growth = p.length - PowerSketchTest.START_OF_BRANCH_LENGTH - PowerSketchTest.LATER_PACKS_GROWTH
         assertTrue("grew by $growth", growth in 1..400)
     }
 }
