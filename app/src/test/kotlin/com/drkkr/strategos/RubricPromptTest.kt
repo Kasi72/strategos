@@ -27,6 +27,19 @@ class RubricPromptTest {
         assertTrue("every example cell is a label: $cells", cells.all { RubricPayoffs.level(it) != null })
     }
 
+    /** I-D5: the "fill in what's missing" pass (OneShotTurn.PROMPT) is Call 1 too, so it asks for labels as well. */
+    @Test fun TC_ID_RUB_10_theRepairPassPromptAsksForLabelsToo() {
+        val r = com.drkkr.strategos.agent.OneShotTurn.PROMPT
+        assertTrue(r.contains("give each player one label per dim"))
+        assertTrue(r.contains("Judge each player from their own side"))
+        assertFalse(r.contains("numbers 0-10"))
+        assertFalse(r.contains("COST 10 = very costly"))
+        val example = SketchParser.parse(r.substring(r.indexOf("(a different situation):")))!!
+        val cells = example.outcomes.flatMap { o -> o.rawScores.values.flatten() }
+        assertEquals(24, cells.size)
+        assertTrue("every example cell is a label: $cells", cells.all { RubricPayoffs.level(it) != null })
+    }
+
     /** Recorded live 2026-11-06 (salary story, first message, the id1.2 prompt): resources/intent/salary_turn1_live.json. */
     @Test fun TC_ID_RUB_11_aLiveExtractionConvertsWithNoMissingCells() {
         val sk = SketchParser.parse(javaClass.getResource("/intent/salary_turn1_live.json")!!.readText())!!

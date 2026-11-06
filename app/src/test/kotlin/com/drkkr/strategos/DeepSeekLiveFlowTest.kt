@@ -147,7 +147,9 @@ class DeepSeekLiveFlowTest {
 
                 // Optional FLOW_RAW_TURN_DIR: Call 1's raw reply per message, to record as a test fixture (ID1.2, TC_ID_RUB_11).
                 System.getenv("FLOW_RAW_TURN_DIR")?.takeIf { it.isNotBlank() }?.let { dir ->
-                    turnCalls.firstOrNull { it.purpose == "TURN" }?.let { java.io.File(dir, "turn-${i + 1}.json").apply { parentFile?.mkdirs() }.writeText(it.text) }
+                    turnCalls.filter { it.purpose == "TURN" }.forEachIndexed { k, c ->
+                        java.io.File(dir, if (k == 0) "turn-${i + 1}.json" else "turn-${i + 1}-repair.json").apply { parentFile?.mkdirs() }.writeText(c.text)
+                    }
                 }
                 out.append("(a) CALL 1 extracted options\n")
                 val sketch = turnCalls.firstOrNull { it.purpose == "TURN" }?.let { SketchParser.parse(it.text) }
@@ -176,6 +178,15 @@ class DeepSeekLiveFlowTest {
                     }
                     out.append("  dominant dynamic: ${d["dominant_dynamic"]?.jsonArray?.joinToString(" // ") { it.jsonPrimitive.content }}\n")
                     out.append("  stress: ${str("stress_verdict")} ${str("stress_flip") ?: ""}\n")
+                    // Intent Dispatch ID1 (CP-I1): the label checks on the saved labels, and how many payoffs were written as numbers.
+                    r.gateway.activeScenario()?.let { sc ->
+                        val issues = com.drkkr.strategos.domain.game.LabelChecks.check(sc).map { i -> when (i) {
+                            is com.drkkr.strategos.domain.game.LabelIssue.LabelDominance -> "LABEL_DOMINANCE(${sc.actions.firstOrNull { it.id == i.actionId }?.label})"
+                            is com.drkkr.strategos.domain.game.LabelIssue.RefusalBeatsAcceptance -> "REFUSAL_BEATS_ACCEPTANCE(${sc.actions.firstOrNull { it.id == i.actionId }?.label}, ${i.dim})"
+                        } }
+                        val numeric = sc.payoffs.count { com.drkkr.strategos.domain.game.RubricPayoffs.AI_SCORED_NUMERIC in it.provenanceNote }
+                        out.append("  [ID1] label_issues=${issues.ifEmpty { listOf("none") }} numeric_payoffs=$numeric/${sc.payoffs.size} confidence=${str("confidence_level")}\n")
+                    }
                     out.append("  DELIVERY (what the coach was given): ${d["delivery"] ?: "none"}\n")
                     r.gateway.activeScenario()?.let { sc ->
                         val hc = sc.humanContext
