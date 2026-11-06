@@ -35,7 +35,7 @@ class ConversationProbe : E2eBase() {
         waitFor(180_000, "reply 1") { visibleCount(sid) >= expect }
         for (i in 1 until messages.size) {
             waitFor(60_000, "composer idle") { !hasText("Stop reply") && rule.onAllNodes(androidx.compose.ui.test.hasSetTextAction()).fetchSemanticsNodes().isNotEmpty() }
-            typeInto(0, messages[i]); desc("Send message").performClick()
+            typeWhenComposerReady(messages[i]); sendMessage()
             expect += 2
             waitFor(180_000, "reply ${i + 1}") { visibleCount(sid) >= expect }
         }

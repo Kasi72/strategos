@@ -29,8 +29,8 @@ class TalkE2e : E2eBase() {
         requireLiveKey()
         reset(withKey = true); val id = seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
         openTalk("Loan for my brother")
-        typeInto(0, "My wife is against it and I do not want to lose him either. What should I do?")
-        desc("Send message").performClick()
+        typeWhenComposerReady("My wife is against it and I do not want to lose him either. What should I do?")
+        sendMessage()
         waitForText("My wife is against it", substring = true)
         waitForCoachReply()
         waitFor(what = "reply text on screen", timeoutMs = 20_000) { !hasText("Thinking") }
@@ -60,8 +60,8 @@ class TalkE2e : E2eBase() {
         reset(withKey = true); seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
         openTalk("Loan for my brother")
         val mine = "My wife is against it. What should I do?"
-        typeInto(0, mine)
-        desc("Send message").performClick()
+        typeWhenComposerReady(mine)
+        sendMessage()
         waitForCoachReply()
         waitForText(mine)
         text(mine).performTouchInput { longClick() }

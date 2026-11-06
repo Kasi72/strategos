@@ -40,7 +40,7 @@ class RepeatedAdviceE2e : E2eBase() {
         var expected = 2
         waitFor(180_000, "reply 1") { count() >= expected }; idle()
         for (i in 1 until say.size) {
-            typeInto(0, say[i]); desc("Send message").performClick()
+            typeWhenComposerReady(say[i]); sendMessage()
             expected += 2; waitFor(180_000, "reply ${i + 1}") { count() >= expected }; idle()
         }
         val cid = runBlocking { container.database!!.conversationDao().listThreadsForScenario(sid) }.first().id

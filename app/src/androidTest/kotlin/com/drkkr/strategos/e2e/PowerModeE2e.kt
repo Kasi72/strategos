@@ -45,8 +45,8 @@ class PowerModeE2e : E2eBase() {
     /** Sends one message and waits for the coach (questions, a follow-up answer or a full reply all count). */
     private fun say(text: String) {
         val before = replies().size
-        typeInto(0, text)
-        desc("Send message").performClick()
+        typeWhenComposerReady(text)
+        sendMessage()
         waitFor(180_000, "a reply to: ${text.take(40)}") { replies().size > before && !hasText("Stop reply") }
         rule.waitForIdle()
     }
@@ -86,7 +86,7 @@ class PowerModeE2e : E2eBase() {
         // manual check 6: tap "Your fallback" on the card and choose; the user's word is saved as theirs
         scrollTo("Your fallback")
         rule.onAllNodes(androidx.compose.ui.test.hasText("Your fallback", substring = true), useUnmergedTree = true).onFirst().performClick()
-        waitForText("strong"); text("strong").performClick()
+        waitForText("strong"); clickAction("strong")
         waitFor(10_000, "the user's word saved") {
             runBlocking { container.scenarioRepository.scenarios.value.first().humanContext }?.let { it.yourAlternative == "strong" && "yourAlternative" in it.userFixed } == true
         }

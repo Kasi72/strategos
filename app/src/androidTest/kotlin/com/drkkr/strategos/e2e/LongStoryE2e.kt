@@ -66,7 +66,7 @@ class LongStoryE2e : E2eBase() {
         expected = 2
         waitFor(180_000, "reply 1") { count() >= expected }
         idle()
-        typeInto(0, week1[1].say); desc("Send message").performClick()
+        typeWhenComposerReady(week1[1].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 2") { count() >= expected }; idle()
 
         // ── Journal entry 1, linked to the project, screened like the app does ─
@@ -82,9 +82,9 @@ class LongStoryE2e : E2eBase() {
         text("Start talking").performClick()
         // The sheet only names the topic; the first line is the topic name itself, so continue the conversation.
         waitFor(180_000, "topic 2 first reply") { count() >= expected + 2 }; expected += 2; idle()
-        typeInto(0, week2[0].say); desc("Send message").performClick()
+        typeWhenComposerReady(week2[0].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 4") { count() >= expected }; idle()
-        typeInto(0, week2[1].say); desc("Send message").performClick()
+        typeWhenComposerReady(week2[1].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 5") { count() >= expected }; idle()
 
         // ── Journal entry 2 ─────────────────────────────────────────────────
@@ -98,16 +98,16 @@ class LongStoryE2e : E2eBase() {
         rule.onAllNodes(hasSetTextAction()).onLast().performTextInput("If he says no")
         text("Start talking").performClick()
         waitFor(180_000, "topic 3 first reply") { count() >= expected + 2 }; expected += 2; idle()
-        typeInto(0, week3[0].say); desc("Send message").performClick()
+        typeWhenComposerReady(week3[0].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 7") { count() >= expected }; idle()
-        typeInto(0, week3[1].say); desc("Send message").performClick()
+        typeWhenComposerReady(week3[1].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 8") { count() >= expected }; idle()
 
         // ── Back to topic 1: does it remember the journal? ───────────────────
         val ask = "Before I go back to Alex: what did I write in my journal this week, and does it change what you'd tell me?"
         val threads = runBlocking { db.conversationDao().listThreadsForScenario(sid) }
         assertEquals("three separate topics", 3, threads.size)
-        typeInto(0, ask); desc("Send message").performClick()
+        typeWhenComposerReady(ask); sendMessage()
         expected += 2; waitFor(180_000, "journal reply") { count() >= expected }; idle()
 
         // ── Collect and judge ───────────────────────────────────────────────

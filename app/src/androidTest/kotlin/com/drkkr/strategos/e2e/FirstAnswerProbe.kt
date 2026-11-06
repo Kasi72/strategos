@@ -31,7 +31,7 @@ class FirstAnswerProbe : E2eBase() {
         sid = runBlocking { container.scenarioRepository.scenarios.value }.first().id
         var expected = 2
         waitFor(180_000, "reply 1") { count() >= expected }; idle()
-        typeInto(0, say[1]); desc("Send message").performClick()
+        typeWhenComposerReady(say[1]); sendMessage()
         expected += 2; waitFor(180_000, "reply 2") { count() >= expected }; idle()
         val cid = runBlocking { container.database!!.conversationDao().listThreadsForScenario(sid) }.first().id
         runBlocking { dao.all(cid) }.filter { it.role == "ASSISTANT" }.forEachIndexed { i, r ->
