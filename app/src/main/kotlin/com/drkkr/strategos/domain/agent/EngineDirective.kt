@@ -79,6 +79,10 @@ data class EngineDirective(
     val confidenceLevel: ConfidenceLevel = ConfidenceLevel.MEDIUM,
     /** Highest-stakes dimension in the scenario — used to scale response depth. */
     val stakesTier: StakesTier = StakesTier.MEDIUM,
+    /** Intent Dispatch ID1.4: what the checks on the AI's own payoff labels found this turn. Never in the JSON. */
+    val labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList(),
+    /** ID1.4: the labels favoured one option everywhere, so real alternatives are shown (the top-options block, ID3.3). Never in the JSON. */
+    val autoTopOptions: Boolean = false,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -259,7 +263,9 @@ object EngineDirectiveBuilder {
         /** How noisy the other side is; sets how sharply the Human Layer expects them to pick their best reply. */
         opponentModel: com.drkkr.strategos.domain.game.OpponentModel? = null,
         /** Negotiation Numbers: the user's figures, read in one unit and direction. Null keeps the human-layer directive exactly (I-N1). */
-        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null
+        deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null,
+        /** Intent Dispatch ID1.4: [com.drkkr.strategos.domain.game.LabelChecks] on the turn's labels. Empty keeps the directive as before. */
+        labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList()
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -356,11 +362,16 @@ object EngineDirectiveBuilder {
         val (dynamicTexts, dynamicLabel, dynamicArchetype) = dynamics(s, report.moduleResults.map { it.moduleId to it })
 
         // Confidence: HIGH when analysis is complete AND the archetype has a dominant-strategy solution.
-        val confidence = when {
+        val solved = when {
             analysisIntegrity != AnalysisIntegrity.COMPLETE -> ConfidenceLevel.LOW
             gameTheoreticPattern in HIGH_CONFIDENCE_LABELS -> ConfidenceLevel.HIGH
             else -> ConfidenceLevel.MEDIUM
         }
+        // ID1.4: a refusal labelled better than acceptance lowers it one tier; labels that favour one option everywhere cap it at MEDIUM.
+        val labelDominance = labelIssues.any { it is com.drkkr.strategos.domain.game.LabelIssue.LabelDominance }
+        val confidence = solved
+            .let { if (labelIssues.any { i -> i is com.drkkr.strategos.domain.game.LabelIssue.RefusalBeatsAcceptance }) ConfidenceLevel.entries[minOf(it.ordinal + 1, ConfidenceLevel.LOW.ordinal)] else it }
+            .let { if (labelDominance && it == ConfidenceLevel.HIGH) ConfidenceLevel.MEDIUM else it }
 
         // Stakes tier: driven by the highest-priority dimension actually used in payoffs (not the default weight map, which always includes SAFETY).
         val activeDims = s.payoffs.flatMap { it.payoff.values.keys }.distinct().toSet()
@@ -399,13 +410,16 @@ object EngineDirectiveBuilder {
             gameTheoreticPattern = gameTheoreticPattern,
             // The solver's dominance view and the pathway ranking can disagree; never tell the coach that a move it is given
             // (the pick, the safe fallback or the complementary move) is dominated.
-            dominatedStrategies = listOfNotNull(recommended.label, fallback?.label, complementary?.label).let { given ->
+            // ID1.4: when the AI's labels favoured one option everywhere, the coach can't call the moves it scored down "dominated".
+            dominatedStrategies = if (labelDominance) emptyList() else listOfNotNull(recommended.label, fallback?.label, complementary?.label).let { given ->
                 dominatedStrategies.filterNot { d -> given.any { d.endsWith(": $it (dominated)") || d == "$it (dominated)" } }
             },
             extensiveFormPath = extensiveFormPath,
             opponentRationality = opponentRationality,
             confidenceLevel = confidence,
             stakesTier = tier,
+            labelIssues = labelIssues,
+            autoTopOptions = labelDominance,
             infoAsymmetry = asymmetry,
             shapleyValues = shapleyValues,
             mechanismHint = mechanismHint,
