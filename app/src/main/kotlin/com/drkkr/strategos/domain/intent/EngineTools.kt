@@ -22,8 +22,12 @@ object EngineTools {
     /** ID3.1: the hypothetical on a copy, through the main turn's own chain. */
     suspend fun whatIf(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = WhatIfHandler.run(input, pipeline)
 
+    /** ID3.2: two moves side by side. */
+    suspend fun compare(input: RouteInput, pipeline: AnalysisPipeline = AnalysisPipeline()): IntentResult = Compare.run(input, pipeline)
+
     /** The handlers the router uses in the app. An intent answers [IntentResult.None] until its step. */
     val handlers: IntentHandlers = object : IntentHandlers {
         override suspend fun whatIf(input: RouteInput) = EngineTools.whatIf(input)
+        override suspend fun compare(input: RouteInput) = EngineTools.compare(input)
     }
 }

@@ -4,6 +4,7 @@ import com.drkkr.strategos.domain.agent.ChangeOp
 import com.drkkr.strategos.domain.agent.IntentDetail
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.domain.negotiation.DealFrame
+import com.drkkr.strategos.domain.human.FallbackShift
 
 /**
  * What an intent handler produced for the turn (BLUEPRINT §4.2). [None] for `standard`, for a support turn, and for an
@@ -13,6 +14,8 @@ sealed class IntentResult {
     object None : IntentResult()
     /** ID3.1: the hypothetical, run on a copy. */
     data class WhatIf(val block: WhatIfBlock) : IntentResult()
+    /** ID3.2: two moves side by side. */
+    data class Compare(val block: CompareBlock) : IntentResult()
 }
 
 /**
@@ -28,12 +31,16 @@ data class RouteInput(
     val support: Boolean = false,
     /** The analysis view BEFORE the walk-away, fallback and Human Layer steps: what a hypothetical's ops apply to. */
     val base: Scenario = view,
+    /** The user's figures (the walk-away view, and masking any words a block repeats). */
+    val deal: DealFrame? = null,
+    /** This turn's fallback shift, so a variant and the sensitivity runs get the same one. */
+    val sides: FallbackShift.Sides = FallbackShift.Sides(null, null),
     /** The main turn's own chain (walk-away view and mask, fallback shift, Human Layer), so a variant gets exactly the same steps. */
-    val prepare: (Scenario) -> Scenario = { it },
+    val prepare: (Scenario) -> Scenario = TurnChain.prepare(deal, sides),
     /** The engine's pick on a prepared view, through the directive's own guards (walk-away, dominance, stated floor); null = none. */
     val decide: (Scenario) -> String? = { null },
-    /** The user's figures, for masking any words a block repeats. */
-    val deal: DealFrame? = null
+    /** How sharply they pick their best reply ([com.drkkr.strategos.domain.human.ResponseModel.betaFrom]). */
+    val beta: Double = 1.0
 )
 
 /** One handler per non-standard intent. Each returns [IntentResult.None] until its step (ID3.1–ID4.1) fills it in. */

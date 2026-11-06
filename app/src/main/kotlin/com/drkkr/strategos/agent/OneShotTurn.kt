@@ -322,7 +322,8 @@ class OneShotTurn(
                 val prepare = com.drkkr.strategos.domain.intent.TurnChain.prepare(deal, fallback.sides)
                 val decide = com.drkkr.strategos.domain.intent.TurnChain.decide(deal, com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text))
                 com.drkkr.strategos.domain.intent.IntentRouter().route(com.drkkr.strategos.domain.intent.RouteInput(
-                    intent, view, whatIfOps, intentDetail, base = raw, prepare = prepare, decide = decide, deal = deal))
+                    intent, view, whatIfOps, intentDetail, base = raw, deal = deal, sides = fallback.sides, prepare = prepare, decide = decide,
+                    beta = com.drkkr.strategos.domain.human.ResponseModel.betaFrom(gameContext.opponentModel)))
             }.getOrDefault(com.drkkr.strategos.domain.intent.IntentResult.None)
         }
         DebugLog.d { "INTENT ${intent.word} -> ${intentResult::class.simpleName}" }
@@ -390,7 +391,8 @@ class OneShotTurn(
         }
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
             changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready },
-            whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready })
+            whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
+            compare = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.Compare)?.block?.takeIf { powered.ready })
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
