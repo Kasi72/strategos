@@ -88,4 +88,25 @@ class LabelChecksTest {
         assertFalse(base.autoTopOptions)
         assertFalse("label issues never reach the JSON", d.toJson().toString().contains("abel"))
     }
+
+    /** A stand-in pick: the user's option with the highest total against the receptive reply. */
+    private fun pick(s: Scenario): String? = s.actionsFor("you").maxByOrNull { a ->
+        s.payoffs.first { it.stakeholderId == "you" && it.actionProfile["you"] == a.id && it.actionProfile["sam"] == "yes" }.payoff.values.values.sum()
+    }?.id
+
+    @Test fun TC_ID_RUB_09_aPickThatFlipsWhenTheLabelSpacingIsDoubledIsFragile() {
+        // A = ++ / -- / ++ (18.5), B = + / + / 0 (18.0): A leads. Doubled, the extremes hit the scale's ends (10, 0, 10 = 20) and B
+        // (8, 8, 5 = 21) leads. COST is labelled in the stored direction here, as the stand-in pick only sums.
+        val s = game(mapOf(
+            ("a" to "yes") to listOf(8.5, 1.5, 8.5), ("a" to "no") to listOf(5.0, 5.0, 5.0),
+            ("b" to "yes") to listOf(6.5, 6.5, 5.0), ("b" to "no") to listOf(5.0, 5.0, 5.0)
+        ))
+        assertEquals("a", pick(s))
+        assertEquals("b", pick(com.drkkr.strategos.domain.human.HumanSensitivity.labelSpaced(s, 2.0)))
+        assertTrue(com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(s, ::pick))
+        // a robust lead stays robust, and an older reply's numbers are not re-spaced
+        assertFalse(com.drkkr.strategos.domain.human.HumanSensitivity.pickChanges(game(balanced), ::pick))
+        val numeric = s.copy(payoffs = s.payoffs.map { it.copy(provenanceNote = "From your description · AI_SCORED_NUMERIC") })
+        assertTrue(com.drkkr.strategos.domain.human.HumanSensitivity.labelSpaced(numeric, 2.0) === numeric)
+    }
 }
