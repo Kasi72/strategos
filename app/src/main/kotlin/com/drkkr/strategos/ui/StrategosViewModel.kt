@@ -177,8 +177,30 @@ class StrategosViewModel(app: Application) : AndroidViewModel(app) {
         repo.keyVault = container.keyVault
         _state.update { it.copy(storageSecure = repo.isStorageSecure, storageError = repo.storageError, hasApiKey = repo.hasApiKey()) }
         viewModelScope.launch { container.prepareStorage(); repo.load() }
-        viewModelScope.launch { repo.scenarios.collect { scenarios -> _state.update { s -> s.copy(scenarios = scenarios) } } }
+        viewModelScope.launch {
+            repo.scenarios.collect { scenarios ->
+                _state.update { s -> s.copy(scenarios = scenarios, activeScenario = rebaseActive(s.activeScenario, s.scenarios, scenarios)) }
+            }
+        }
         viewModelScope.launch { repo.recoverableRecords.collect { recs -> _state.update { s -> s.copy(recoverableScenarios = recs) } } }
+    }
+
+    /**
+     * The open scenario, kept in step with a newer copy saved outside this view model (the auto-title in TalkRoute, a rename on
+     * Projects or Overview). Without this the in-memory copy kept its old version and every later agent change hit a Conflict,
+     * so each turn ran on the stale scenario (the Bumble project, 7 Nov). Unsaved edits on the open copy are kept when the
+     * outside save only renamed it; any other newer save is left alone, so a real conflict still shows as one.
+     */
+    private fun rebaseActive(active: Scenario?, before: List<Scenario>, after: List<Scenario>): Scenario? {
+        active ?: return null
+        val stored = after.find { it.id == active.id }?.takeIf { it.version > active.version } ?: return active
+        val previous = before.find { it.id == active.id }
+        return when {
+            previous == null || previous == active -> stored
+            previous.copy(title = stored.title, version = stored.version, updatedAt = stored.updatedAt) == stored ->
+                active.copy(title = stored.title, version = stored.version, updatedAt = stored.updatedAt)
+            else -> active
+        }
     }
 
     fun parseAndCreateScenario(rawText: String) {
