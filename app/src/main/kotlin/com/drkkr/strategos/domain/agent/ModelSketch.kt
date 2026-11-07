@@ -369,6 +369,13 @@ object SketchConverter {
         // ── People ────────────────────────────────────────────────────────────
         val idByName = s.stakeholders.associate { key(it.name) to it.id }.toMutableMap()
         val players = s.players().map { it.id }.toMutableSet()
+        // A stand-in name ("Her", "the other person") takes the real name the first time one appears for that side, instead of a
+        // second person being added (the Bumble project, 7 Nov: Harini stayed "Her" for the whole thread).
+        val renamed = PlaceholderNames.rename(s, sketch.people.map { it.name.trim() to it.role })
+        renamed?.let { (id, name) ->
+            ops += ChangeOp(OpType.UPDATE_STAKEHOLDER, targetId = id, name = name, rationale = RATIONALE)
+            idByName[key(name)] = id
+        }
         val existingNames = idByName.keys.toSet()
 
         fun youExists() = s.stakeholders.any { key(it.name) == "you" } || sketch.people.any { key(it.name) == "you" }
@@ -588,5 +595,28 @@ object SketchConverter {
             )
         }
         return SketchOps(ops, askOf(sketch), sketch.support == true)
+    }
+}
+
+/** Stand-in names for the other person, replaced by a real name once the user gives one. */
+object PlaceholderNames {
+    private val STAND_INS = setOf("her", "him", "them", "she", "he", "they", "the other person", "other person", "the other side",
+        "counterpart", "the counterpart", "my match", "the match", "match", "this person", "the person")
+
+    fun isStandIn(name: String): Boolean = name.trim().lowercase().replace(Regex("\\s+"), " ") in STAND_INS
+
+    /**
+     * (stakeholder id, new name) when exactly one saved person (not "You") has a stand-in name, this sketch does not use that
+     * stand-in, and it brings exactly one new name that is not a stand-in itself. Null otherwise.
+     */
+    fun rename(s: Scenario, sketchPeople: List<Pair<String, String?>>): Pair<String, String>? {
+        fun k(n: String) = n.trim().lowercase().replace(Regex("\\s+"), " ")
+        val standIns = s.stakeholders.filter { k(it.name) != "you" && isStandIn(it.name) }
+        val only = standIns.singleOrNull() ?: return null
+        val names = sketchPeople.map { it.first }.filter { it.isNotEmpty() }
+        if (names.any { k(it) == k(only.name) }) return null
+        val saved = s.stakeholders.map { k(it.name) }.toSet()
+        val fresh = names.filter { k(it) != "you" && k(it) !in saved && !isStandIn(it) && it.length <= ChangeSetValidator.MAX_NAME }.distinctBy(::k)
+        return fresh.singleOrNull()?.let { only.id to it }
     }
 }

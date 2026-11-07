@@ -56,8 +56,13 @@ fun PowerReadCard(read: PowerRead, onSetLeverage: (key: String, value: String) -
         Section("Leverage") {
             val l = read.leverage
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Editable("Your fallback", mine["yourAlternative"] ?: l.yourFallback, mine.containsKey("yourAlternative")) { editing = "yourAlternative" }
-                Editable("They need you", mine["theyDependOnYou"] ?: l.theyNeedYou, mine.containsKey("theyDependOnYou")) { editing = "theyDependOnYou" }
+                // A chip with no value shows only when this card asks for it (PowerCardGate): once, and only when it could change the advice.
+                val fallback = mine["yourAlternative"] ?: l.yourFallback
+                val theyNeed = mine["theyDependOnYou"] ?: l.theyNeedYou
+                if (fallback != null || "yourAlternative" in read.ask)
+                    Editable("Your fallback", fallback, mine.containsKey("yourAlternative")) { editing = "yourAlternative" }
+                if (theyNeed != null || "theyDependOnYou" in read.ask)
+                    Editable("They need you", theyNeed, mine.containsKey("theyDependOnYou")) { editing = "theyDependOnYou" }
             }
             val rest = l.copy(yourFallback = null, theyNeedYou = null).summary()
             if (rest.isNotBlank()) Text(rest, color = c.ink2, fontSize = 14.sp, lineHeight = 20.sp)

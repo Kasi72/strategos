@@ -20,7 +20,12 @@ data class PowerRead(
     /** Why there are no moves, from the plan (pm6.1); null when there are moves or the plan gave none. */
     val noMoves: NoMovesReason? = null,
     /** That reason's fixed line ([NoMovesLines]), the only text the card shows in place of moves. */
-    val noMovesLine: String? = null
+    val noMovesLine: String? = null,
+    /**
+     * The leverage chips this card asks the user to set ("yourAlternative", "theyDependOnYou"), see [PowerCardGate]. A chip with no
+     * value that is not asked is not shown, so older cards never say "tap to set".
+     */
+    val ask: List<String> = emptyList()
 ) {
     /** Who needs whom, the alternatives on each side, who decides, whose clock it is, and the reputation at stake. */
     @Serializable
@@ -122,6 +127,31 @@ data class PowerRead(
             return PowerRead(leverage, plays, moves, noMoves, NoMovesLines.of(noMoves, plan.readAs, them?.name))
         }
     }
+}
+
+/**
+ * When the Power Read card is shown, and which chips it asks for (the Bumble project, 7 Nov: the same card with "tap to set" under
+ * every reply). A chip is asked only when its answer could change the advice, and once per conversation; the card is shown only
+ * when it differs from the last one in this conversation, or asks something new.
+ */
+object PowerCardGate {
+    const val YOUR_FALLBACK = "yourAlternative"
+    const val THEY_NEED_YOU = "theyDependOnYou"
+
+    /**
+     * [fallbackMatters]: the engine's pick would change with your fallback known. "They need you" only feeds the Power moves, so it
+     * is asked only when there are moves on the card and the relationship is not a close one. [askedBefore]: keys asked earlier here.
+     */
+    fun ask(read: PowerRead, s: Scenario, fallbackMatters: Boolean, askedBefore: Set<String>): List<String> {
+        val hc = s.humanContext
+        return buildList {
+            if (hc?.yourAlternative == null && fallbackMatters) add(YOUR_FALLBACK)
+            if (hc?.theyDependOnYou == null && read.yourMoves.isNotEmpty() && hc?.relationship !in Exposure.CLOSE) add(THEY_NEED_YOU)
+        }.filter { it !in askedBefore }
+    }
+
+    /** True when [read] should be shown after [last] (the previous card in this conversation, or null). */
+    fun show(read: PowerRead, last: PowerRead?): Boolean = last == null || read.ask.isNotEmpty() || read.copy(ask = emptyList()) != last.copy(ask = emptyList())
 }
 
 /** Encodes the Power Read for the TOOL_RESULT payload. Unknown keys are ignored and a bad payload decodes to an empty card. */

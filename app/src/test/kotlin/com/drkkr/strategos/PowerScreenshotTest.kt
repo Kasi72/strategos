@@ -75,6 +75,7 @@ class PowerScreenshotTest {
 
     private fun salaryRead(s: Scenario): PowerRead =
         PowerRead.build(s, PowerPlanner.plan(s, RelationshipDomains.of(s.humanContext?.relationship, null), true, false, false, 50.0, 0.0))
+            .let { it.copy(ask = com.drkkr.strategos.domain.human.power.PowerCardGate.ask(it, s, true, emptySet())) }
 
     private fun apply(json: String, s: Scenario): Scenario {
         val o = OpNormalizer.normalize(SketchConverter.toOps(SketchParser.parse(json)!!, s).ops, s)
