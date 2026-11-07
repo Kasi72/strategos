@@ -27,6 +27,14 @@ object HumanVocab {
         "withdraws", "immediate", "written", "irreversible"
     )
 
+    /**
+     * Whether a move of "You" takes the relationship up a stage now (`steps_up`: declaring feelings or serious intentions, a
+     * proposal, an ultimatum, a big ask) or deliberately holds that for a later, better moment (`not_yet`). Kept apart from
+     * [OPTION_TAGS] (like [POWER_THEIR_TACTICS]) so the delivery vocabulary and its tests stay as they were; Call 1's reader
+     * accepts both. Read by [com.drkkr.strategos.domain.intent.StageGuard].
+     */
+    val STAGE_TAGS = setOf("steps_up", "not_yet")
+
     /** Tags only the planner uses (never asked of Call 1): what a delivery tactic adds so the humanised view can measure it. */
     val PLANNER_TAGS = setOf("outside_yardstick", "names_leverage")
 

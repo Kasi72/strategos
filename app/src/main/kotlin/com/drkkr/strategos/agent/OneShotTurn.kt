@@ -256,7 +256,7 @@ class OneShotTurn(
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
-                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps)
+                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps, sketch = parsed)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -295,7 +295,9 @@ class OneShotTurn(
         whatIfOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
         /** ID2.3: the ops this turn saved from the user's message, and the scenario they were applied to. */
         turnOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
-        turnBefore: com.drkkr.strategos.domain.model.Scenario = s
+        turnBefore: com.drkkr.strategos.domain.model.Scenario = s,
+        /** This turn's Call 1 reply, read only for which option revisits a ruled-out move (StageGuard). */
+        sketch: com.drkkr.strategos.domain.agent.ModelSketch? = null
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -432,6 +434,11 @@ class OneShotTurn(
             DebugLog.d { "ASK_FIRST D3: a figure in the pick and no walk-away" }
             return buildClarify(listOf(walkAwayAsk.text))
         }
+        // A move that raises the stakes: never a clear win when waiting was not weighed, or when it was ruled out before and nothing changed.
+        val revisited = if (!powered.ready) null else com.drkkr.strategos.domain.intent.StageGuard.revisited(sketch, s, powered.moveToImplement)
+        val oneWayOnly = powered.ready && com.drkkr.strategos.domain.intent.StageGuard.oneWayOnly(s)
+        val nowOverWait = powered.ready && com.drkkr.strategos.domain.intent.StageGuard.nowOverWait(s, powered.moveToImplement)
+        if (revisited != null || oneWayOnly || nowOverWait) DebugLog.d { "STAGE_GUARD oneWayOnly=$oneWayOnly nowOverWait=$nowOverWait revisited=${revisited != null} changed=${revisited?.changed != null}" }
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
             changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready },
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
@@ -441,7 +448,9 @@ class OneShotTurn(
             // ID3.5: on every engine turn with a pick.
             confidence = if (!powered.ready) null else com.drkkr.strategos.domain.intent.ConfidenceSummary.of(
                 powered.confidenceLevel, powered.stressVerdict == "FRAGILE", stress, powered.labelIssues, nextQuestion,
-                view.players().firstOrNull { it.id != ownerId }?.name, deal),
+                view.players().firstOrNull { it.id != ownerId }?.name, deal,
+                oneWayOnly = oneWayOnly, revisitedUnchanged = revisited != null && revisited.changed == null, nowOverWait = nowOverWait),
+            revisited = revisited,
             // ID3.3: asked for, or on its own when the pick is FRAGILE or the labels favoured one option everywhere.
             topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
                 ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))
@@ -505,7 +514,8 @@ class OneShotTurn(
             if (directive.nextQuestion != null) g = g.copy(followUp = directive.nextQuestion.text)
             else com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
                 ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }
-            onGuide(g); PlainResult.coach(g, planAhead = directive.planAhead != null)
+            onGuide(g); PlainResult.coach(g, planAhead = directive.planAhead != null,
+                sure = directive.confidence == null || directive.confidence.tier == com.drkkr.strategos.domain.intent.ConfidenceTier.HIGH)
         }
         else {
             // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.
@@ -653,7 +663,7 @@ class OneShotTurn(
         val previous = replies.lastOrNull()?.text
         // The moves already suggested in this thread (any age), so a long thread keeps moving forward instead of recycling advice.
         val movesTried = replies.takeLast(THREAD_MOVES_WINDOW).mapNotNull { r ->
-            r.text.lineSequence().firstOrNull { it.startsWith("Clear-win move:") }?.removePrefix("Clear-win move:")?.trim()?.take(THREAD_MOVE_CHARS)
+            r.text.lineSequence().firstNotNullOfOrNull { l -> PlainResult.MOVE_LABELS.firstOrNull { l.startsWith("$it:") }?.let { l.removePrefix("$it:") } }?.trim()?.take(THREAD_MOVE_CHARS)
         }.distinct()
         if (summary == null && said.isEmpty() && previous == null) return ""
         return buildString {

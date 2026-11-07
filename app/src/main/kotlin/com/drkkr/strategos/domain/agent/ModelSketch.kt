@@ -247,7 +247,13 @@ data class SketchPerson(
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class SketchOption(@SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "", val posture: String? = null)
+data class SketchOption(
+    @SerialName("for") @JsonNames("who") val owner: String = "", @JsonNames("do") val label: String = "", val posture: String? = null,
+    /** The `ruled_out_before` move this option is again, in new words (extraction rule 25). Matched by [com.drkkr.strategos.domain.human.RuledOut.find]. */
+    @Serializable(with = TextOrListSerializer::class) val revisits: String? = null,
+    /** What the user said since that answers the earlier concern, in their words; null when nothing has (the old ceiling stays). */
+    @Serializable(with = TextOrListSerializer::class) val changed: String? = null
+)
 
 /**
  * One outcome as Call 1 wrote it. Intent Dispatch ID1.1: each cell is a label (`++ + 0 - --` or the words), read by
@@ -298,6 +304,13 @@ object SketchConverter {
 
     /** Comparison form of a name or label: lowercase, one kind of hyphen, single spaces (models vary these). */
     internal fun norm(s: String): String = s.trim().lowercase().replace(dashes, "-").replace(spaces, " ")
+
+    /** [label] within [ChangeSetValidator.MAX_LABEL]: cut at the last space that fits, trailing punctuation dropped. */
+    internal fun fit(label: String): String {
+        if (label.length <= ChangeSetValidator.MAX_LABEL) return label
+        val cut = label.take(ChangeSetValidator.MAX_LABEL + 1).substringBeforeLast(' ').trimEnd(',', ';', ':', '-', ' ', '—')
+        return cut.ifEmpty { label.take(ChangeSetValidator.MAX_LABEL) }
+    }
 
     /** Text the model filled in, or null when it left a placeholder behind (seen live: "short"). */
     internal fun clean(s: String?): String? = s?.trim()?.takeIf { it.isNotEmpty() && norm(it) !in placeholders }
@@ -433,9 +446,15 @@ object SketchConverter {
         // A fresh list of 2+ options for a player replaces that player's earlier AI-guessed options, so rewordings don't pile up.
         // Options the user confirmed or estimated are never touched.
         val freshLabels = sketch.options.mapNotNull { o -> idByName[key(o.owner)]?.let { it to key(o.label.trim()) } }.distinct().groupBy({ it.first }, { it.second })
+        val youId = idByName["you"]
+        // A move of "You" dropped here while even its best case was worse than today is remembered (see RuledOut).
+        val ruledNow = mutableListOf<com.drkkr.strategos.domain.human.RuledOutMove>()
         for ((owner, labels) in freshLabels) {
             if (owner !in players || labels.size < 2) continue
             for (old in s.actions.filter { it.stakeholderId == owner && it.factStatus == com.drkkr.strategos.domain.model.FactStatus.AI_INFERRED && key(it.label) !in labels }) {
+                if (humanFields && owner == youId) com.drkkr.strategos.domain.human.RuledOut.bestCase(s, owner, old.id)
+                    ?.takeIf { com.drkkr.strategos.domain.human.RuledOut.isRuledOut(it) }
+                    ?.let { ruledNow += com.drkkr.strategos.domain.human.RuledOutMove(old.label, it) }
                 ops += ChangeOp(OpType.REMOVE_ACTION, targetId = old.id, rationale = RATIONALE)
                 optionIds.remove("$owner|${key(old.label)}")
                 optionCount[owner] = (optionCount[owner] ?: 1) - 1
@@ -444,8 +463,11 @@ object SketchConverter {
         val tagsByLabel = SketchHuman.optionTags(sketch)
         for (o in sketch.options) {
             val owner = idByName[key(o.owner)] ?: continue
-            val label = o.label.trim()
-            if (owner !in players || label.isEmpty() || label.length > ChangeSetValidator.MAX_LABEL) continue
+            val full = o.label.trim()
+            // A label over the limit is cut at a word, not dropped (seen live, 7 Nov: a 121-character "not yet" option vanished, and the
+            // engine picked the declaration because waiting was no longer on the list). Outcomes still find it: they match on "contains".
+            val label = fit(full)
+            if (owner !in players || label.isEmpty()) continue
             val k = "$owner|${key(label)}"
             // Near-duplicates ("X" and "X (e.g., details)") are the same option; short labels must match exactly.
             val nearDuplicate = optionIds.keys.any { other ->
@@ -459,9 +481,20 @@ object SketchConverter {
             optionIds[k] = r
             optionCount[owner] = (optionCount[owner] ?: 0) + 1
             ops += ChangeOp(OpType.ADD_ACTION, ref = r, stakeholder = owner, label = label,
-                description = (Postures.tag(o.posture) + (if (key(o.owner) == "you") DeliveryTags.tag(SketchHuman.guardTags(o.posture, label, tagsByLabel[key(label)].orEmpty())) else "")).ifEmpty { null },
+                description = (Postures.tag(o.posture) + (if (key(o.owner) == "you") DeliveryTags.tag(SketchHuman.guardTags(o.posture, label, (tagsByLabel[key(full)] ?: tagsByLabel[key(label)]).orEmpty())) else "")).ifEmpty { null },
                 rationale = RATIONALE)
         }
+
+        if (ruledNow.isNotEmpty()) {
+            val i = ops.indexOfFirst { it.type == OpType.SET_SCENARIO_FIELDS }
+            if (i >= 0) ops[i] = ops[i].let { f -> f.copy(scenarioFields = f.scenarioFields!!.copy(humanContext = (f.scenarioFields.humanContext ?: HumanContext()).copy(ruledOut = ruledNow))) }
+            else ops.add(0, ChangeOp(OpType.SET_SCENARIO_FIELDS, rationale = RATIONALE, source = OpSource.AI_INFERRED,
+                scenarioFields = ScenarioFieldsPatch(humanContext = HumanContext(ruledOut = ruledNow))))
+        }
+        // The ceiling a returning move keeps: a "You" option Call 1 marked as a ruled-out move again, with nothing changed since.
+        val ruledAll = ruledNow + s.humanContext?.ruledOut.orEmpty()
+        val ceilingByLabel = sketch.options.filter { key(it.owner) == "you" && clean(it.changed) == null }
+            .mapNotNull { o -> com.drkkr.strategos.domain.human.RuledOut.find(ruledAll, clean(o.revisits))?.let { key(o.label.trim()) to it.best } }.toMap()
 
         // ── Limits ────────────────────────────────────────────────────────────
         val knownLimits = s.constraints.map { key(it.label) }.toMutableSet()
@@ -521,13 +554,17 @@ object SketchConverter {
             val picksList = profile.filterNotNull()
             val scores = if (byOrder) mapOf(nameOf.getValue(playerList[0]) to o.forYou, nameOf.getValue(playerList[1]) to o.forThem)
                          else o.scores.entries.associate { key(it.key) to it.value }
+            val ceiling = youKey?.let { y -> picks[nameOf[y]]?.let { l -> ceilingByLabel[l] ?: ceilingByLabel.entries.firstOrNull { (k, _) -> k.contains(l) || l.contains(k) }?.value } }
             for (pid in playerList) {
                 val values = scores[nameOf[pid]] ?: continue
                 if (values.size < dims.size) continue
                 if (!seen.add("$pid|" + picksList.joinToString(",") { it.action })) continue
                 ops += ChangeOp(
                     OpType.SET_PAYOFF, stakeholder = pid, profile = picksList, rationale = rationale,
-                    values = dims.mapIndexed { i, d -> DimValue(d, values[i].coerceIn(0.0, 10.0)) }
+                    values = dims.mapIndexed { i, d ->
+                        val v = values[i].coerceIn(0.0, 10.0)
+                        DimValue(d, if (ceiling != null && pid == youKey) com.drkkr.strategos.domain.human.RuledOut.cap(d, v, ceiling) else v)
+                    }
                 )
             }
         }

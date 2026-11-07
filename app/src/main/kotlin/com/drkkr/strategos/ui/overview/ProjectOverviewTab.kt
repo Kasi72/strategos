@@ -76,7 +76,7 @@ fun ProjectOverviewTab(vm: StrategosViewModel, onOpenThread: () -> Unit, onOpenS
         item {
             QuickCheckCard(p) { exec, reaction, feeling, note -> counsel.submitQuickCheck(exec, reaction, feeling, note) }
         }
-        item { ClearWinPlaybookCard(ui.items.filterIsInstance<ChatItem.AssistantText>().lastOrNull { "Clear-win move:" in it.text }?.text, p) }
+        item { ClearWinPlaybookCard(ui.items.filterIsInstance<ChatItem.AssistantText>().lastOrNull { t -> com.drkkr.strategos.domain.agent.PlainResult.MOVE_LABELS.any { "$it:" in t.text } }?.text, p) }
         item {
             ProjectThreadsSection(
                 threads = ui.threads, activeId = ui.conversationId, p = p,

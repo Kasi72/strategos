@@ -21,6 +21,10 @@ object PlainResult {
     /** Phone-screen budget for a coach answer, in characters. */
     const val COACH_MAX_CHARS = 950
     const val COACH_FOOTER = "A best guess from what you told me. Tell me what happens next."
+    /** The move's label when the confidence tier is HIGH, and when it is not. Parsers accept both ([MOVE_LABELS]). */
+    const val CLEAR_WIN = "Clear-win move"
+    const val BEST_FOR_NOW = "Best move for now"
+    val MOVE_LABELS = listOf(CLEAR_WIN, BEST_FOR_NOW)
 
     fun build(s: Scenario, pr: PipelineResult, understood: List<String>, coachGuide: CoachGuideSketch? = null): String {
         // With a coach guide the guide IS the answer. The engine still shaped it (archetype, trust, tension), but its raw
@@ -89,11 +93,12 @@ object PlainResult {
      * ID4.1: a plan-ahead turn ([planAhead]) may show [PLAN_DOS] `do_this` bullets (the branches and the close; the clear-win
      * move is the plan's first step).
      */
-    fun coach(g: CoachGuideSketch, planAhead: Boolean = false): String {
+    fun coach(g: CoachGuideSketch, planAhead: Boolean = false, sure: Boolean = true): String {
         fun sentences(t: String, n: Int) = Regex("(?<=[.!?])\\s+").split(t.trim()).take(n).joinToString(" ")
         fun render(dos: Int, donts: Int) = buildString {
             if (g.whatHappened.isNotBlank()) appendLine("What's happening underneath: ${sentences(g.whatHappened, 2)}")
-            appendLine("Clear-win move: ${sentences(g.clearWinMove, 2)}")
+            // "Clear-win move" only when the confidence tier is HIGH; otherwise the label says it is the best bet so far.
+            appendLine("${if (sure) CLEAR_WIN else BEST_FOR_NOW}: ${sentences(g.clearWinMove, 2)}")
             if (g.exactWords.isNotBlank()) appendLine("What to say: \"${sentences(g.exactWords, 2)}\"")
             if (dos > 0 && g.doThis.isNotEmpty()) { appendLine("Do this:"); g.doThis.take(dos).forEach { appendLine("• $it") } }
             if (donts > 0 && g.dontDoThis.isNotEmpty()) { appendLine("Don't do this:"); g.dontDoThis.take(donts).forEach { appendLine("• $it") } }

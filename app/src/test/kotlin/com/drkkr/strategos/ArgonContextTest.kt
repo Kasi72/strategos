@@ -12,6 +12,7 @@ import com.drkkr.strategos.data.db.entities.ScenarioEntity
 import com.drkkr.strategos.data.db.entities.SettingEntity
 import com.drkkr.strategos.data.repo.*
 import com.drkkr.strategos.data.secure.XorBase64TestCipher
+import com.drkkr.strategos.domain.agent.PlainResult
 import com.drkkr.strategos.domain.agent.TokenEstimator
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.fixtures.FakeLlmClient
@@ -132,7 +133,10 @@ class ArgonContextTest {
         // The visible reply implements the engine's pick. Phase G.4: the static "Engine: ..." badge is no longer
         // appended to the chat text (it read as boilerplate); the move still leads the coach reply.
         val reply = conversations.messages(controller.state.value.conversationId!!).last().text
-        assertTrue(reply, reply.contains("Clear-win move: Do this: $pick"))
+        // The move's label follows the confidence tier: "Clear-win move" only when it is HIGH (stage guard, 7 Nov).
+        val tier = directive["confidence"]?.jsonObject?.get("tier")?.jsonPrimitive?.content
+        val label = if (tier == null || tier == "HIGH") PlainResult.CLEAR_WIN else PlainResult.BEST_FOR_NOW
+        assertTrue(reply, reply.contains("$label: Do this: $pick"))
         assertFalse("no engine badge in the chat text", reply.lines().any { it.startsWith("Engine: ") })
         assertFalse(reply.contains("Options to consider"))
         // Trajectory from call 1's deltas, damped.

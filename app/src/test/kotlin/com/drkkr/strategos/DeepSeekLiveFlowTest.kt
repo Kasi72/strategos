@@ -81,13 +81,13 @@ class DeepSeekLiveFlowTest {
         try {
             val first = r.say("My brother wants me to co-sign a big loan for his new shop. My wife is strongly against it. My parents always take his side.")
             assertNull("turn error: ${r.controller.state.value.error}", r.controller.state.value.error)
-            assertTrue("no coach guide in:\n$first", first.contains("Clear-win move:"))
+            assertTrue("no coach guide in:\n$first", com.drkkr.strategos.domain.agent.PlainResult.MOVE_LABELS.any { first.contains("$it:") })
             assertTrue("no engine badge in:\n$first", first.lines().last().startsWith("Engine: "))
             assertFalse(first.contains("Options to consider"))
             assertEquals("one extraction call and one interpret call", listOf("TURN", "COACH"), r.llm.calls.map { it.purpose }.take(2))
             val second = r.say("I decided to wait and told him. He said he will ask our parents.")
             assertNull("follow-up error: ${r.controller.state.value.error}", r.controller.state.value.error)
-            assertTrue("follow-up has no guide:\n$second", second.contains("Clear-win move:"))
+            assertTrue("follow-up has no guide:\n$second", com.drkkr.strategos.domain.agent.PlainResult.MOVE_LABELS.any { second.contains("$it:") })
             println("FLOW|PASS|first=${first.length} chars|second=${second.length} chars")
         } finally { DebugLog.sink = null; r.scope.cancel(); r.db.close() }
     }

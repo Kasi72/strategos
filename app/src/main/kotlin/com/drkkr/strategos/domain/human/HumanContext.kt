@@ -58,7 +58,9 @@ data class HumanContext(
     /** Fields the user has kept or fixed in the Review sheet. The model never overwrites them again (I-H8: the user's word wins). */
     val userFixed: Set<String> = emptySet(),
     /** Power Mode: what the user asked the app to help them do this turn, when manipulative. Per turn: never carried forward. */
-    val userAsksFor: String? = null
+    val userAsksFor: String? = null,
+    /** Moves of "You" dropped from the options while their best case was worse than today, newest first (see [RuledOut]). */
+    val ruledOut: List<RuledOutMove> = emptyList()
 ) {
     /** Tactics described on at least [minTurns] turns, newest first. */
     fun confirmedTactics(minTurns: Int = 2): List<String> = theirTactics.filter { (tacticTurns[it] ?: 0) >= minTurns }
@@ -126,7 +128,8 @@ data class HumanContext(
         attemptHistory = newer.attemptHistory.ifEmpty { attemptHistory },
         learnedFromMessage = newer.learnedFromMessage ?: learnedFromMessage,
         userFixed = userFixed + newer.userFixed,
-        userAsksFor = newer.userAsksFor
+        userAsksFor = newer.userAsksFor,
+        ruledOut = RuledOut.union(newer.ruledOut, ruledOut)
     )
 
     private fun soft(key: String, old: String?, new: String?, pend: MutableMap<String, String>): String? = when {
