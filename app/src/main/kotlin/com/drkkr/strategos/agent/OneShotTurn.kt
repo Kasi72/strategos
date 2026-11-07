@@ -172,8 +172,9 @@ class OneShotTurn(
         // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go
         // ahead and recommend with what we have, so the user is never stuck in a loop of questions.
         if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty()) {
-            val recentAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }.takeLast(CLARIFY_MAX)
-            val askedTooMuch = recentAssistant.size >= CLARIFY_MAX && recentAssistant.all { it.startsWith(CLARIFY_LEAD) }
+            val allAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
+            val totalClarifyAsked = allAssistant.count { it.startsWith(CLARIFY_LEAD) }
+            val askedTooMuch = totalClarifyAsked >= CLARIFY_MAX
             if (!askedTooMuch) {
                 conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(parsed.clarifyingQuestions))
                 afterTurn(cid)
