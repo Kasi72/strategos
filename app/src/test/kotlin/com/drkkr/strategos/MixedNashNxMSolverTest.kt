@@ -42,7 +42,7 @@ class MixedNashNxMSolverTest {
     }
 
     @Test
-    fun `3-player game returns Unsupported`() {
+    fun `3-player game returns Incomplete with diagnostics`() {
         val ir = GameIR(
             scenarioId = "3p", playerIds = listOf("p1","p2","p3"),
             actionIds = listOf(listOf("a","b"), listOf("a","b"), listOf("a","b")),
@@ -50,7 +50,11 @@ class MixedNashNxMSolverTest {
             utility = List(3) { DoubleArray(8) { 1.0 } },
             gameClass = GameClass.FINITE_NORMAL_FORM, coveragePct = 100
         )
-        assertTrue(MixedNashNxMSolver.solve(ir) is SolverOutcome.Unsupported)
+        val outcome = MixedNashNxMSolver.solve(ir)
+        assertTrue("Expected Incomplete for 3-player game, got $outcome", outcome is SolverOutcome.Incomplete)
+        val incomplete = outcome as SolverOutcome.Incomplete
+        assertTrue("Reason should mention player count", incomplete.reason.contains("3"))
+        assertNotNull("Diagnostics should be present", incomplete.diagnostics)
     }
 
     @Test

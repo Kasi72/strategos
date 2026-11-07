@@ -304,7 +304,9 @@ class OneShotTurn(
             com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
             else -> INTERPRET_MAX_TOKENS
         }
-        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
+        val reply = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
+            interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
+        }
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
             val g = reply.guide().copy(pill = pillFor(directive))
@@ -600,6 +602,7 @@ class OneShotTurn(
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3
+        private const val INTERPRET_TIMEOUT_MS = 15_000L
         private const val RED_TEAM_TIMEOUT_MS = 5_000L
         private const val RED_TEAM_MAX_TOKENS = 120
         private const val RED_TEAM_TEMPERATURE = 0.5

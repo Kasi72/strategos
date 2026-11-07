@@ -34,8 +34,21 @@ object MixedNashNxMSolver : GameSolver {
     )
 
     override fun solve(ir: GameIR, limits: SolverLimits): SolverOutcome {
-        if (ir.playerCount != 2)
-            return SolverOutcome.Unsupported("NxM solver requires exactly 2 players")
+        if (ir.playerCount != 2) {
+            val diagnostics = SolverDiagnostics(
+                method        = "support-enumeration mixed NE (NxM)",
+                solverVersion = "1.0",
+                converged     = false,
+                residual      = null,
+                elapsedMs     = 0,
+                limitations   = listOf(
+                    "NxM mixed-NE solver supports exactly 2 players; this game has ${ir.playerCount}.",
+                    "Consider decomposing into 2-player sub-games or using run_coalition_analysis for 3+ players."
+                ),
+                completion    = SolverCompletion.PARTIAL
+            )
+            return SolverOutcome.Incomplete(emptyList(), "Mixed-NE solver requires exactly 2 players (got ${ir.playerCount})", diagnostics)
+        }
 
         val t0   = System.currentTimeMillis()
         val m    = ir.strategyCounts[0]
@@ -70,7 +83,7 @@ object MixedNashNxMSolver : GameSolver {
                     val residual = EquilibriumVerifier.deviationGainResidual(
                         ir.utility, ir.strategyCounts, mixed
                     )
-                    if (residual > TOLERANCE) continue
+                    if (residual > EquilibriumVerifier.adaptiveTolerance(ir.utility)) continue
 
                     if (equilibria.none { isDuplicate(it.mixedStrategies, mixed) }) {
                         val pureProfile = if (k == 1) listOf(s1[0], s2[0]) else null

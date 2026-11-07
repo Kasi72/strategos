@@ -45,12 +45,23 @@ object EquilibriumVerifier {
         return maxGain
     }
 
-    /** True when deviationGainResidual ≤ tolerance. */
+    /**
+     * Tolerance scaled to the payoff magnitude so games with large payoffs (e.g. 0–100 scale)
+     * don't silently reject valid equilibria whose floating-point residual exceeds 1e-9.
+     * Formula: max(1e-9, maxAbsPayoff * 1e-7). For standard 0–10 payoffs this returns ~1e-6,
+     * which is well above floating-point rounding but far below any real deviation gain.
+     */
+    fun adaptiveTolerance(utilities: List<DoubleArray>): Double {
+        val maxAbs = utilities.maxOfOrNull { row -> row.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0 } ?: 0.0
+        return maxOf(1e-9, maxAbs * 1e-7)
+    }
+
+    /** True when deviationGainResidual ≤ tolerance (defaults to [adaptiveTolerance]). */
     fun isNashEquilibrium(
         utilities: List<DoubleArray>,
         strategyCounts: List<Int>,
         mixedProfile: List<DoubleArray>,
-        tolerance: Double = 1e-9
+        tolerance: Double = adaptiveTolerance(utilities)
     ): Boolean = deviationGainResidual(utilities, strategyCounts, mixedProfile) <= tolerance
 
     // ── internals ──────────────────────────────────────────────────────────

@@ -25,6 +25,20 @@ object BackwardInductionSolver {
         val payoffs: Map<String, MultiPayoff>
     )
 
+    enum class FailureReason {
+        NULL_ROOT,
+        NO_TERMINALS,
+        ALL_BRANCHES_FAILED
+    }
+
+    sealed class Outcome {
+        data class Solved(
+            val equilibriumPath: List<String>,
+            val payoffs: Map<String, MultiPayoff>
+        ) : Outcome()
+        data class Failed(val reason: FailureReason) : Outcome()
+    }
+
     fun solve(root: SequenceNode?, weights: Map<PayoffDimension, Double>): Result? {
         root ?: return null
         val (path, payoffMap) = backward(root, weights) ?: return null
@@ -32,6 +46,14 @@ object BackwardInductionSolver {
         // When the root is a bare leaf the label IS the terminal action — keep it.
         val equilibriumPath = if (root.children.isEmpty()) path else path.drop(1)
         return Result(equilibriumPath, payoffMap)
+    }
+
+    fun solveDetailed(root: SequenceNode?, weights: Map<PayoffDimension, Double>): Outcome {
+        root ?: return Outcome.Failed(FailureReason.NULL_ROOT)
+        val (path, payoffMap) = backward(root, weights)
+            ?: return Outcome.Failed(FailureReason.ALL_BRANCHES_FAILED)
+        val equilibriumPath = if (root.children.isEmpty()) path else path.drop(1)
+        return Outcome.Solved(equilibriumPath, payoffMap)
     }
 
     private fun backward(

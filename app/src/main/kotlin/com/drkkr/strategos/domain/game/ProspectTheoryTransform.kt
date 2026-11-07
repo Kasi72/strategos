@@ -38,6 +38,27 @@ object ProspectTheoryTransform {
             require(beta > 0.0)  { "beta must be positive, got $beta" }
             require(lambda > 0.0) { "lambda must be positive, got $lambda" }
         }
+
+        companion object {
+            /**
+             * Returns a [Config] with standard K-T parameters and reference points
+             * set to the midpoint of the given payoff range.
+             * Useful when the scenario's payoff scale is not 0–10.
+             *
+             * @param payoffMin minimum payoff across all players and profiles.
+             * @param payoffMax maximum payoff across all players and profiles.
+             * @param playerCount number of players; determines length of referencePoints.
+             */
+            fun fromScale(payoffMin: Double, payoffMax: Double, playerCount: Int): Config {
+                val mid = (payoffMin + payoffMax) / 2.0
+                return Config(
+                    alpha = 0.88,
+                    beta  = 0.88,
+                    lambda = 2.25,
+                    referencePoints = List(playerCount) { mid }
+                )
+            }
+        }
     }
 
     val DEFAULT = Config()

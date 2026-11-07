@@ -71,17 +71,20 @@ object GameModelCompiler {
         // are 5.0 for missing entries, which would incorrectly satisfy the zero-sum test.
         val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
 
-        // Fill missing cells with neutral proxy 5.0 (midpoint of 0–10 scale) and track coverage.
-        // 0.0 reads as catastrophic; it biases the solver against any action with an unfilled cell,
-        // causing safe fallback moves to be incorrectly marked dominated. 5.0 = unknown/neutral.
-        // Partial payoff tables are common in multi-player chat scenarios; hard-failing them
-        // blocks all Stage 5 handlers.
+        // Fill missing cells with a neutral proxy and track coverage.
+        // Using the mean of known payoffs rather than a hardcoded 5.0: on a 0–10 scale the mean
+        // approximates 5.0, but on other scales (e.g. –100 to 100 or 0 to 1000) 5.0 would be
+        // non-neutral and bias the solver toward or away from unfilled cells.
+        // Classify happens above BEFORE this fill so NaN cells don't corrupt the zero-sum check.
+        val knownValues = utility.flatMap { row -> row.filter { !it.isNaN() } }
+        val fillValue = if (knownValues.isEmpty()) 5.0 else knownValues.average()
+
         var missing = 0
         for (pi in playerIds.indices) {
             for (idx in 0 until totalProfiles) {
                 val v = utility[pi][idx]
                 if (v.isNaN()) {
-                    utility[pi][idx] = 5.0
+                    utility[pi][idx] = fillValue
                     missing++
                 } else if (!v.isFinite()) {
                     errors += CompileError.NonFinitePayoff(playerIds[pi], idx)
