@@ -169,12 +169,15 @@ class OneShotTurn(
 
         // Phase G.3 (ask first, then recommend): when Call 1 judges the input still too thin to rank honestly, ask the
         // user 1-2 targeted questions to strengthen the model instead of ranking guessed outcomes. The ops extracted
-        // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row we go
-        // ahead and recommend with what we have, so the user is never stuck in a loop of questions.
+        // above are already saved, so each answer builds on the last. Bounded: after CLARIFY_MAX asks in a row (since
+        // the last non-clarify assistant reply) we go ahead and recommend with what we have, so the user is never stuck
+        // in a question loop. The streak resets whenever the engine produces a real answer, so a new topic gets a fresh
+        // budget rather than inheriting questions spent on an earlier topic.
         if (argon != null && parsed.enoughToRecommend == false && parsed.clarifyingQuestions.isNotEmpty()) {
             val allAssistant = conversations.messages(cid).filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
-            val totalClarifyAsked = allAssistant.count { it.startsWith(CLARIFY_LEAD) }
-            val askedTooMuch = totalClarifyAsked >= CLARIFY_MAX
+            // Count only the CLARIFY_LEAD streak at the tail — stop at the first non-clarify assistant message.
+            val clarifyStreak = allAssistant.reversed().takeWhile { it.startsWith(CLARIFY_LEAD) }.size
+            val askedTooMuch = clarifyStreak >= CLARIFY_MAX
             if (!askedTooMuch) {
                 conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(parsed.clarifyingQuestions))
                 afterTurn(cid)
