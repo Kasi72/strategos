@@ -1,4 +1,4 @@
-package com.drkkr.strategos
+package com.drkkr.strategos.engine
 
 import com.drkkr.strategos.domain.game.BackwardInductionSolver
 import com.drkkr.strategos.domain.model.MultiPayoff
@@ -138,7 +138,6 @@ class CdrcFundingUltimatumTest {
 
     @Test
     fun `Clinical Lead never Rejects — 0 is dominated by any positive payoff`() {
-        // Reject always yields 0 regardless of which offer — strictly dominated by Accept.
         val aggressiveResult = BackwardInductionSolver.solve(afterAggressive, W)!!
         val fairResult       = BackwardInductionSolver.solve(afterFair, W)!!
         assertFalse("Reject not chosen after Aggressive",
@@ -187,8 +186,6 @@ class CdrcFundingUltimatumTest {
 
     @Test
     fun `NHM Director chooses Aggressive not Fair (80 gt 50)`() {
-        // Verify by solving each branch separately — Director's backward-induction payoff under
-        // Aggressive (80) exceeds Fair (50), confirming the Director's optimal choice.
         val aggrResult = BackwardInductionSolver.solve(afterAggressive, W)!!
         val fairResult = BackwardInductionSolver.solve(afterFair, W)!!
         val directorPayoffAggr = aggrResult.payoffs["NHM Director"]!!.weighted(W)
@@ -199,7 +196,6 @@ class CdrcFundingUltimatumTest {
 
     @Test
     fun `Fair split is NOT the SPNE despite equal payoffs`() {
-        // Even though (50, 50) is Pareto-superior for the Lead, it is not the SPNE.
         val result = BackwardInductionSolver.solve(root, W)!!
         assertFalse("Fair not chosen in SPNE",
             result.equilibriumPath.all { it.contains("Fair", ignoreCase = true) })
@@ -228,11 +224,10 @@ class CdrcFundingUltimatumTest {
         val aggrSubgame = BackwardInductionSolver.solve(afterAggressive, W)!!
         val fairSubgame = BackwardInductionSolver.solve(afterFair, W)!!
 
-        val spnePath      = result.equilibriumPath
+        val spnePath       = result.equilibriumPath
         val directorPayoff = result.payoffs["NHM Director"]!!.weighted(W)
         val leadPayoff     = result.payoffs["Clinical Lead"]!!.weighted(W)
 
-        // Final SPNE assertions
         assertEquals("SPNE Director payoff = 80", 80.0, directorPayoff, 1e-9)
         assertEquals("SPNE Lead payoff = 20",     20.0, leadPayoff,     1e-9)
         assertTrue("Path includes Aggressive",
@@ -246,46 +241,22 @@ class CdrcFundingUltimatumTest {
              Scenario:   NHM Director proposes budget split; Clinical Lead accepts or rejects.
                          Funds lapse (0, 0) if rejected — ultimatum structure.
 
-             Game Tree:
-               NHM Director
-               ├── Propose Aggressive (80/20)
-               │   └── Clinical Lead
-               │       ├── Accept  → (Director=80, Lead=20)
-               │       └── Reject  → (Director= 0, Lead= 0)
-               └── Propose Fair (50/50)
-                   └── Clinical Lead
-                       ├── Accept  → (Director=50, Lead=50)
-                       └── Reject  → (Director= 0, Lead= 0)
-
              Step 1 — Backward Induction: Clinical Lead's subgames
                After Aggressive: Accept (20) > Reject (0)
                  → Lead plays Accept. Lead payoff = ${"%.1f".format(aggrSubgame.payoffs["Clinical Lead"]!!.weighted(W))}
                After Fair:       Accept (50) > Reject (0)
                  → Lead plays Accept. Lead payoff = ${"%.1f".format(fairSubgame.payoffs["Clinical Lead"]!!.weighted(W))}
-               Reject is NEVER rational in either subgame (funds lapse = 0 for both).
 
              Step 2 — NHM Director's decision (knowing Lead always accepts):
-               Aggressive path → Director gets 80
-               Fair path       → Director gets 50
+               Aggressive → Director gets 80;  Fair → Director gets 50
                80 > 50 → Director plays Propose Aggressive.
 
-             Subgame Perfect Nash Equilibrium (SPNE):  ✓
-               Equilibrium path: $spnePath
-               NHM Director:  Propose Aggressive (80/20)
-               Clinical Lead: Accept
-               Final payoffs: Director = ${"%.1f".format(directorPayoff)}, Lead = ${"%.1f".format(leadPayoff)}
+             SPNE: $spnePath
+               NHM Director = ${"%.1f".format(directorPayoff)}, Clinical Lead = ${"%.1f".format(leadPayoff)}
 
-             Key insight: BACKWARD INDUCTION strips out non-credible threats.
-               The Clinical Lead COULD threaten "reject any unfair offer" in advance,
-               but at the actual decision node Reject yields 0 — a credible rational
-               agent will not follow through. The Director, anticipating this, maximises
-               their own payoff by offering only the minimum acceptable amount (> 0).
-               This is the core logic of Rubinstein bargaining and ultimatum games.
-
-             Note: (50, 50) is Pareto-superior for the Lead but is NOT the SPNE.
-               It becomes achievable only if the Lead can commit credibly to rejection
-               (e.g., binding pre-commitment device, repeated play reputation, or rule-
-               based mandate from the institution overriding individual rationality).
+             Key insight: Backward induction strips non-credible threats.
+               Reject yields 0 at the actual decision node — a rational agent
+               will never follow through. Director exploits this to maximise payoff.
             ═══════════════════════════════════════════════════════
         """.trimIndent())
     }
