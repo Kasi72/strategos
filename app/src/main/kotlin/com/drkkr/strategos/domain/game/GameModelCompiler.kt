@@ -48,7 +48,12 @@ object GameModelCompiler {
         if (errors.isNotEmpty()) return CompileResult.Failure(errors)
 
         val strategyCounts = playerIds.map { actionMap[it]!!.size }
-        val totalProfiles = strategyCounts.fold(1, Int::times)
+        val totalProfilesLong = strategyCounts.fold(1L, Long::times)
+        if (totalProfilesLong > limits.maxGameProfiles) {
+            errors += CompileError.TooManyProfiles(totalProfilesLong, limits.maxGameProfiles)
+            return CompileResult.Failure(errors)
+        }
+        val totalProfiles = totalProfilesLong.toInt()
 
         // Build utility matrices — NaN for missing cells.
         val utility = Array(playerIds.size) { DoubleArray(totalProfiles) { Double.NaN } }
@@ -61,11 +66,16 @@ object GameModelCompiler {
             utility[pi][idx] = entry.payoff.weighted(weights)
         }
 
+        // Classify BEFORE the fill: NaN cells make the zero-sum check fail naturally, so a sparse table is never mis-classified as
+        // ZERO_SUM_2P by its filled-in cells.
+        val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
+
         // Fill missing cells and track coverage. Partial payoff tables are common in multi-player chat scenarios; hard-failing
         // them blocks all Stage 5 handlers. The fill is NEUTRAL: the player's own mean over its known cells (0.0 sits below every
-        // real cell on the weighted 0–10 scale, so it made any option with a gap look dominated). Filled cells are marked in
-        // GameIR.proxy so no dominance claim rests on them. A player with no known cell takes the mean of every known cell
-        // (all its cells are then marked, so it gets no dominance claims at all); a table with no payoff at all fails.
+        // real cell on the weighted 0–10 scale, so it made any option with a gap look dominated; a fixed 5.0 is not neutral on
+        // other scales). Filled cells are marked in GameIR.proxy so no dominance claim rests on them. A player with no known cell
+        // takes the mean of every known cell (all its cells are then marked, so it gets no dominance claims at all); a table with
+        // no payoff at all fails.
         var missing = 0
         val proxy = Array(playerIds.size) { BooleanArray(totalProfiles) }
         val allKnown = utility.flatMap { u -> u.filter { !it.isNaN() } }
@@ -86,16 +96,15 @@ object GameModelCompiler {
         }
         if (errors.isNotEmpty()) return CompileResult.Failure(errors)
 
-        val gameClass = inferClass(scenario, playerIds, strategyCounts, utility)
         val total = totalProfiles * playerIds.size
-        val coveragePct = if (missing == 0) 100 else ((total - missing) * 100 / total)
+        val coveragePct = if (missing == 0) 100 else ((total - missing) * 100.0 / total).toInt()
 
         val prelimIr = GameIR(
             scenarioId = scenario.id,
             playerIds = playerIds,
             actionIds = playerIds.map { actionMap[it]!! },
             strategyCounts = strategyCounts,
-            utility = utility.map { it },
+            utility = utility.map { it.copyOf() },
             gameClass = gameClass,
             coveragePct = coveragePct,
             proxy = if (missing == 0) emptyList() else proxy.toList()
@@ -141,7 +150,7 @@ object GameModelCompiler {
         utility: Array<DoubleArray>
     ): GameClass {
         if (playerIds.size == 2) {
-            val totalProfiles = strategyCounts.fold(1, Int::times)
+            val totalProfiles = strategyCounts.fold(1L, Long::times).toInt()
             val isZeroSum = (0 until totalProfiles).all { i ->
                 kotlin.math.abs(utility[0][i] + utility[1][i]) < 1e-9
             }

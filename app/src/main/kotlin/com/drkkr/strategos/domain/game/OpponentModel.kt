@@ -51,8 +51,11 @@ object OpponentModelBuilder {
         val opponent = players.firstOrNull { it.id != self.id } ?: return null
 
         // Need at least one learned prior to derive a useful model
-        val pSoftens = opponent.probSoftensOnRepair ?: return null
-        val pBoundary = opponent.probRespectsBoundary ?: NEUTRAL
+        if (opponent.probSoftensOnRepair == null &&
+            opponent.probRespectsBoundary == null &&
+            opponent.probEscalatesOnReactive == null) return null
+        val pSoftens   = opponent.probSoftensOnRepair    ?: NEUTRAL
+        val pBoundary  = opponent.probRespectsBoundary   ?: NEUTRAL
         val pEscalates = opponent.probEscalatesOnReactive ?: NEUTRAL
 
         // Epsilon: high escalation + low softening = more irrational/reactive behavior

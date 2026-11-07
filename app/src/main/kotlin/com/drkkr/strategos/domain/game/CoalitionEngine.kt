@@ -49,19 +49,51 @@ object CoalitionEngine {
         return ShapleyResult(valuesMap, coreStable, summary)
     }
 
+    /**
+     * Alpha-characteristic function: max over coalition strategies of
+     * (min over non-member strategies of total coalition utility).
+     * This is the standard minimax characteristic function for cooperative game theory.
+     * Using best-case (over all profiles) would inflate coalition values and produce
+     * incorrect Shapley shares and core stability assessments.
+     */
     private fun coalitionValue(ir: GameIR, coalitionMask: Int): Double {
         if (coalitionMask == 0) return 0.0
         val members = (0 until ir.playerCount).filter { (coalitionMask shr it) and 1 == 1 }
-        var best = Double.NEGATIVE_INFINITY
-        val counts = ir.strategyCounts
+        val nonMembers = (0 until ir.playerCount).filter { (coalitionMask shr it) and 1 == 0 }
+
         val profile = IntArray(ir.playerCount)
-        val total = counts.fold(1, Int::times)
-        for (profileIdx in 0 until total) {
-            var rem = profileIdx
-            for (p in counts.indices.reversed()) { profile[p] = rem % counts[p]; rem /= counts[p] }
-            val coalitionUtil = members.sumOf { p -> ir.utility[p][ir.profileIndex(profile)] }
-            if (coalitionUtil > best) best = coalitionUtil
+
+        if (nonMembers.isEmpty()) {
+            // Grand coalition: max total utility (no adversary to minimize)
+            var best = Double.NEGATIVE_INFINITY
+            val total = ir.strategyCounts.fold(1, Int::times)
+            for (profileIdx in 0 until total) {
+                var rem = profileIdx
+                for (p in ir.strategyCounts.indices.reversed()) { profile[p] = rem % ir.strategyCounts[p]; rem /= ir.strategyCounts[p] }
+                val util = members.sumOf { p -> ir.utility[p][ir.profileIndex(profile)] }
+                if (util > best) best = util
+            }
+            return if (best == Double.NEGATIVE_INFINITY) 0.0 else best
         }
-        return if (best == Double.NEGATIVE_INFINITY) 0.0 else best
+
+        val memberCounts = members.map { ir.strategyCounts[it] }
+        val nonMemberCounts = nonMembers.map { ir.strategyCounts[it] }
+        val memberTotal = memberCounts.fold(1, Int::times)
+        val nonMemberTotal = nonMemberCounts.fold(1, Int::times)
+
+        var maxMinUtil = Double.NEGATIVE_INFINITY
+        for (mIdx in 0 until memberTotal) {
+            var rem = mIdx
+            for (i in memberCounts.indices.reversed()) { profile[members[i]] = rem % memberCounts[i]; rem /= memberCounts[i] }
+            var minUtil = Double.POSITIVE_INFINITY
+            for (nIdx in 0 until nonMemberTotal) {
+                var nrem = nIdx
+                for (i in nonMemberCounts.indices.reversed()) { profile[nonMembers[i]] = nrem % nonMemberCounts[i]; nrem /= nonMemberCounts[i] }
+                val util = members.sumOf { p -> ir.utility[p][ir.profileIndex(profile)] }
+                if (util < minUtil) minUtil = util
+            }
+            if (minUtil > maxMinUtil) maxMinUtil = minUtil
+        }
+        return if (maxMinUtil == Double.NEGATIVE_INFINITY || maxMinUtil == Double.POSITIVE_INFINITY) 0.0 else maxMinUtil
     }
 }

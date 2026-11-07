@@ -120,7 +120,13 @@ object GameModelService {
         val ir = pruneResult.ir
 
         // Step 4: solver selection
-        val solver: GameSolver = if (ir.playerCount == 2) MixedNashNxMSolver else PureNashSolver
+        // 2×2 games use the analytic indifference-equation solver (faster, exact).
+        // Larger 2-player games use support enumeration. n-player uses pure-strategy search.
+        val solver: GameSolver = when {
+            ir.playerCount == 2 && ir.strategyCounts.all { it == 2 } -> MixedNash2x2Solver
+            ir.playerCount == 2 -> MixedNashNxMSolver
+            else -> PureNashSolver
+        }
 
         val outcome = solver.solve(ir, limits)
         val analysisResult = when (outcome) {

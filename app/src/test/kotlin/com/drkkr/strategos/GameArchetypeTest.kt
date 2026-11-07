@@ -70,6 +70,28 @@ class GameArchetypeTest {
     }
 
     @Test
+    fun `equal diagonal payoffs — neither BOS nor StagHunt — returns GENERIC`() {
+        // Both diagonal NEs exist; both players are indifferent between (0,0) and (1,1).
+        // Triggered by neutral fill (5.0) giving both NEs the same payoff.
+        // Before fix: fell through to STAG_HUNT (strict > returned false → else branch).
+        // After fix:  isStagHunt also uses strict >, so indifference → GENERIC.
+        val u1 = doubleArrayOf(5.0, 0.0, 0.0, 5.0)
+        val u2 = doubleArrayOf(5.0, 0.0, 0.0, 5.0)
+        val ir = GameIR(
+            scenarioId = "tie", playerIds = listOf("p1", "p2"),
+            actionIds = listOf(listOf("a", "b"), listOf("a", "b")),
+            strategyCounts = listOf(2, 2), utility = listOf(u1, u2),
+            gameClass = GameClass.FINITE_NORMAL_FORM, coveragePct = 100
+        )
+        assertEquals(GameArchetype.GENERIC, GameArchetypeDetector.detect(ir))
+    }
+
+    @Test
+    fun `Stag Hunt with strict preference still detected correctly after isStagHunt guard added`() {
+        assertEquals(GameArchetype.STAG_HUNT, GameArchetypeDetector.detect(stagHuntIr()))
+    }
+
+    @Test
     fun `Archetype is stored on GameIR after compiler runs`() {
         val ir = pdIr()
         // pdIr() is built manually; archetype defaults to GENERIC since we didn't use compiler
@@ -203,5 +225,33 @@ class GameArchetypeTest {
             strategyCounts = listOf(2,2), utility = listOf(u1, u2),
             gameClass = GameClass.FINITE_NORMAL_FORM, coveragePct = 100
         )
+    }
+
+    // ── N×M detection (merge of Kasi's detectNxM, 7 Nov) ──
+    private fun ir3x2(u1: DoubleArray, u2: DoubleArray) = GameIR("nxm", listOf("p1", "p2"), listOf(listOf("a", "b", "c"), listOf("a", "b")),
+        listOf(3, 2), listOf(u1, u2), GameClass.FINITE_NORMAL_FORM, 100)
+
+    @Test
+    fun `a single pure NE on the diagonal is not coordination`() {
+        // (b,b) is the only NE; the third row ties the column player, so neither side has a strict dominant strategy.
+        val g = ir3x2(doubleArrayOf(3.0, 0.0, 5.0, 1.0, 4.0, 0.0), doubleArrayOf(3.0, 5.0, 0.0, 1.0, 0.0, 0.0))
+        assertEquals(GameArchetype.GENERIC, GameArchetypeDetector.detect(g))
+        assertEquals(GameArchetype.PRISONERS_DILEMMA, GameArchetypeDetector.detectProjected(g, setOf("c")))
+    }
+
+    @Test
+    fun `coordination does not depend on the order of the actions`() {
+        // NEs (a,a) and (b,b); the same game with the column actions swapped has them off the diagonal.
+        val u1 = doubleArrayOf(4.0, 0.0, 0.0, 3.0, 1.0, 1.0); val u2 = doubleArrayOf(4.0, 0.0, 0.0, 3.0, 1.0, 1.0)
+        assertEquals(GameArchetype.PURE_COORDINATION, GameArchetypeDetector.detect(ir3x2(u1, u2)))
+        fun swap(u: DoubleArray) = doubleArrayOf(u[1], u[0], u[3], u[2], u[5], u[4])
+        assertEquals(GameArchetype.PURE_COORDINATION, GameArchetypeDetector.detect(ir3x2(swap(u1), swap(u2))))
+    }
+
+    @Test
+    fun `a strategy that beats only one alternative is not dominant`() {
+        // Row a beats b everywhere but loses to c against column b, so the row player has no dominant strategy: not a PD.
+        val u1 = doubleArrayOf(5.0, 3.0, 1.0, 0.0, 4.0, 6.0); val u2 = doubleArrayOf(1.0, 3.0, 0.0, 2.0, 0.0, 2.0)
+        assertNotEquals(GameArchetype.PRISONERS_DILEMMA, GameArchetypeDetector.detect(ir3x2(u1, u2)))
     }
 }

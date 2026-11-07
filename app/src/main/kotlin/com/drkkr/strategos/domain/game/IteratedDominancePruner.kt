@@ -24,14 +24,19 @@ object IteratedDominancePruner {
         val anyEliminated: Boolean get() = eliminated.values.any { it.isNotEmpty() }
     }
 
-    fun prune(ir: GameIR): PruneResult {
+    /**
+     * @param weakDominance if true, also eliminate weakly dominated strategies
+     *   (dominator ≥ dominated for all opponent profiles, strict for at least one).
+     *   Weak dominance elimination is order-dependent; use with care.
+     */
+    fun prune(ir: GameIR, weakDominance: Boolean = false): PruneResult {
         var current = ir
         val eliminated: MutableMap<String, MutableList<String>> =
             ir.playerIds.associateWith { mutableListOf<String>() }.toMutableMap()
         var rounds = 0
 
         while (true) {
-            val step = eliminateOneRound(current) ?: break
+            val step = eliminateOneRound(current, weakDominance) ?: break
             val (reduced, elim) = step
             elim.forEach { (pid, aids) -> eliminated.getOrPut(pid) { mutableListOf() } += aids }
             current = reduced
@@ -42,26 +47,28 @@ object IteratedDominancePruner {
     }
 
     // Returns null when nothing was eliminated this round.
-    private fun eliminateOneRound(ir: GameIR): Pair<GameIR, Map<String, List<String>>>? {
+    private fun eliminateOneRound(ir: GameIR, weakDominance: Boolean): Pair<GameIR, Map<String, List<String>>>? {
         val toEliminate = mutableMapOf<Int, List<Int>>()
 
         for (p in 0 until ir.playerCount) {
-            val dominated = strictlyDominated(ir, p)
+            val dominated = findDominated(ir, p, weakDominance)
             if (dominated.isNotEmpty()) toEliminate[p] = dominated
         }
         if (toEliminate.isEmpty()) return null
+        // Guard: if elimination would leave any player with 0 strategies, stop IEDS here.
+        if (toEliminate.any { (p, elim) -> ir.strategyCounts[p] - elim.size < 1 }) return null
         return buildReducedIR(ir, toEliminate)
     }
 
-    /** Returns indices of strictly dominated actions for [player]. */
-    private fun strictlyDominated(ir: GameIR, player: Int): List<Int> {
+    /** Returns indices of dominated actions for [player]. */
+    private fun findDominated(ir: GameIR, player: Int, weak: Boolean): List<Int> {
         val count = ir.strategyCounts[player]
         val dominated = mutableListOf<Int>()
         for (a in 0 until count) {
             if (dominated.contains(a)) continue
             for (b in 0 until count) {
                 if (a == b || dominated.contains(b)) continue
-                if (strictlyDominates(ir, player, dominator = b, dominated = a)) {
+                if (dominates(ir, player, dominator = b, dominated = a, weak = weak)) {
                     dominated += a
                     break
                 }
@@ -71,25 +78,36 @@ object IteratedDominancePruner {
     }
 
     /**
-     * True when [dominator] strictly dominates [dominated] for [player]:
-     * for every pure-strategy combination of opponents, [dominator] gives
-     * strictly higher payoff than [dominated].
+     * True when [dominator] (weakly or strictly) dominates [dominated] for [player].
+     * Strict: dominator > dominated for every opponent profile.
+     * Weak: dominator ≥ dominated for every opponent profile, strict for at least one.
      */
-    private fun strictlyDominates(
+    private fun dominates(
         ir: GameIR,
         player: Int,
         dominator: Int,
-        dominated: Int
+        dominated: Int,
+        weak: Boolean
     ): Boolean {
         val profile = IntArray(ir.playerCount)
-        return opponentProfilesAll(ir, player, profile) { opponentProfile ->
+        var strictOnce = false
+        val allOk = opponentProfilesAll(ir, player, profile) { opponentProfile ->
             opponentProfile[player] = dominator
             val iD = ir.profileIndex(opponentProfile)
             opponentProfile[player] = dominated
             val id = ir.profileIndex(opponentProfile)
             // A filled-in cell is not evidence: no dominance claim rests on one.
-            !ir.isProxy(player, iD) && !ir.isProxy(player, id) && ir.utility[player][iD] > ir.utility[player][id]
+            if (ir.isProxy(player, iD) || ir.isProxy(player, id)) return@opponentProfilesAll false
+            val payD = ir.utility[player][iD]
+            val payd = ir.utility[player][id]
+            if (weak) {
+                if (payD > payd) strictOnce = true
+                payD >= payd
+            } else {
+                payD > payd
+            }
         }
+        return allOk && (!weak || strictOnce)
     }
 
     /**
@@ -146,13 +164,14 @@ object IteratedDominancePruner {
 
         val newActionIds = (0 until ir.playerCount).map { p -> surviving[p].map { ir.actionIds[p][it] } }
 
-        val eliminatedNames: Map<String, List<String>> = eliminate.mapKeys { (pi, _) -> ir.playerIds[pi] }
-            .mapValues { (pi, elim) -> elim.map { ir.actionIds[ir.playerIds.indexOf(pi)][it] } }
+        val eliminatedNames: Map<String, List<String>> = eliminate.entries.associate { (pi, elim) ->
+            ir.playerIds[pi] to elim.map { ir.actionIds[pi][it] }
+        }
 
         val newIr = ir.copy(
             actionIds = newActionIds,
             strategyCounts = newStrategyCounts,
-            utility = newUtility.map { it },
+            utility = newUtility.map { it.copyOf() },
             proxy = if (ir.proxy.isEmpty()) emptyList() else newProxy.toList()
         )
         return newIr to eliminatedNames

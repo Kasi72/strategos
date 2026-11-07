@@ -39,6 +39,17 @@ class CompanionModeTest {
         assertTrue(kept, kept.startsWith("…F"))      // starts at a sentence
     }
 
+    /** Kasi's summarizer (7 Nov) leads with a FACTS section that is never rewritten: it survives the cut. */
+    @Test fun theFactsSectionIsAlwaysKept() {
+        val summary = "FACTS:\n- You and Meera, choir friends\n- Goal: something serious\nSITUATION: " +
+            (1..60).joinToString(" ") { "Detail $it." } + "\nOPEN: She said yes to coffee in Chennai."
+        val kept = OneShotTurn.newestPart(summary, 500)
+        assertTrue(kept, kept.startsWith("FACTS:\n- You and Meera"))
+        assertTrue(kept, kept.endsWith("She said yes to coffee in Chennai."))
+        assertFalse(kept, kept.contains("Detail 1."))
+        assertTrue(kept.length <= 501)
+    }
+
     @Test fun aShortSummaryIsKeptWhole() = assertEquals("Short.", OneShotTurn.newestPart("Short.", 400))
 
     // ── names ──

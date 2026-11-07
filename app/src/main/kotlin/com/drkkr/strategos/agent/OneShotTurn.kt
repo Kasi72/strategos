@@ -518,8 +518,10 @@ class OneShotTurn(
             com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
             else -> INTERPRET_MAX_TOKENS
         }
-        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
-            band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
+        val reply = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
+            interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
+                band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
+        }
         return if (reply != null) {
             // ID4.2: shown once per conversation per matched project, counted when a reply that could carry it is shown.
             directive.crossProject?.let { runCatching { settings.setCrossProjectShown(cid, it.projectId) } }
@@ -949,10 +951,10 @@ class OneShotTurn(
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3
+        private const val INTERPRET_TIMEOUT_MS = 15_000L
         /** Sent with the coach's retry after its reply gave away the walk-away (DealCheck); the person's own message carries the figure. */
         const val DEAL_RETRY_NOTE = "YOUR LAST REPLY WAS NOT USED: it gave away the walk-away. Keep `walk_away_private` private in every advice field and in `exact_words`: never write that figure, never tell them to state or name it, and never a figure worse for the user than it. Say \"I have a firm limit\" instead, and keep the same engine_move."
 
-        /** [input] with [note] put first in its last (user) message, so the directive stays the message's end. */
         /**
          * The newest [max] characters of an oldest-first summary, starting at a sentence or line, so a long thread keeps its latest
          * facts (the Bumble project, 7 Nov: a 3,039-character summary cut to its first 1,800 lost the Chennai visit and the coffee plan).
@@ -963,11 +965,16 @@ class OneShotTurn(
 
         internal fun newestPart(summary: String, max: Int): String {
             if (summary.length <= max) return summary
+            // The summarizer's FACTS section (players, goal, hard limits; never rewritten) leads the summary and is always kept;
+            // the newest part of the rest fills what is left.
+            val facts = Regex("""(?s)^\s*FACTS\b.*?(?=\n\s*SITUATION\b)""").find(summary)?.value?.trimEnd()?.takeIf { it.length <= max / 3 }
+            if (facts != null) return facts + "\n" + newestPart(summary.substring(facts.length).trimStart(), max - facts.length - 1)
             val tail = summary.takeLast(max)
             val start = Regex("""(?<=[.!?\n])\s+""").find(tail)?.range?.last?.plus(1)?.takeIf { it < tail.length / 3 } ?: 0
             return "…" + tail.substring(start).trimStart()
         }
 
+        /** [input] with [note] put first in its last (user) message, so the directive stays the message's end. */
         internal fun withNote(input: JsonArray, note: String): JsonArray {
             val last = input.last().jsonObject
             val content = last.getValue("content").jsonPrimitive.content

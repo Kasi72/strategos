@@ -34,8 +34,21 @@ object MixedNashNxMSolver : GameSolver {
     )
 
     override fun solve(ir: GameIR, limits: SolverLimits): SolverOutcome {
-        if (ir.playerCount != 2)
-            return SolverOutcome.Unsupported("NxM solver requires exactly 2 players")
+        if (ir.playerCount != 2) {
+            val diagnostics = SolverDiagnostics(
+                method        = "support-enumeration mixed NE (NxM)",
+                solverVersion = "1.0",
+                converged     = false,
+                residual      = null,
+                elapsedMs     = 0,
+                limitations   = listOf(
+                    "NxM mixed-NE solver supports exactly 2 players; this game has ${ir.playerCount}.",
+                    "Consider decomposing into 2-player sub-games or using run_coalition_analysis for 3+ players."
+                ),
+                completion    = SolverCompletion.PARTIAL
+            )
+            return SolverOutcome.Incomplete(emptyList(), "Mixed-NE solver requires exactly 2 players (got ${ir.playerCount})", diagnostics)
+        }
 
         val t0   = System.currentTimeMillis()
         val m    = ir.strategyCounts[0]
@@ -70,7 +83,7 @@ object MixedNashNxMSolver : GameSolver {
                     val residual = EquilibriumVerifier.deviationGainResidual(
                         ir.utility, ir.strategyCounts, mixed
                     )
-                    if (residual > TOLERANCE) continue
+                    if (residual > EquilibriumVerifier.adaptiveTolerance(ir.utility)) continue
 
                     if (equilibria.none { isDuplicate(it.mixedStrategies, mixed) }) {
                         val pureProfile = if (k == 1) listOf(s1[0], s2[0]) else null
@@ -198,15 +211,25 @@ object MixedNashNxMSolver : GameSolver {
     ): List<DoubleArray> {
         val p1 = DoubleArray(m); s1.forEachIndexed { idx, a -> p1[a] = p[idx].coerceIn(0.0, 1.0) }
         val p2 = DoubleArray(n); s2.forEachIndexed { idx, a -> p2[a] = q[idx].coerceIn(0.0, 1.0) }
+        // Renormalize after clamping: negative-probability solutions from Gaussian elimination
+        // can produce components that clamp to 0, leaving the vector summing to < 1.0.
+        // A non-normalized vector would pass EquilibriumVerifier (it checks payoff deviations,
+        // not probability sums), so without this step we could return invalid equilibria.
+        val sum1 = p1.sum().coerceAtLeast(1e-12); p1.indices.forEach { p1[it] /= sum1 }
+        val sum2 = p2.sum().coerceAtLeast(1e-12); p2.indices.forEach { p2[it] /= sum2 }
         return listOf(p1, p2)
     }
 
-    /** Two mixed-strategy profiles are the same if every probability differs by less than TOLERANCE. */
-    private fun isDuplicate(a: List<DoubleArray>, b: List<DoubleArray>): Boolean =
-        a.size == b.size && a.zip(b).all { (x, y) ->
-            x.size == y.size && x.zip(y.toTypedArray()).all { (xi, yi) -> abs(xi - yi) < 1e-6 }
+    /** Two mixed-strategy profiles are the same if every probability differs by less than 1e-6.
+     *  Uses index loops on raw DoubleArrays — avoids boxing (toTypedArray) and Pair allocations
+     *  that the previous zip-based implementation created on every call in the hot enumeration loop. */
+    private fun isDuplicate(a: List<DoubleArray>, b: List<DoubleArray>): Boolean {
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            val x = a[i]; val y = b[i]
+            if (x.size != y.size) return false
+            for (j in x.indices) if (abs(x[j] - y[j]) >= 1e-6) return false
         }
-
-    private fun DoubleArray.zip(other: Array<Double>): List<Pair<Double, Double>> =
-        indices.map { Pair(this[it], other[it]) }
+        return true
+    }
 }

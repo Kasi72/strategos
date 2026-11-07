@@ -50,10 +50,16 @@ object BayesianPayoffAdjuster {
         val oppPlayerId = ir.playerIds[1]
         val oppStakeholder = scenario.stakeholders.firstOrNull { it.id == oppPlayerId } ?: return ir
 
-        // Priors from the opponent stakeholder
-        val pSoftens = oppStakeholder.probSoftensOnRepair ?: return ir   // no priors → skip
-        val pBoundary = oppStakeholder.probRespectsBoundary ?: NEUTRAL
+        // Priors from the opponent stakeholder — skip only when ALL three are unlearned.
+        // Returning on the first null was wrong: a game with no repair rounds yet has
+        // probSoftensOnRepair == null but may have learned probRespectsBoundary or
+        // probEscalatesOnReactive, and those should still apply.
+        val pSoftens   = oppStakeholder.probSoftensOnRepair    ?: NEUTRAL
+        val pBoundary  = oppStakeholder.probRespectsBoundary   ?: NEUTRAL
         val pEscalates = oppStakeholder.probEscalatesOnReactive ?: NEUTRAL
+        if (oppStakeholder.probSoftensOnRepair == null &&
+            oppStakeholder.probRespectsBoundary == null &&
+            oppStakeholder.probEscalatesOnReactive == null) return ir
 
         // Posture of each user action (player 0)
         val userPostures = ir.actionIds[0].map { id ->
@@ -65,6 +71,8 @@ object BayesianPayoffAdjuster {
         }
 
         val nOpp = ir.strategyCounts[1]
+        val nReceptive = oppPostures.count { it == RECEPTIVE }
+        val nDefensive = oppPostures.count { it == DEFENSIVE }
         val newUserUtil = DoubleArray(ir.utility[0].size)
         System.arraycopy(ir.utility[0], 0, newUserUtil, 0, newUserUtil.size)
 
@@ -75,10 +83,10 @@ object BayesianPayoffAdjuster {
                 val profileIdx = ir.profileIndex(intArrayOf(uIdx, oIdx))
 
                 // P(opponent plays this action | user plays this posture)
-                val pOppAction = priorProb(userPosture, oppPosture, pSoftens, pBoundary, pEscalates, nOpp)
+                val pOppAction = priorProb(userPosture, oppPosture, pSoftens, pBoundary, pEscalates, nOpp, nReceptive, nDefensive)
                 val uniform = 1.0 / nOpp
                 val scale = (pOppAction / uniform).coerceIn(MIN_SCALE, MAX_SCALE)
-                newUserUtil[profileIdx] *= scale
+                newUserUtil[profileIdx] = (newUserUtil[profileIdx] * scale).coerceIn(0.0, 10.0)
             }
         }
 
@@ -87,14 +95,21 @@ object BayesianPayoffAdjuster {
         return ir.copy(utility = newUtility)
     }
 
-    /** P(opponent plays oppPosture | user plays userPosture) given priors, distributed across nOpp actions. */
+    /**
+     * P(opponent plays this specific action | user plays userPosture).
+     * When multiple actions share the same posture tag, the probability mass
+     * is split evenly among them (nReceptive / nDefensive counts prevent
+     * over-weighting when N>1 same-tagged actions exist).
+     */
     private fun priorProb(
         userPosture: String?,
         oppPosture: String?,
         pSoftens: Double,
         pBoundary: Double,
         pEscalates: Double,
-        nOpp: Int
+        nOpp: Int,
+        nReceptive: Int,
+        nDefensive: Int
     ): Double {
         val pReceptive = when (userPosture) {
             REPAIR -> pSoftens
@@ -104,12 +119,12 @@ object BayesianPayoffAdjuster {
         }
         val pDefensive = 1.0 - pReceptive
 
-        // Distribute mass across opponent actions by posture
-        val nOtherActions = (nOpp - 1).coerceAtLeast(1)
+        // Distribute mass across opponent actions by posture; divide by count so
+        // multiple same-tagged actions share probability rather than each claiming it.
         return when (oppPosture) {
-            RECEPTIVE -> pReceptive
-            DEFENSIVE -> pDefensive
-            else -> (pReceptive + pDefensive) / (nOpp.toDouble())   // uniform for untagged
+            RECEPTIVE -> if (nReceptive > 0) pReceptive / nReceptive else 1.0 / nOpp
+            DEFENSIVE -> if (nDefensive > 0) pDefensive / nDefensive else 1.0 / nOpp
+            else -> 1.0 / nOpp   // untagged: uniform baseline, no Bayesian adjustment
         }
     }
 }

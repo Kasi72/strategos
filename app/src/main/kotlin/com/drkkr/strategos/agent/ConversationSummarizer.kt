@@ -57,8 +57,11 @@ class ConversationSummarizer(
     }
 
     companion object {
-        const val INSTRUCTION = "Update the running summary of a decision-support conversation. Max 300 words. " +
-            "Use four labelled sections:\n" +
+        const val INSTRUCTION = "Update the running summary of a decision-support conversation. Max 400 words. " +
+            "Use five labelled sections:\n" +
+            "FACTS (always reproduce verbatim from the prior summary if present; max 5 bullets): " +
+            "the scenario's players, their key actions, goal, and any hard limits stated in the first messages. " +
+            "Add a bullet only when first introduced; never change or remove existing bullets.\n" +
             "SITUATION: the user's context and goal (key facts verbatim in quotes).\n" +
             "ENGINE ADVISED: what the engine recommended and whether it was robust or fragile. Omit if no recommendation has been given yet.\n" +
             "USER TRIED: what the user reported doing or deciding since the last summary. Omit if nothing was tried.\n" +
