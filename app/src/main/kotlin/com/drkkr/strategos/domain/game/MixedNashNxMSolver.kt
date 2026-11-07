@@ -207,15 +207,16 @@ object MixedNashNxMSolver : GameSolver {
         return listOf(p1, p2)
     }
 
-    /** Two mixed-strategy profiles are the same if every probability differs by less than TOLERANCE.
-     *  Uses 1e-6 (looser than the solver's TOLERANCE=1e-9) so profiles that are numerically
-     *  identical for practical purposes collapse into one, even if they differ below the
-     *  verification threshold. */
-    private fun isDuplicate(a: List<DoubleArray>, b: List<DoubleArray>): Boolean =
-        a.size == b.size && a.zip(b).all { (x, y) ->
-            x.size == y.size && x.zip(y.toTypedArray()).all { (xi, yi) -> abs(xi - yi) < 1e-6 }
+    /** Two mixed-strategy profiles are the same if every probability differs by less than 1e-6.
+     *  Uses index loops on raw DoubleArrays — avoids boxing (toTypedArray) and Pair allocations
+     *  that the previous zip-based implementation created on every call in the hot enumeration loop. */
+    private fun isDuplicate(a: List<DoubleArray>, b: List<DoubleArray>): Boolean {
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            val x = a[i]; val y = b[i]
+            if (x.size != y.size) return false
+            for (j in x.indices) if (abs(x[j] - y[j]) >= 1e-6) return false
         }
-
-    private fun DoubleArray.zip(other: Array<Double>): List<Pair<Double, Double>> =
-        indices.map { Pair(this[it], other[it]) }
+        return true
+    }
 }

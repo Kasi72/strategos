@@ -66,7 +66,9 @@ object BackwardInductionSolver {
             // Decision node: active player picks the child maximising their payoff
             val activeId = node.stakeholderId
             val best = childSolutions.maxByOrNull { (_, sol) ->
-                (sol.second[activeId] ?: MultiPayoff()).weighted(weights)
+                // Missing payoff for active player → rank last (not 0.0, which could win on a
+                // negative-payoff board and pick the wrong branch from an ill-formed tree).
+                sol.second[activeId]?.weighted(weights) ?: Double.NEGATIVE_INFINITY
             } ?: return null
             val (_, bestSol) = best
             Pair(listOf(node.actionLabel) + bestSol.first, bestSol.second)

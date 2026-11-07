@@ -77,8 +77,11 @@ object GameArchetypeDetector {
             val profiles = pureNEs.map { it.pureProfile!! }
             val diagonal = profiles.any { it == listOf(0, 0) } && profiles.any { it == listOf(1, 1) }
             val antiDiag = profiles.any { it == listOf(0, 1) } && profiles.any { it == listOf(1, 0) }
-            if (diagonal) return if (isBattleOfSexes(::u1, ::u2)) GameArchetype.BATTLE_OF_SEXES
-                                 else GameArchetype.STAG_HUNT
+            if (diagonal) return when {
+                isBattleOfSexes(::u1, ::u2) -> GameArchetype.BATTLE_OF_SEXES
+                isStagHunt(::u1, ::u2)      -> GameArchetype.STAG_HUNT
+                else                         -> GameArchetype.GENERIC  // equal diagonal payoffs — no preference alignment or conflict
+            }
             if (antiDiag) return GameArchetype.CHICKEN
         }
 
@@ -172,6 +175,13 @@ object GameArchetypeDetector {
         val p1Prefers11 = u1(1, 1) > u1(0, 0)
         val p2Prefers00 = u2(0, 0) > u2(1, 1)
         return (p1Prefers00 && p2Prefers11) || (p1Prefers11 && p2Prefers00)
+    }
+
+    /** True when both players strictly prefer the same diagonal NE (Stag Hunt). */
+    private fun isStagHunt(u1: (Int, Int) -> Double, u2: (Int, Int) -> Double): Boolean {
+        val bothPrefer00 = u1(0, 0) > u1(1, 1) && u2(0, 0) > u2(1, 1)
+        val bothPrefer11 = u1(1, 1) > u1(0, 0) && u2(1, 1) > u2(0, 0)
+        return bothPrefer00 || bothPrefer11
     }
 
     private fun pure2x2NEs(ir: GameIR): List<EquilibriumProfile> {

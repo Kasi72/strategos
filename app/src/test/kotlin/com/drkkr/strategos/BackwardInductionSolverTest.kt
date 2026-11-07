@@ -55,6 +55,22 @@ class BackwardInductionSolverTest {
         assertEquals(6.0, result!!.payoffs["You"]!!.weighted(W), 1e-9)
     }
 
+    // Decision node where one child lacks the active player's payoff — solver must prefer the
+    // branch WITH a payoff rather than treating the missing branch as 0.0 (which would win
+    // on boards where every actual payoff is negative).
+    @Test
+    fun `missing active-player payoff ranked below any real payoff`() {
+        // Alice moves. Left child has no Alice payoff; right has Alice=-5 (negative).
+        // Before fix: missing payoff → 0.0 > -5.0, solver picks Left (wrong).
+        // After fix:  missing payoff → NEGATIVE_INFINITY < -5.0, solver picks Right (correct).
+        val leftLeaf  = SequenceNode("l", "Alice", "Left",  terminalPayoffs = payoff("Bob" to 3.0))
+        val rightLeaf = SequenceNode("r", "Alice", "Right", terminalPayoffs = payoff("Alice" to -5.0, "Bob" to 1.0))
+        val root = SequenceNode("root", "Alice", "Root", children = listOf(leftLeaf, rightLeaf))
+        val result = BackwardInductionSolver.solve(root, W)
+        assertNotNull(result)
+        assertTrue("Should pick Right (has Alice payoff) not Left (missing)", result!!.equilibriumPath.contains("Right"))
+    }
+
     // 3-level tree: Bob moves after Alice; SPE found by backward induction.
     @Test
     fun `two-level sequential game SPE`() {

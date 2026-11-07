@@ -70,6 +70,28 @@ class GameArchetypeTest {
     }
 
     @Test
+    fun `equal diagonal payoffs — neither BOS nor StagHunt — returns GENERIC`() {
+        // Both diagonal NEs exist; both players are indifferent between (0,0) and (1,1).
+        // Triggered by neutral fill (5.0) giving both NEs the same payoff.
+        // Before fix: fell through to STAG_HUNT (strict > returned false → else branch).
+        // After fix:  isStagHunt also uses strict >, so indifference → GENERIC.
+        val u1 = doubleArrayOf(5.0, 0.0, 0.0, 5.0)
+        val u2 = doubleArrayOf(5.0, 0.0, 0.0, 5.0)
+        val ir = GameIR(
+            scenarioId = "tie", playerIds = listOf("p1", "p2"),
+            actionIds = listOf(listOf("a", "b"), listOf("a", "b")),
+            strategyCounts = listOf(2, 2), utility = listOf(u1, u2),
+            gameClass = GameClass.FINITE_NORMAL_FORM, coveragePct = 100
+        )
+        assertEquals(GameArchetype.GENERIC, GameArchetypeDetector.detect(ir))
+    }
+
+    @Test
+    fun `Stag Hunt with strict preference still detected correctly after isStagHunt guard added`() {
+        assertEquals(GameArchetype.STAG_HUNT, GameArchetypeDetector.detect(stagHuntIr()))
+    }
+
+    @Test
     fun `Archetype is stored on GameIR after compiler runs`() {
         val ir = pdIr()
         // pdIr() is built manually; archetype defaults to GENERIC since we didn't use compiler
