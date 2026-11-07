@@ -292,7 +292,7 @@ private fun UserBubble(t: TalkTurn.User) {
 }
 
 private val SAY_LABEL = Regex("^\\*\\*What to say:\\*\\*\\s*")
-private val PLAIN_LABEL = Regex("^\\*\\*(What's happening underneath|Clear-win move):\\*\\*\\s*")
+private val PLAIN_LABEL = Regex("^\\*\\*(What's happening underneath|Clear-win move|Best move for now):\\*\\*\\s*")
 
 /** Light inline emphasis: **word** renders bold; nothing else is interpreted. */
 internal fun emphasis(text: String): AnnotatedString = buildAnnotatedString {

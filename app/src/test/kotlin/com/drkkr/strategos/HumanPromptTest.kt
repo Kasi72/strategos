@@ -47,7 +47,10 @@ class HumanPromptTest {
         // Intent Dispatch id2.1 added rule 23 (the intent list with an example phrase each, "a hypothetical ONLY under what_if")
         // and the schema keys intent, intent_detail, what_if (+479 chars), so the limit is 3,705 (actual 3,650). CP-I2 asked rule 23 to
         // copy the matching option's wording into move_a/move_b/move (+26 chars), so the limit is 3,731 (actual 3,676).
-        assertTrue("prompt grew by $growth chars", growth in 1..3731)
+        // The stage guard (7 Nov, asked for by the user) added rules 24 STEP UP and 25 RULED OUT and listed steps_up/not_yet in rule 22
+        // (+547 chars), so the limit is 4,278. Companion mode (7 Nov, asked for by the user) added "thinking_aloud" to rule 16 and
+        // rule 2's "word each from what the user said" (+446 chars), so the limit is 4,724.
+        assertTrue("prompt grew by $growth chars", growth in 1..4724)
     }
 
     @Test

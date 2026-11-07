@@ -117,7 +117,7 @@ object TalkUi {
     /** Splits a reply into lead / body / list / closing question without inventing any words. */
     private val DO_HEAD = Regex("^\\s*do this\\s*:?\\s*$", RegexOption.IGNORE_CASE)
     private val DONT_HEAD = Regex("^\\s*don['’]t do this\\s*:?\\s*$", RegexOption.IGNORE_CASE)
-    private val LABEL = Regex("^(What's happening underneath|Clear-win move|What to say):")
+    private val LABEL = Regex("^(What's happening underneath|Clear-win move|Best move for now|What to say):")
 
     /**
      * The structured coach reply ("Do this:" / "Don't do this:" each followed by bullets) splits into prose, a quick-read pair of

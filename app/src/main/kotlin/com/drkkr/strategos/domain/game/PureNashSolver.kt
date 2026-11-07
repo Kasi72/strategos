@@ -52,6 +52,7 @@ object PureNashSolver : GameSolver {
                 return
             }
             for (a in 0 until ir.strategyCounts[player]) {
+                if (System.currentTimeMillis() - t0 > limits.maxRuntimeMs) return
                 profile[player] = a
                 search(player + 1)
             }

@@ -103,14 +103,21 @@ class PowerReadCardTest {
     }
 
     @Test fun anUnsetPillSaysTapToSet() {
-        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(PowerRead(), { _, _ -> }) } } }
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(PowerRead(ask = listOf("yourAlternative", "theyDependOnYou")), { _, _ -> }) } } }
         compose.onNodeWithText("Your fallback: tap to set").assertExists()
         compose.onNodeWithText("They need you: tap to set").assertExists()
     }
 
+    /** Seen in testing, 7 Nov: "tap to set" under every reply. An unset chip the card does not ask for is not shown. */
+    @Test fun anUnsetPillThatIsNotAskedIsHidden() {
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(PowerRead(ask = listOf("yourAlternative")), { _, _ -> }) } } }
+        compose.onNodeWithText("Your fallback: tap to set").assertExists()
+        compose.onNodeWithText("They need you: tap to set").assertDoesNotExist()
+    }
+
     @Test fun tappingYourFallbackSavesTheUsersWord() {
         val calls = mutableListOf<Pair<String, String>>()
-        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(full.copy(leverage = full.leverage.copy(yourFallback = null)), { k, v -> calls += k to v }) } } }
+        compose.setContent { StrategosTheme(darkTheme = false) { Host { PowerReadCard(full.copy(leverage = full.leverage.copy(yourFallback = null), ask = listOf("yourAlternative")), { k, v -> calls += k to v }) } } }
         compose.onNodeWithText("Your fallback: tap to set").performClick()
         compose.onNodeWithText("strong").performClick()
         assertEquals(listOf("yourAlternative" to "strong"), calls)
@@ -164,7 +171,8 @@ class PowerReadCardTest {
         // the salary story as Call 1 read it live: the offer only as if_no_deal, the dependency on the wrong side, no your_alternative
         var scenario = Fx.pmManager().let { it.copy(humanContext = it.humanContext!!.copy(theyDependOnYou = null, youDependOnThem = "high"),
             negotiationContext = com.drkkr.strategos.domain.model.NegotiationContext(batna = "take the other company's offer")) }
-        fun read(s: Scenario) = PowerRead.build(s, plan(s))
+        // as the turn does: the fallback is asked because it changes the moves (Real competition)
+        fun read(s: Scenario) = PowerRead.build(s, plan(s)).let { it.copy(ask = com.drkkr.strategos.domain.human.power.PowerCardGate.ask(it, s, true, emptySet())) }
         assertFalse(read(scenario).yourMoves.any { it.name == "Real competition" })
         compose.setContent {
             var card by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(read(scenario)) }

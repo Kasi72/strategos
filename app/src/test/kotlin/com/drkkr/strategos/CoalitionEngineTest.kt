@@ -58,9 +58,18 @@ class CoalitionEngineTest {
     }
 
     @Test fun `symmetric game yields equal Shapley values`() {
-        // All players identical: utility for each = sum of all action indices
+        // Position-symmetric game: utility = number of players who chose action 1.
+        // This is symmetric under the alpha-characteristic (minimax) function because
+        // the utility depends only on how many players play action 1, not which ones.
         val n = 3
-        val utility = List(n) { DoubleArray(8) { it.toDouble() } }
+        val utility = List(n) {
+            DoubleArray(8) { profileIdx ->
+                var rem = profileIdx
+                val choices = IntArray(n)
+                for (i in n - 1 downTo 0) { choices[i] = rem % 2; rem /= 2 }
+                choices.sum().toDouble()
+            }
+        }
         val ir = makeIR(listOf("X", "Y", "Z"), listOf(2, 2, 2), utility)
         val result = CoalitionEngine.compute(ir)
         assertNotNull(result)

@@ -37,7 +37,7 @@ object SketchHuman {
     /** Delivery tags per option, keyed by the normalised option label ([SketchConverter.norm]). Unknown tags are dropped. */
     fun optionTags(sk: ModelSketch): Map<String, Set<String>> =
         sk.optionTags.entries.mapNotNull { (label, tags) ->
-            val clean = tags.mapNotNull { HumanVocab.clean(it, HumanVocab.OPTION_TAGS) }.toSet()
+            val clean = tags.mapNotNull { HumanVocab.clean(it, HumanVocab.OPTION_TAGS + HumanVocab.STAGE_TAGS) }.toSet()
             clean.takeIf { it.isNotEmpty() }?.let { SketchConverter.norm(label) to it }
         }.toMap()
 

@@ -149,12 +149,16 @@ class OneShotTurn(
         // I-D3: a hypothetical turn (what if, compare, their reaction, plan ahead) on an existing model saves nothing: not the
         // scenario, not the trajectory. Its moves run on a copy (the what_if sketch's ops, or else the main sketch's).
         val hypothetical = parsed.intentKind in HYPOTHETICAL_INTENTS && loaded.actions.isNotEmpty()
-        if (argon != null && !hypothetical && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
+        // Companion mode: thinking aloud with nothing new keeps the saved model as it is (no reworded options, no trust or tension
+        // drift), so the engine gives the same move and the coach says to stick with it (coach rule 34).
+        val holdCourse = argon != null && !hypothetical && holdsCourse(parsed.messageKind, parsed.intentKind, loaded.actions.isNotEmpty())
+        if (holdCourse) DebugLog.d { "HOLD_COURSE thinking aloud: nothing saved this turn" }
+        if (argon != null && !hypothetical && !holdCourse && (parsed.trustDelta != 0.0 || parsed.tensionDelta != 0.0 || parsed.archetype != null)) {
             argon.trajectory.recordTurn(sid, cid, parsed.trustDelta, parsed.tensionDelta, parsed.archetype, parsed.backstoryOnly)
         }
         // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
         // the engine that reads the saved scenario afterward both see the same just-updated numbers in one commit.
-        val scenario = if (argon != null) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
+        val scenario = if (argon != null && !holdCourse) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
         val learned = if (argon != null) tacticLearningFor(cid, scenario, parsed.counterpartObservedReaction) else null
         val converted = SketchConverter.toOps(parsed, scenario, learned = learned)
         val hypotheticalOps = if (!hypothetical) emptyList() else
@@ -168,7 +172,9 @@ class OneShotTurn(
         val understood = mutableListOf<String>()
         // ID2.3: what this turn saved, for the "advice changed because" lines (Kotlin's own descriptions of the ops).
         val turnOps = mutableListOf<com.drkkr.strategos.domain.agent.ChangeOp>()
-        if (hypothetical) {
+        if (holdCourse) {
+            nothingNew = true
+        } else if (hypothetical) {
             nothingNew = true                                                    // I-D3: nothing from this turn is saved
             DebugLog.d { "HYPOTHETICAL ${parsed.intentKind.word}: ${hypotheticalOps.size} ops on a copy, none saved" }
         } else if (converted.ops.isEmpty()) {
@@ -256,7 +262,7 @@ class OneShotTurn(
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
-                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps)
+                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps, sketch = parsed, holdCourse = holdCourse)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -295,7 +301,11 @@ class OneShotTurn(
         whatIfOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
         /** ID2.3: the ops this turn saved from the user's message, and the scenario they were applied to. */
         turnOps: List<com.drkkr.strategos.domain.agent.ChangeOp> = emptyList(),
-        turnBefore: com.drkkr.strategos.domain.model.Scenario = s
+        turnBefore: com.drkkr.strategos.domain.model.Scenario = s,
+        /** This turn's Call 1 reply, read only for which option revisits a ruled-out move (StageGuard). */
+        sketch: com.drkkr.strategos.domain.agent.ModelSketch? = null,
+        /** Companion mode: thinking aloud, nothing saved; the coach restates the move (coach rule 34). */
+        holdCourse: Boolean = false
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -432,6 +442,11 @@ class OneShotTurn(
             DebugLog.d { "ASK_FIRST D3: a figure in the pick and no walk-away" }
             return buildClarify(listOf(walkAwayAsk.text))
         }
+        // A move that raises the stakes: never a clear win when waiting was not weighed, or when it was ruled out before and nothing changed.
+        val revisited = if (!powered.ready) null else com.drkkr.strategos.domain.intent.StageGuard.revisited(sketch, s, powered.moveToImplement)
+        val oneWayOnly = powered.ready && com.drkkr.strategos.domain.intent.StageGuard.oneWayOnly(s)
+        val nowOverWait = powered.ready && com.drkkr.strategos.domain.intent.StageGuard.nowOverWait(s, powered.moveToImplement)
+        if (revisited != null || oneWayOnly || nowOverWait) DebugLog.d { "STAGE_GUARD oneWayOnly=$oneWayOnly nowOverWait=$nowOverWait revisited=${revisited != null} changed=${revisited?.changed != null}" }
         val directive = powered.copy(declineNote = com.drkkr.strategos.domain.human.power.DeclineNotes.of(userAsksFor), powerMode = powerOn && powered.ready,
             changedSinceLast = diff, nextQuestion = nextQuestion.takeIf { powered.ready },
             whatIf = (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.WhatIf)?.block?.takeIf { powered.ready },
@@ -441,7 +456,10 @@ class OneShotTurn(
             // ID3.5: on every engine turn with a pick.
             confidence = if (!powered.ready) null else com.drkkr.strategos.domain.intent.ConfidenceSummary.of(
                 powered.confidenceLevel, powered.stressVerdict == "FRAGILE", stress, powered.labelIssues, nextQuestion,
-                view.players().firstOrNull { it.id != ownerId }?.name, deal),
+                view.players().firstOrNull { it.id != ownerId }?.name, deal,
+                oneWayOnly = oneWayOnly, revisitedUnchanged = revisited != null && revisited.changed == null, nowOverWait = nowOverWait),
+            revisited = revisited,
+            holdCourse = holdCourse && powered.ready,
             // ID3.3: asked for, or on its own when the pick is FRAGILE or the labels favoured one option everywhere.
             topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
                 ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))
@@ -449,8 +467,19 @@ class OneShotTurn(
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
-            val read = com.drkkr.strategos.domain.human.power.PowerRead.build(maskedRaw, powerPlan ?: com.drkkr.strategos.domain.human.power.PowerPlan())
-            conversations.append(cid, turnId, MessageRole.TOOL_RESULT, text = "Power Read", toolName = "power_read", callId = turnId,
+            val built = com.drkkr.strategos.domain.human.power.PowerRead.build(maskedRaw, powerPlan ?: com.drkkr.strategos.domain.human.power.PowerPlan())
+            val earlierCards = conversations.messages(cid).filter { it.uiKind == UiKind.POWER_READ.name }
+                .mapNotNull { m -> m.payloadJson?.let(com.drkkr.strategos.domain.human.power.PowerReadCodec::decode) }
+            val fallbackMatters = withContext(Dispatchers.Default) {
+                runCatching {
+                    com.drkkr.strategos.domain.human.FallbackShift.unknownFallbackMatters(negotiated, deal, support, lock,
+                        com.drkkr.strategos.domain.human.HumanSensitivity.pick(com.drkkr.strategos.domain.analysis.AnalysisPipeline()))
+                }.getOrDefault(false)
+            }
+            val read = built.copy(ask = com.drkkr.strategos.domain.human.power.PowerCardGate.ask(built, s, fallbackMatters, earlierCards.flatMap { it.ask }.toSet()))
+            val shown = com.drkkr.strategos.domain.human.power.PowerCardGate.show(read, earlierCards.lastOrNull())
+            DebugLog.d { "POWER_CARD shown=$shown ask=${read.ask}" }
+            if (shown) conversations.append(cid, turnId, MessageRole.TOOL_RESULT, text = "Power Read", toolName = "power_read", callId = turnId,
                 payloadJson = com.drkkr.strategos.domain.human.power.PowerReadCodec.encode(read), uiKind = UiKind.POWER_READ)
         }
         // A held move is remembered, so the next turn can ask how it went (cleared when they report a reaction).
@@ -489,8 +518,10 @@ class OneShotTurn(
             com.drkkr.strategos.domain.agent.StakesTier.LOW -> 400
             else -> INTERPRET_MAX_TOKENS
         }
-        val reply = interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
-            band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
+        val reply = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
+            interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
+                band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
+        }
         return if (reply != null) {
             // ID4.2: shown once per conversation per matched project, counted when a reply that could carry it is shown.
             directive.crossProject?.let { runCatching { settings.setCrossProjectShown(cid, it.projectId) } }
@@ -505,7 +536,8 @@ class OneShotTurn(
             if (directive.nextQuestion != null) g = g.copy(followUp = directive.nextQuestion.text)
             else com.drkkr.strategos.domain.agent.NegotiationQuestions.next(recentUserText, s.negotiationContext, earlier)
                 ?.let { q -> g = g.copy(followUp = com.drkkr.strategos.domain.agent.NegotiationQuestions.appendTo(g.followUp, q)) }
-            onGuide(g); PlainResult.coach(g, planAhead = directive.planAhead != null)
+            onGuide(g); PlainResult.coach(g, planAhead = directive.planAhead != null,
+                sure = directive.confidence == null || directive.confidence.tier == com.drkkr.strategos.domain.intent.ConfidenceTier.HIGH)
         }
         else {
             // A reply that did not echo the engine's pick is never shown (TC: aReplyThatIgnoresTheEnginePickIsNotShown), so the engine's own text stands.
@@ -653,12 +685,12 @@ class OneShotTurn(
         val previous = replies.lastOrNull()?.text
         // The moves already suggested in this thread (any age), so a long thread keeps moving forward instead of recycling advice.
         val movesTried = replies.takeLast(THREAD_MOVES_WINDOW).mapNotNull { r ->
-            r.text.lineSequence().firstOrNull { it.startsWith("Clear-win move:") }?.removePrefix("Clear-win move:")?.trim()?.take(THREAD_MOVE_CHARS)
+            r.text.lineSequence().firstNotNullOfOrNull { l -> PlainResult.MOVE_LABELS.firstOrNull { l.startsWith("$it:") }?.let { l.removePrefix("$it:") } }?.trim()?.take(THREAD_MOVE_CHARS)
         }.distinct()
         if (summary == null && said.isEmpty() && previous == null) return ""
         return buildString {
             append("THIS CONVERSATION SO FAR:\n")
-            if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(summary.take(THREAD_SUMMARY_CHARS)).append('\n')
+            if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(newestPart(summary, THREAD_SUMMARY_CHARS)).append('\n')
             if (movesTried.isNotEmpty()) append("MOVES YOU ALREADY SUGGESTED (do not just repeat them):\n").append(movesTried.joinToString("\n") { "- $it" }).append('\n')
             said.forEach { append("- They said recently: ").append(it.text.take(THREAD_USER_CHARS)).append('\n') }
             if (previous != null) append("YOUR PREVIOUS REPLY TO THEM (opening only):\n").append(previous.take(THREAD_PREVIOUS_CHARS)).append('\n')
@@ -903,12 +935,12 @@ class OneShotTurn(
         /** Benign and hardball delivery moves together (Power Mode, STEPS PM4.1). */
         private const val MAX_DELIVERY_TACTICS = 3
         private const val RETRY_PAUSE_MS = 1_500L
-        private const val THREAD_USER_MESSAGES = 2
+        private const val THREAD_USER_MESSAGES = 3
         private const val THREAD_PREVIOUS_CHARS = 600
         private const val THREAD_MOVES_WINDOW = 8
         private const val THREAD_MOVE_CHARS = 140
-        private const val THREAD_SUMMARY_CHARS = 1_800
-        private const val THREAD_USER_CHARS = 300
+        private const val THREAD_SUMMARY_CHARS = 2_400
+        private const val THREAD_USER_CHARS = 900
         private const val BACKGROUND_ENTRIES = 2
         private const val BACKGROUND_TOPICS = 2
         private const val BACKGROUND_LINE_CHARS = 200
@@ -919,8 +951,28 @@ class OneShotTurn(
         private const val EXTRACTION_TEMPERATURE = 0.1
         private const val INTERPRET_MAX_TOKENS = 600
         private const val INTERPRET_TEMPERATURE = 0.3
+        private const val INTERPRET_TIMEOUT_MS = 15_000L
         /** Sent with the coach's retry after its reply gave away the walk-away (DealCheck); the person's own message carries the figure. */
         const val DEAL_RETRY_NOTE = "YOUR LAST REPLY WAS NOT USED: it gave away the walk-away. Keep `walk_away_private` private in every advice field and in `exact_words`: never write that figure, never tell them to state or name it, and never a figure worse for the user than it. Say \"I have a firm limit\" instead, and keep the same engine_move."
+
+        /**
+         * The newest [max] characters of an oldest-first summary, starting at a sentence or line, so a long thread keeps its latest
+         * facts (a long test thread, 7 Nov: a 3,039-character summary cut to its first 1,800 lost the newest facts).
+         */
+        /** A "thinking_aloud" message on a standard turn, with options already saved, saves nothing and keeps the move. */
+        internal fun holdsCourse(messageKind: String?, intent: com.drkkr.strategos.domain.intent.Intent, hasModel: Boolean): Boolean =
+            hasModel && messageKind == "thinking_aloud" && intent == com.drkkr.strategos.domain.intent.Intent.STANDARD
+
+        internal fun newestPart(summary: String, max: Int): String {
+            if (summary.length <= max) return summary
+            // The summarizer's FACTS section (players, goal, hard limits; never rewritten) leads the summary and is always kept;
+            // the newest part of the rest fills what is left.
+            val facts = Regex("""(?s)^\s*FACTS\b.*?(?=\n\s*SITUATION\b)""").find(summary)?.value?.trimEnd()?.takeIf { it.length <= max / 3 }
+            if (facts != null) return facts + "\n" + newestPart(summary.substring(facts.length).trimStart(), max - facts.length - 1)
+            val tail = summary.takeLast(max)
+            val start = Regex("""(?<=[.!?\n])\s+""").find(tail)?.range?.last?.plus(1)?.takeIf { it < tail.length / 3 } ?: 0
+            return "…" + tail.substring(start).trimStart()
+        }
 
         /** [input] with [note] put first in its last (user) message, so the directive stays the message's end. */
         internal fun withNote(input: JsonArray, note: String): JsonArray {

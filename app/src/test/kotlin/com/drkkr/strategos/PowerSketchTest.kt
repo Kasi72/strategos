@@ -85,8 +85,11 @@ class PowerSketchTest {
         /**
          * Characters later packs added to the same prompt, measured exactly, so this budget still counts Power Mode's own growth
          * only: Intent Dispatch id1.2 (rule 4's label wording and the example's labels, +370) and id2.1 (rule 23 and the
-         * intent schema keys, +479; +26 at CP-I2 for copying the option's wording).
+         * intent schema keys, +479; +26 at CP-I2 for copying the option's wording), and the stage guard (rules 24 STEP UP and 25
+         * RULED OUT, and steps_up/not_yet in rule 22's tag list: +547, asked for by the user on 7 Nov after a long test thread's
+         * high-pressure pick), and companion mode (rule 16's "thinking_aloud", rule 2's "word each from what the user said": +446,
+         * asked for by the user on 7 Nov).
          */
-        const val LATER_PACKS_GROWTH = 370 + 479 + 26
+        const val LATER_PACKS_GROWTH = 370 + 479 + 26 + 547 + 446
     }
 }

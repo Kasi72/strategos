@@ -103,6 +103,10 @@ data class EngineDirective(
     val crossProject: com.drkkr.strategos.domain.intent.CrossProjectInsight? = null,
     /** ID3.5: tier, fixed reason, missing fact. Set on every engine turn by the turn (never by the builder, so its snapshots hold). */
     val confidence: com.drkkr.strategos.domain.intent.ConfidenceSummary? = null,
+    /** The pick is a move ruled out before, back in new words (StageGuard). In the JSON as `revisited` only when set. */
+    val revisited: com.drkkr.strategos.domain.intent.Revisited? = null,
+    /** Companion mode: the user thought aloud with nothing new, so nothing was saved and the move stands. `hold_course` when set. */
+    val holdCourse: Boolean = false,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -179,6 +183,8 @@ data class EngineDirective(
         planAhead?.let { put("plan_ahead", it.toJson()) }
         crossProject?.let { put("cross_project", it.toJson()) }
         confidence?.let { put("confidence", it.toJson()) }
+        revisited?.let { put("revisited", it.toJson()) }
+        if (holdCourse) put("hold_course", true)
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
     }

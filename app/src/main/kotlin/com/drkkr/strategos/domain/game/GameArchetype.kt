@@ -46,6 +46,76 @@ object GameArchetypeDetector {
         if (ir.gameClass == GameClass.ZERO_SUM_2P) return GameArchetype.ZERO_SUM
         if (ir.playerCount != 2) return GameArchetype.GENERIC
         if (ir.strategyCounts[0] == 2 && ir.strategyCounts[1] == 2) return detect2x2(ir)
+        return detectNxM(ir)
+    }
+
+    /**
+     * Pattern detection for 2-player n×m games (n or m > 2).
+     * Checks structural signatures that generalise beyond 2×2:
+     * - PD-like: both players have a dominant strategy and the NE is Pareto-dominated.
+     * - Coordination: every pure NE lies on the main diagonal.
+     * Zero-sum already handled before this point.
+     */
+    private fun detectNxM(ir: GameIR): GameArchetype {
+        val m = ir.strategyCounts[0]; val n = ir.strategyCounts[1]
+
+        // Check for a dominant strategy for each player over all opponent profiles.
+        fun dominantIndex(player: Int): Int? {
+            val count = ir.strategyCounts[player]
+            outer@ for (d in 0 until count) {
+                for (alt in 0 until count) {
+                    if (alt == d) continue
+                    // d must beat alt for every opponent pure-strategy profile.
+                    val profile = IntArray(2)
+                    val oppCount = ir.strategyCounts[1 - player]
+                    for (opp in 0 until oppCount) {
+                        profile[1 - player] = opp
+                        profile[player] = d
+                        val payD = ir.utility[player][ir.profileIndex(profile)]
+                        profile[player] = alt
+                        val payAlt = ir.utility[player][ir.profileIndex(profile)]
+                        if (payD <= payAlt) continue@outer
+                    }
+                }
+                return d  // d strictly dominates EVERY alternative (was returned after beating the first one only)
+            }
+            return null
+        }
+
+        val dom0 = dominantIndex(0)
+        val dom1 = dominantIndex(1)
+
+        // PD-like: both have dominant strategies AND the NE is Pareto-dominated
+        if (dom0 != null && dom1 != null) {
+            val neProfile = intArrayOf(dom0, dom1)
+            val neU0 = ir.utility[0][ir.profileIndex(neProfile)]
+            val neU1 = ir.utility[1][ir.profileIndex(neProfile)]
+            // Check if any other profile Pareto-dominates the NE
+            val pardDominated = (0 until m).any { i ->
+                (0 until n).any { j ->
+                    if (i == dom0 && j == dom1) false
+                    else {
+                        val p = intArrayOf(i, j)
+                        ir.utility[0][ir.profileIndex(p)] > neU0 &&
+                        ir.utility[1][ir.profileIndex(p)] > neU1
+                    }
+                }
+            }
+            if (pardDominated) return GameArchetype.PRISONERS_DILEMMA
+        }
+
+        // Coordination: two or more pure NEs, each in its own row and column. Action order is arbitrary, so "on the main diagonal"
+        // is not a property of the game; and a single NE is not coordination (it made a 3×2 prisoner's dilemma with a reactive
+        // row read as PURE_COORDINATION and skipped detectProjected's 2×2 projection).
+        val pureNEs = mutableListOf<IntArray>()
+        for (i in 0 until m) for (j in 0 until n) {
+            val profile = intArrayOf(i, j)
+            if (isPureNash(ir, profile)) pureNEs += profile
+        }
+        if (pureNEs.size >= 2 && pureNEs.map { it[0] }.distinct().size == pureNEs.size && pureNEs.map { it[1] }.distinct().size == pureNEs.size) {
+            return GameArchetype.PURE_COORDINATION
+        }
+
         return GameArchetype.GENERIC
     }
 
@@ -144,8 +214,11 @@ object GameArchetypeDetector {
             val profiles = pureNEs.map { it.pureProfile!! }
             val diagonal = profiles.any { it == listOf(0, 0) } && profiles.any { it == listOf(1, 1) }
             val antiDiag = profiles.any { it == listOf(0, 1) } && profiles.any { it == listOf(1, 0) }
-            if (diagonal) return if (isBattleOfSexes(::u1, ::u2)) GameArchetype.BATTLE_OF_SEXES
-                                 else GameArchetype.STAG_HUNT
+            if (diagonal) return when {
+                isBattleOfSexes(::u1, ::u2) -> GameArchetype.BATTLE_OF_SEXES
+                isStagHunt(::u1, ::u2)      -> GameArchetype.STAG_HUNT
+                else                         -> GameArchetype.GENERIC  // equal diagonal payoffs — no preference alignment or conflict
+            }
             if (antiDiag) return GameArchetype.CHICKEN
         }
 
@@ -239,6 +312,13 @@ object GameArchetypeDetector {
         val p1Prefers11 = u1(1, 1) > u1(0, 0)
         val p2Prefers00 = u2(0, 0) > u2(1, 1)
         return (p1Prefers00 && p2Prefers11) || (p1Prefers11 && p2Prefers00)
+    }
+
+    /** True when both players strictly prefer the same diagonal NE (Stag Hunt). */
+    private fun isStagHunt(u1: (Int, Int) -> Double, u2: (Int, Int) -> Double): Boolean {
+        val bothPrefer00 = u1(0, 0) > u1(1, 1) && u2(0, 0) > u2(1, 1)
+        val bothPrefer11 = u1(1, 1) > u1(0, 0) && u2(1, 1) > u2(0, 0)
+        return bothPrefer00 || bothPrefer11
     }
 
     private fun pure2x2NEs(ir: GameIR): List<EquilibriumProfile> {

@@ -57,6 +57,10 @@ object LiveDigest {
                 }
             }
         }
+        // Extraction rule 25: moves already judged worse than today, so a reworded return is recognised (see RuledOut).
+        s.humanContext?.ruledOut?.takeIf { forSketch && it.isNotEmpty() }?.let { r ->
+            putJsonArray("ruled_out_before") { r.forEach { add(it.label.take(120)) } }
+        }
         val coverage = PayoffCoverage.of(s)
         putJsonObject("outcomes") {
             putJsonArray("dims") { coverage.dimensions.forEach { add(it.name) } }

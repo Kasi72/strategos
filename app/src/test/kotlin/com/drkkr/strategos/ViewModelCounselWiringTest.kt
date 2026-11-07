@@ -76,6 +76,49 @@ class ViewModelCounselWiringTest {
         assertTrue("expected Success, got $r", r is SaveResult.Success)
     }
 
+    /** The auto-title (TalkRoute) saves straight to the repository; the next agent change must still save, with the new title. */
+    @Test
+    fun renameOutsideTheViewModelThenAgentCommitDoesNotConflict() = runBlocking {
+        val repo = (ApplicationProvider.getApplicationContext<StrategosApplication>()).container.scenarioRepository
+        val saved = (vm.saveScenarioInternal(Fx.pd()) as SaveResult.Success).saved
+        vm.setActiveScenario(saved)
+        repo.save(repo.find(saved.id)!!.copy(title = "Choir Reconnect"))
+        withTimeout(5_000) { while (vm.state.value.activeScenario?.title != "Choir Reconnect") delay(20) }
+        val r = vm.commitAgentChange(vm.state.value.activeScenario!!.copy(stakes = "Jobs"))
+        assertTrue("expected Success, got $r", r is SaveResult.Success)
+        val stored = repo.find(saved.id)!!
+        assertEquals("Choir Reconnect", stored.title)
+        assertEquals("Jobs", stored.stakes)
+    }
+
+    /** An unsaved edit on the open copy (e.g. a Power Read leverage tap) survives a rename made elsewhere. */
+    @Test
+    fun renameOutsideKeepsUnsavedEditsOnTheOpenScenario() = runBlocking {
+        val repo = (ApplicationProvider.getApplicationContext<StrategosApplication>()).container.scenarioRepository
+        val saved = (vm.saveScenarioInternal(Fx.pd()) as SaveResult.Success).saved
+        vm.setActiveScenario(saved)
+        vm.updateActiveScenario(saved.copy(stakes = "Unsaved"))
+        repo.save(repo.find(saved.id)!!.copy(title = "Renamed"))
+        withTimeout(5_000) { while (vm.state.value.activeScenario?.title != "Renamed") delay(20) }
+        assertEquals("Unsaved", vm.state.value.activeScenario!!.stakes)
+        val r = vm.commitAgentChange(vm.state.value.activeScenario!!)
+        assertTrue("expected Success, got $r", r is SaveResult.Success)
+        assertEquals("Unsaved", repo.find(saved.id)!!.stakes)
+    }
+
+    /** A newer save that changed more than the title is not merged: the conflict still shows. */
+    @Test
+    fun otherOutsideChangeStillConflicts() = runBlocking {
+        val repo = (ApplicationProvider.getApplicationContext<StrategosApplication>()).container.scenarioRepository
+        val saved = (vm.saveScenarioInternal(Fx.pd()) as SaveResult.Success).saved
+        vm.setActiveScenario(saved)
+        vm.updateActiveScenario(saved.copy(stakes = "Mine"))
+        repo.save(repo.find(saved.id)!!.copy(stakes = "Theirs"))
+        withTimeout(5_000) { while (vm.state.value.scenarios.find { it.id == saved.id }?.stakes != "Theirs") delay(20) }
+        val r = vm.commitAgentChange(vm.state.value.activeScenario!!)
+        assertTrue("expected Conflict, got $r", r is SaveResult.Conflict)
+    }
+
     @Test
     fun startCounselFromTextWithAiReadySavesBindsAndSends() = runBlocking {
         fake.enqueue(textReply(Sketches.ASK))     // the app container runs the one-shot flow, so the reply is a JSON sketch

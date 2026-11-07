@@ -168,7 +168,7 @@ class RecommendationEngine {
 
         // ── Canonical pipeline ────────────────────────────────────────────
         val candidates = buildCandidates(scenario, results)
-        val pathways = buildPathways(scenario, results, combined)
+        val pathways = buildPathways(scenario, results, combined, candidates)
 
         // ── Stakeholder forecasts ─────────────────────────────────────────
         val recommendedActionId = pathways.firstOrNull { it.label == "Recommended" }?.actionId
@@ -350,9 +350,9 @@ class RecommendationEngine {
     private fun buildPathways(
         scenario: Scenario,
         results: List<AnalysisResult>,
-        lensRecs: List<LensRecommendation>
+        lensRecs: List<LensRecommendation>,
+        allCandidates: List<DecisionCandidate> = buildCandidates(scenario, results)
     ): List<DecisionPathway> {
-        val allCandidates = buildCandidates(scenario, results)
         if (allCandidates.isEmpty()) {
             if (scenario.completenessScore() < 40) {
                 return listOf(DecisionPathway(
@@ -620,7 +620,7 @@ class RecommendationEngine {
         if (looksNegotiation && scenario.negotiationContext == null) {
             items += MissingInfoItem(
                 "No negotiation context entered",
-                "BATNA and walk-away point affect which move is recommended"
+                "Adding negotiation context will improve recommendation quality"
             )
         }
         return items
