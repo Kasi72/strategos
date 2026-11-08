@@ -55,7 +55,8 @@ data class ConversationEntity(
     @ColumnInfo(name = "title", defaultValue = "'Main Thread'") val title: String = "Main Thread",
     @ColumnInfo(name = "topic_tag", defaultValue = "'GENERAL'") val topicTag: String = "GENERAL",
     @ColumnInfo(name = "is_pinned", defaultValue = "0") val isPinned: Boolean = false,
-    @ColumnInfo(name = "prior_round_conversation_id", defaultValue = "NULL") val priorRoundConversationId: String? = null
+    @ColumnInfo(name = "prior_round_conversation_id", defaultValue = "NULL") val priorRoundConversationId: String? = null,
+    @ColumnInfo(name = "arc_state", defaultValue = "'EXPLORING'") val arcState: String = "EXPLORING"
 )
 
 @Entity(tableName = "message",

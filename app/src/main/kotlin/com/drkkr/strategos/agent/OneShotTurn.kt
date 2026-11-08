@@ -29,6 +29,8 @@ import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
 import com.drkkr.strategos.domain.agent.DomainContextInjector
+import com.drkkr.strategos.domain.agent.ArcState
+import com.drkkr.strategos.domain.agent.ArcStateMachine
 import com.drkkr.strategos.domain.agent.PreRouter
 import com.drkkr.strategos.domain.agent.RouterDecision
 import com.drkkr.strategos.domain.game.CompileResult
@@ -151,9 +153,24 @@ class OneShotTurn(
             }
         }
 
+        // Task 6: read current arc state; inject hints for ACTED/OUTCOME_KNOWN into Call 1 so extraction focuses on deltas.
+        val currentArcState = if (argon != null) {
+            conversations.get(cid)?.arcState
+                ?.let { runCatching { ArcState.valueOf(it) }.getOrDefault(ArcState.EXPLORING) }
+                ?: ArcState.EXPLORING
+        } else ArcState.EXPLORING
+
         onActivity("Reading your situation…")
         // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
-        val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+        // Task 6: for ACTED/OUTCOME_KNOWN states, inject a header telling Call 1 to focus on deltas, not a full re-extraction.
+        val call1Input = if (argon != null) argon.assembler.build(cid, sid).let { base ->
+            when (currentArcState) {
+                ArcState.ACTED         -> appendUserMessage(base, ARC_STATE_ACTED_HEADER)
+                ArcState.OUTCOME_KNOWN -> appendUserMessage(base, ARC_STATE_OUTCOME_HEADER)
+                else                   -> base
+            }
+        } else null
+        val first = if (argon != null) askModel(call1Input!!, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
                     else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
@@ -181,6 +198,13 @@ class OneShotTurn(
         // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
         // the engine that reads the saved scenario afterward both see the same just-updated numbers in one commit.
         val scenario = if (argon != null) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
+
+        // Task 6: advance arc state from the user's message and persist if changed.
+        if (argon != null) {
+            val next = ArcStateMachine.advance(currentArcState, text)
+            if (next != currentArcState) conversations.saveArcState(cid, next.name)
+        }
+
         val converted = SketchConverter.toOps(parsed, scenario)
         DebugLog.d { "TURN user=\"$text\" -> ops=${converted.ops.map { it.type }} ask=${converted.ask} hasModel=${scenario.actions.isNotEmpty()}" }
         if (converted.support) onSupport()
@@ -257,6 +281,20 @@ class OneShotTurn(
                 val repair = askModel(input(LiveDigest.build(saved, forSketch = true), emptyList(), "$REPAIR_HEADER\n$gaps"), cid, turnId)
                 if (repair is Reply.Sketch) {
                     val more = SketchConverter.toOps(repair.sketch, saved)
+                    if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let { understood += PlainResult.understood(it.accepted, saved) }
+                }
+            }
+        }
+
+        // Task 5: confidence-gated second pass. When Call 1 is thin (LOW confidence) but the user wants an answer,
+        // run a focused mini-extraction on what the other side actually wants — avoids asking more questions.
+        if (argon != null && parsed.confidenceLevel == "LOW" && parsed.enoughToRecommend != false) {
+            gateway.activeScenario()?.let { saved ->
+                onActivity("Checking the other side's perspective…")
+                val secondPassInput = appendUserMessage(argon.assembler.build(cid, sid), SECOND_PASS_HEADER)
+                val secondPass = askModel(secondPassInput, cid, turnId, jsonMode = true, maxTokens = SECOND_PASS_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+                if (secondPass is Reply.Sketch) {
+                    val more = SketchConverter.toOps(secondPass.sketch, saved)
                     if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let { understood += PlainResult.understood(it.accepted, saved) }
                 }
             }
@@ -699,6 +737,12 @@ class OneShotTurn(
         private const val MIN_RED_TEAM_CHARS = 20
         private const val MAX_RED_TEAM_CHARS = 300
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
+        // Task 5: confidence-gated second pass.
+        private const val SECOND_PASS_MAX_TOKENS = 800
+        const val SECOND_PASS_HEADER = "The model looks thin. Focus only on the other person's perspective: what do THEY actually want from this situation, what are they afraid of, and what options do they have? Return ONLY new or corrected JSON — same format, same names."
+        // Task 6: arc-state extraction hints injected into Call 1 for ACTED and OUTCOME_KNOWN states.
+        private const val ARC_STATE_ACTED_HEADER = "The person has just taken an action. Focus extraction on what changed: the action they took, any reaction observed, and any new information about the other side's position. Skip re-extracting what hasn't changed."
+        private const val ARC_STATE_OUTCOME_HEADER = "The person is reporting an outcome. Extract only the final result: what actually happened, how the other side responded, and what was learned. This is a retrospective — focus on outcome facts, not future options."
         private const val MAX_USER_CHARS = 1_500
         private const val MIN_COACH_CHARS = 40
         // Phase G.2/G.3 (clarification router + ask-first).

@@ -14,7 +14,7 @@ import com.drkkr.strategos.data.db.entities.*
         GameModelEntity::class, EvidenceRecordEntity::class, DecisionCertificateEntity::class,
         OutcomeRecordEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class StrategosDatabase : RoomDatabase() {
