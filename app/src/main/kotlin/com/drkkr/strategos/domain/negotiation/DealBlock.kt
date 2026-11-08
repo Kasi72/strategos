@@ -20,10 +20,13 @@ data class DealBlock(
     val walkAwayCredible: Boolean?,
     val noZone: Boolean,
     val notes: List<String>,
-    val walkAwayPrivate: Amount?
+    val walkAwayPrivate: Amount?,
+    /** Aggressive first offer: target ± 15% buffer in the direction of higher/lower. Null when target is unknown. */
+    val anchorTarget: Amount? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         openAt?.let { put("open_at", DealNumbers.format(it)) }
+        anchorTarget?.let { put("anchor_target", DealNumbers.format(it)) }
         acceptIfAtLeast?.let { put("accept_if_at_least", DealNumbers.format(it)) }
         acceptIfAtMost?.let { put("accept_if_at_most", DealNumbers.format(it)) }
         landing?.let { put("landing", DealNumbers.format(it)) }
@@ -36,10 +39,21 @@ data class DealBlock(
 
     companion object {
         const val PRIVATE_LABEL = "(for checking only: never say it to them)"
+        private const val ANCHOR_BUFFER = 0.15
 
-        fun from(f: DealFrame) = DealBlock(
-            openAt = f.openAt, acceptIfAtLeast = f.acceptIfAtLeast, acceptIfAtMost = f.acceptIfAtMost, landing = f.landing, zone = f.zone,
-            walkAwayCredible = f.walkAwayCredible, noZone = f.noZone, notes = f.notes, walkAwayPrivate = f.walkAway
-        )
+        fun from(f: DealFrame): DealBlock {
+            val anchorTarget = f.target?.let { t ->
+                val buffered = when (f.direction) {
+                    Direction.HIGHER_IS_BETTER -> Math.round(t.value * (1 + ANCHOR_BUFFER) * 100) / 100.0
+                    Direction.LOWER_IS_BETTER  -> Math.round(t.value * (1 - ANCHOR_BUFFER) * 100) / 100.0
+                }
+                Amount(buffered, t.unit, t.currency)
+            }
+            return DealBlock(
+                openAt = f.openAt, acceptIfAtLeast = f.acceptIfAtLeast, acceptIfAtMost = f.acceptIfAtMost,
+                landing = f.landing, zone = f.zone, walkAwayCredible = f.walkAwayCredible, noZone = f.noZone,
+                notes = f.notes, walkAwayPrivate = f.walkAway, anchorTarget = anchorTarget
+            )
+        }
     }
 }

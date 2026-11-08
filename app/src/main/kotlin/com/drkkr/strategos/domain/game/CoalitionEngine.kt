@@ -9,7 +9,11 @@ object CoalitionEngine {
         val values: Map<String, Double>,
         val coreStable: Boolean,
         val summary: String,
-        val approximate: Boolean = false
+        val approximate: Boolean = false,
+        /** Players sorted by Shapley value descending — recruit in this order to maximize coalition value. */
+        val recruitmentOrder: List<String> = emptyList(),
+        /** Players whose marginal Shapley contribution is negative — adding them hurts the coalition. */
+        val spoilers: List<String> = emptyList()
     )
 
     fun compute(ir: GameIR): ShapleyResult? {
@@ -97,7 +101,9 @@ object CoalitionEngine {
         val summary = if (topEntry != null)
             "${topEntry.key} holds the largest Shapley share$topShare$approxNote. Grand coalition is ${if (coreStable) "stable" else "unstable"}."
         else "Coalition analysis complete$approxNote. Grand coalition is ${if (coreStable) "stable" else "unstable"}."
-        return ShapleyResult(valuesMap, coreStable, summary, approximate)
+        val recruitmentOrder = valuesMap.entries.sortedByDescending { it.value }.map { it.key }
+        val spoilers = valuesMap.entries.filter { it.value < 0.0 }.map { it.key }
+        return ShapleyResult(valuesMap, coreStable, summary, approximate, recruitmentOrder, spoilers)
     }
 
     /**
