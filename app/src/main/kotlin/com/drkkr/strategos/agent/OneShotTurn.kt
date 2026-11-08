@@ -28,6 +28,9 @@ import com.drkkr.strategos.domain.agent.SketchGaps
 import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
+import com.drkkr.strategos.domain.agent.DomainContextInjector
+import com.drkkr.strategos.domain.agent.PreRouter
+import com.drkkr.strategos.domain.agent.RouterDecision
 import com.drkkr.strategos.domain.game.CompileResult
 import com.drkkr.strategos.domain.game.ExtractionValidator
 import com.drkkr.strategos.domain.game.GameModelCompiler
@@ -108,12 +111,44 @@ class OneShotTurn(
             val pr = gateway.analyzeAndPublish()
             val after = gateway.activeScenario() ?: loaded
             val body = if (pr?.report != null)
-                engineGroundedReply(cid, turnId, sid, after, pr, emptyList(), text, onActivity, previousReportJson, quickMode = true)
+                engineGroundedReply(cid, turnId, sid, after, pr, emptyList(), text, onActivity, previousReportJson, domain = null, quickMode = true)
             else
                 pr?.let(PlainResult::needsMore) ?: COULD_NOT_READ
             conversations.append(cid, turnId, MessageRole.ASSISTANT, body)
             afterTurn(cid)
             return TurnResult.Done
+        }
+
+        // Pre-routing (Argon path only): ~80-token call that classifies the message BEFORE the full
+        // 3,000-token extraction. Followup questions and too-thin inputs are caught here and routed
+        // directly, skipping Call 1 and saving ~90 % of that call's cost on simple turns.
+        if (argon != null) {
+            val priorReply = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
+            val decision = preRoute(cid, turnId, text)
+            if (decision != null) {
+                when {
+                    decision.route == "followup" && !priorReply.isNullOrBlank() -> {
+                        onActivity("Answering your question…")
+                        answerFollowUp(cid, turnId, text, priorReply, previousReportJson)?.let { answer ->
+                            conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
+                            afterTurn(cid)
+                            return TurnResult.Done
+                        }
+                        // answerFollowUp returned null: fall through to full extraction.
+                    }
+                    decision.route == "thin" && decision.clarify.isNotEmpty() -> {
+                        val clarifyStreak = conversations.messages(cid)
+                            .filter { it.role == MessageRole.ASSISTANT.name }.map { it.text }
+                            .reversed().takeWhile { it.startsWith(CLARIFY_LEAD) }.size
+                        if (clarifyStreak < CLARIFY_MAX) {
+                            conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(decision.clarify))
+                            afterTurn(cid)
+                            return TurnResult.Done
+                        }
+                        // streak >= CLARIFY_MAX: fall through, run full extraction anyway.
+                    }
+                }
+            }
         }
 
         onActivity("Reading your situation…")
@@ -243,7 +278,7 @@ class OneShotTurn(
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
             val body = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it })
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, domain = parsed.domain, onGuide = { guide = it })
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -269,6 +304,7 @@ class OneShotTurn(
     private suspend fun engineGroundedReply(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
         understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
+        domain: String? = null,
         onGuide: (CoachGuideSketch) -> Unit = {},
         quickMode: Boolean = false
     ): String {
@@ -327,6 +363,8 @@ class OneShotTurn(
         // Quick mode: skip interpret (Call 2) and return the engine badge only.
         if (quickMode) return directive.badge()
         onActivity("Writing my reply…")
+        // Domain context: pattern-matched anchors injected into Call 2 so the coach can cite them.
+        val domainContext = DomainContextInjector.build(domain, text)
         // Scale interpret tokens by stakes tier: high-stakes decisions deserve a fuller answer.
         val interpretTokens = when (directive.stakesTier) {
             com.drkkr.strategos.domain.agent.StakesTier.HIGH -> 800
@@ -334,7 +372,7 @@ class OneShotTurn(
             else -> INTERPRET_MAX_TOKENS
         }
         val reply = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
-            interpret(cid, turnId, directive, text, maxTokens = interpretTokens)
+            interpret(cid, turnId, directive, text, maxTokens = interpretTokens, domainContext = domainContext)
         }
         return if (reply != null) {
             // The pill is built here from the engine's own directive (Kotlin), so it can never disagree with the advice.
@@ -415,13 +453,14 @@ class OneShotTurn(
     }
 
     /** Call 2. Two tries: the reply must echo the engine's move exactly, or it is not used. */
-    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS): CoachReply? {
+    private suspend fun interpret(cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS, domainContext: String? = null): CoachReply? {
         val priorRoundCtx = priorRound(cid)
+        val domainBlock = if (!domainContext.isNullOrBlank()) "$domainContext\n\n" else ""
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", background(cid) + priorRoundCtx + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + priorRoundCtx + thread(cid) + domainBlock + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         val request = LlmRequest(
@@ -521,6 +560,23 @@ class OneShotTurn(
         val r = llm.create(request) as? LlmResult.Ok ?: return null
         val text = r.output.assistantText().trim()
         return text.takeIf { it.length in MIN_RED_TEAM_CHARS..MAX_RED_TEAM_CHARS && !it.startsWith("{") }
+    }
+
+    /**
+     * Pre-routing call: ~80 output tokens, temperature 0. Returns a [RouterDecision] or null on any failure.
+     * Null is treated as "proceed" so the main extraction always runs as fallback.
+     */
+    private suspend fun preRoute(cid: String, turnId: String, text: String): RouterDecision? {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", PreRouter.PROMPT) })
+            add(buildJsonObject { put("role", "user"); put("content", text.take(MAX_USER_CHARS)) })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = PreRouter.MAX_TOKENS,
+            temperature = PreRouter.TEMPERATURE, purpose = "PRE_ROUTE", conversationId = cid, turnId = turnId
+        )
+        val r = llm.create(request) as? LlmResult.Ok ?: return null
+        return PreRouter.tryParse(r.output.assistantText())
     }
 
     /** Phase G.3: the ask-first reply — a short lead the controller can also detect, then the 1-2 questions. */
