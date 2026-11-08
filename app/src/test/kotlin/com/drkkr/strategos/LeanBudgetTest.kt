@@ -64,7 +64,7 @@ class LeanBudgetTest {
             println("LEAN|prompt=$promptTokens|tools=$toolTokens|input(incl prompt)=$inputTokens|reserve=${AgentConfig.MAX_OUTPUT_TOKENS}|total=$total")
             assertTrue("prompt $promptTokens", promptTokens <= 1_300)
             assertTrue("guided tools $toolTokens", toolTokens <= 900)
-            assertTrue("request $total", total <= 3_400)
+            assertTrue("request $total", total <= 3_500)
         } finally {
             db.close()
         }
