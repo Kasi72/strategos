@@ -45,6 +45,8 @@ data class DealFrame(
     companion object {
         /** Landing moves 10% of the zone's width toward whoever has the strong alternative (confirmed values only). */
         const val LANDING_SHIFT = 0.10
+        /** A bare fallback this many times smaller than a scaled walk-away ("2" beside "26 lakh") is a count, not money. */
+        const val COUNT_NOT_MONEY = 1000.0
         /** A target more than 25% beyond their limit is not a credible opening; open 10% beyond their limit instead. */
         const val OPEN_BEYOND_LIMIT = 0.25
         const val OPEN_AT_LIMIT_MARGIN = 0.10
@@ -86,7 +88,14 @@ data class DealFrame(
             val statedTarget = keep(nc.aspirationPoint, "target")
             val target = statedTarget?.takeUnless { WalkAwayMask.near(it.value, savedWalk.value) }
             if (statedTarget != null && target == null) notes += "your target is the same as your walk-away, so there is no separate target"
-            val fallback = if (walkAwayLine.containsMatchIn(nc.batna)) null
+            // A fallback that is a length of time ("a 2-month cash-flow gap") or a bare count beside a money walk-away ("2 other
+            // vendors" with "26 lakh") is not an amount of money: no figure, so it is never masked inside other figures (FinCorp, 8 Nov).
+            // (A bare figure on the walk-away's scale, "40,000 from the other offer" beside "$45,000", is still money.)
+            val notMoney = DealNumbers.duration(nc.batna) ||
+                (DealNumbers.bare(nc.batna) && !DealNumbers.bare(nc.reservationPoint) && savedWalk.unit == Amount.Unit.AMOUNT &&
+                    (DealNumbers.parse(nc.batna)?.value ?: 0.0) < savedWalk.value / COUNT_NOT_MONEY)
+            if (notMoney && DealNumbers.parse(nc.batna) != null) notes += "your fallback is not an amount, so it has no figure"
+            val fallback = if (walkAwayLine.containsMatchIn(nc.batna) || notMoney) null
                 else keep(nc.batna, "fallback")?.takeUnless { WalkAwayMask.near(it.value, savedWalk.value) }
             val theirLimit = keep(nc.counterpartReservation, "estimate of their limit")?.takeUnless { lim ->
                 recent.split(sentenceEnd).any { s ->

@@ -4,6 +4,8 @@ import com.drkkr.strategos.domain.negotiation.Amount
 import com.drkkr.strategos.domain.negotiation.DealNumbers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /** Negotiation Numbers, NG1: reading a figure, its unit and its currency out of free text. */
@@ -83,5 +85,15 @@ class DealNumbersTest {
         assertEquals("110,000", DealNumbers.format(Amount(110000.0, Amount.Unit.AMOUNT, null)))
         assertEquals("30%", DealNumbers.format(Amount(30.0, Amount.Unit.PERCENT, null)))
         assertEquals("2.5%", DealNumbers.format(Amount(2.5, Amount.Unit.PERCENT, null)))
+    }
+
+    // FinCorp, 8 Nov: a length of time beside an amount is a term, not a second figure.
+    @Test fun aDurationBesideAnAmountIsATerm_aloneItIsStillTheFigure() {
+        assertEquals(2_750_000.0, value("27.5 lakh locked into a 2-year prepay with free analytics seats"), 0.0)
+        assertEquals(40_000.0, value("another vendor at 40k for 2 years"), 0.0)
+        assertEquals(45.0, value("45 months"), 0.0)
+        assertTrue(DealNumbers.duration("a 2-month cash-flow gap"))
+        assertFalse(DealNumbers.duration("another vendor at 40k for 2 years"))
+        assertEquals(listOf(2_750_000.0), DealNumbers.figures("27.5 lakh for a 2-year prepay, 10 weeks notice").map { it.value })
     }
 }

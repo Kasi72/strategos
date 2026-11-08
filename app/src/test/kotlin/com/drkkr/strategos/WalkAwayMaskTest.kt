@@ -127,4 +127,37 @@ class WalkAwayMaskTest {
         // without a frame nothing changes
         assertEquals(t4, DealCheck.sanitizeAnswer(t4, null))
     }
+
+    // ── FinCorp, 8 Nov: "offer 27.5 lakh locked into a 2-year prepay" was shown as "…into your other option-year prepay…" ──
+
+    /** A seller with a 25 lakh floor, aiming at 30 lakh, whose fallback is a count, not money. */
+    private val finCorpNc = NegotiationContext(reservationPoint = "25 lakh", aspirationPoint = "30 lakh", batna = "2 other prospects in the pipeline")
+    private val finCorpLabel = "Offer 27.5 lakh locked into a 2-year prepay with free analytics seats"
+
+    @Test fun aFallbackThatIsACountIsNotMoney_soItMasksNothing() {
+        val frame = DealFrame.build(finCorpNc, HumanContext(relationship = "client"), "")!!
+        assertNull("2 other prospects is not an amount", frame.fallback)
+        assertEquals(finCorpLabel, WalkAwayMask.text(finCorpLabel, frame))
+        // a fallback that is a length of time is not money either
+        assertNull(DealFrame.build(finCorpNc.copy(batna = "a 2-month cash-flow gap"), HumanContext(relationship = "client"), "")!!.fallback)
+        // a bare figure on the walk-away's scale is still money
+        assertNotNull(DealFrame.build(vendorNc.copy(batna = "the other offer, 40,000"), vendorCtx, "")!!.fallback)
+    }
+
+    @Test fun aDurationIsNeverMaskedAsAFigure_evenWhenItEqualsTheWeakFallback() {
+        // all bare, so the fallback of 2 is kept as a (weak) figure: only real figures equal to it are masked
+        val frame = DealFrame.build(NegotiationContext(reservationPoint = "25", aspirationPoint = "30", batna = "2"), HumanContext(relationship = "client"), "")!!
+        assertEquals(false, frame.walkAwayCredible)
+        assertEquals("Offer 27.5 locked into a 2-year prepay", WalkAwayMask.text("Offer 27.5 locked into a 2-year prepay", frame))
+        assertEquals("Agree a 2 years term, 2 months notice, 2 weeks free", WalkAwayMask.text("Agree a 2 years term, 2 months notice, 2 weeks free", frame))
+        assertEquals("Mention your other option", WalkAwayMask.text("Mention the 2", frame))
+    }
+
+    @Test fun holdAtTheWalkAwayAsYourFloorReadsAsHoldAtYourFloor() {
+        val frame = DealFrame.build(finCorpNc, HumanContext(relationship = "client"), "")!!
+        assertEquals("Hold at your floor and name your 2 other prospects as a real alternative",
+            WalkAwayMask.text("Hold at 25 lakh as your floor and name your 2 other prospects as a real alternative", frame))
+        // the CP-I2 wording without "at" is unchanged
+        assertEquals("State that you have a firm floor", WalkAwayMask.text("State 25 lakh as your firm floor", frame))
+    }
 }

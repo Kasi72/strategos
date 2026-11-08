@@ -310,6 +310,9 @@ class DeepSeekLiveFlowTest {
                     out.append("  clear_win_move: ${reply.clearWinMove}\n  exact_words: ${reply.exactWords}\n")
                 }
                 out.append("\n--- what the user saw (${shown.length} chars) ---\n$shown\n")
+                // The engine pill under the reply (tapping it opens the X-ray); none when the reply carried no guide.
+                val lastAssistant = ConversationRepository(r.db).messages(st.conversationId!!).lastOrNull { it.role == MessageRole.ASSISTANT.name }
+                out.append("PILL (X-ray link): ${lastAssistant?.payloadJson?.let { com.drkkr.strategos.domain.agent.GuidanceCodec.decode(it) }?.pill ?: "none"}\n")
                 out.append("BANNED-WORD CHECK on what the user saw: ${if (com.drkkr.strategos.domain.human.BannedWords.containedIn(shown)) "FAIL - names a law, book, author or tactic" else "clean"}\n\n")
                 java.io.File(outFile!!).writeText(out.toString())
             }

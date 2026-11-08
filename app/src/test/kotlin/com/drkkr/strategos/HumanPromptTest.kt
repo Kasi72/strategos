@@ -54,7 +54,9 @@ class HumanPromptTest {
         // examples (+456), rule 6's NEGOTIATION / PRINCIPAL_AGENT / COORDINATION / COMMITMENT_PROBLEM archetypes (+551), rule 26
         // DOMAIN (+449) and the schema's "domain" key (+27), +1,483 chars, so the limit is 6,207. Main's ORDINAL PAYOFFS rule was
         // not taken (rule 4 asks for labels).
-        assertTrue("prompt grew by $growth chars", growth in 1..6207)
+        // FinCorp polish (8 Nov, asked for by the user): rule 2 copies the user's figures, durations and terms word for word
+        // (+152 chars), so the limit is 6,359.
+        assertTrue("prompt grew by $growth chars", growth in 1..6359)
     }
 
     @Test

@@ -82,6 +82,8 @@ object WalkAwayMask {
         x = re("""\b(your|my) (?:$ADJ)?($NOUN) is $w$PERIOD""").replace(x) { m ->
             if (m.groupValues[1].equals("your", true)) "you have a firm ${m.groupValues[2].lowercase()}" else "${m.groupValues[1]} ${m.groupValues[2]} is firm"
         }
+        // "Hold at 25 lakh as your floor" -> "Hold at your floor" (FinCorp, 8 Nov: was "Hold at that you have a firm floor")
+        x = re("""\bat $w$PERIOD as (your|my) (?:$ADJ)?($NOUN)\b""").replace(x) { m -> "at ${m.groupValues[1].lowercase()} ${m.groupValues[2].lowercase()}" }
         // "State $45,000 as your firm ceiling" -> "State that you have a firm ceiling" (CP-I2: was "your ceiling as your ceiling")
         x = re("""$w$PERIOD as (your|my) (?:$ADJ)?($NOUN)\b""").replace(x) { m ->
             (if (m.groupValues[1].equals("my", true)) "that I have" else "that you have") + " a firm ${m.groupValues[2].lowercase()}"

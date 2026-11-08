@@ -35,6 +35,24 @@ object DealNumbers {
     )
     private val symbol = mapOf("INR" to "₹", "USD" to "$", "EUR" to "€", "GBP" to "£")
 
+    /**
+     * What may follow a figure that makes it a length of time ("2-year prepay", "10 weeks", "a 12-month term"), not an amount.
+     * Text scanning ([figures], [replaceFigures]) skips such figures, so a fallback or walk-away of 2 never masks the "2" in
+     * "2-year" (FinCorp, 8 Nov). [parse] still reads "45 months" as 45: a saved walk-away may be a duration.
+     */
+    private val durationAfter = Regex("""^\s*-?\s*(?:years?|yrs?|months?|mos?|weeks?|wks?|days?|hours?|hrs?|quarters?|qtrs?)\b""", RegexOption.IGNORE_CASE)
+
+    private fun isDuration(text: String, end: Int) = durationAfter.containsMatchIn(text.substring(end))
+
+    /** True when [text]'s figures are all lengths of time ("a 2-month gap"); "40k for 2 years" has an amount, so it is not. */
+    fun duration(text: String): Boolean = figure.findAll(text).toList().let { f -> f.isNotEmpty() && f.all { isDuration(text, it.range.last + 1) } }
+
+    /** True when [text]'s figure has no currency and no scale word ("2 other vendors"): a count, unless the context says money. */
+    fun bare(text: String): Boolean {
+        val m = figure.findAll(text).toList().singleOrNull() ?: return false
+        return m.groupValues[3].isEmpty() && currencies.none { (_, r) -> r.containsMatchIn(text) }
+    }
+
     private fun percent(suffix: String) = suffix == "%" || suffix.lowercase().startsWith("per")
 
     private fun multiplier(suffix: String): Double = when (suffix.lowercase()) {
@@ -47,7 +65,11 @@ object DealNumbers {
 
     fun parse(text: String): Amount? {
         if (text.isBlank() || range.containsMatchIn(text)) return null
-        val found = figure.findAll(text).toList().map { m ->
+        // A length of time beside an amount is a term, not a second figure: "27.5 lakh locked into a 2-year prepay" is 27.5 lakh
+        // (FinCorp, 8 Nov: the "2" made it two figures, so no target and no deal frame). Alone, "45 months" is still 45.
+        val all = figure.findAll(text).toList()
+        val amounts = all.filterNot { isDuration(text, it.range.last + 1) }
+        val found = amounts.ifEmpty { all }.map { m ->
             val digits = m.groupValues[1].replace(",", "") + m.groupValues[2]
             val suffix = m.groupValues[3]
             val n = digits.toDoubleOrNull() ?: return null
@@ -64,7 +86,7 @@ object DealNumbers {
     /** All the figures in [text] (for checking a reply), each read the same way as [parse]; ranges count as their two ends. */
     fun figures(text: String): List<Amount> {
         val named = currencies.filter { (_, r) -> r.containsMatchIn(text) }.map { it.first }.singleOrNull()
-        return figure.findAll(text).mapNotNull { m ->
+        return figure.findAll(text).filterNot { isDuration(text, it.range.last + 1) }.mapNotNull { m ->
             val n = (m.groupValues[1].replace(",", "") + m.groupValues[2]).toDoubleOrNull() ?: return@mapNotNull null
             val suffix = m.groupValues[3]
             if (percent(suffix)) Amount(n, Amount.Unit.PERCENT, null) else Amount(n * multiplier(suffix), Amount.Unit.AMOUNT, named)
@@ -79,6 +101,7 @@ object DealNumbers {
 
     /** [text] with each figure (and its currency) replaced by what [replace] returns for it; null keeps that figure as written. */
     fun replaceFigures(text: String, replace: (Amount) -> String?): String = withCurrency.replace(text) { m ->
+        if (isDuration(text, m.range.last + 1)) return@replace m.value
         val inner = figure.find(m.value) ?: return@replace m.value
         val n = (inner.groupValues[1].replace(",", "") + inner.groupValues[2]).toDoubleOrNull() ?: return@replace m.value
         val suffix = inner.groupValues[3]
