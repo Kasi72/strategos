@@ -101,4 +101,68 @@ class IdentifyGapsTest {
         assertTrue(IdentifyGaps.next(s, IntakeChecklist.gaps(s), null, null)?.id != IdentifyGaps.WALK_AWAY)
         assertTrue(IdentifyGaps.negotiation(vendor(HumanContext(relationship = "vendor")), null))
     }
+
+    // 8 Nov (user): the limits question was a form ("Is there anything you won't do, or that must not happen?") asked instead of advice.
+
+    @Test fun theLimitsQuestionNamesTheUsersOwnOptions_firmOnesFirst_inPlainWords() {
+        val q = IdentifyGaps.limitsQuestion(vendor(HumanContext(relationship = "manager")))
+        assertEquals(IdentifyGaps.LIMITS, q.id)
+        assertEquals("Is either of these off the table for you: hold firm, or offer extras first?", q.text)
+        assertFalse(BannedWords.containedIn(q.text))
+        assertEquals(1, q.text.count { it == '?' })
+    }
+
+    /** The options DeepSeek wrote on 8 Nov for a flatmate thread: long, with a time in one and an alternative in the reactive one. */
+    @Test fun liveLengthOptionsAreCutToTheirMainClause_andTheReactiveMoveIsNeverNamed() {
+        val base = vendor(HumanContext(relationship = "friend"))
+        val s = base.copy(actions = base.actions.map {
+            when (it.id) {
+                "give" -> it.copy(label = "Propose a specific weeknight quiet-hours rule (guests gone by 10:30 on work nights) and offer weekends as free")
+                "hold" -> it.copy(label = "Tell Arjun plainly that weeknight guests past a set time can't keep happening, and name the time")
+                else -> it
+            }
+        } + Action(id = "snap", stakeholderId = "you", label = "Say nothing and lie there frustrated, or snap at him next time", description = "[posture:reactive]"))
+        val q = IdentifyGaps.limitsQuestion(s)
+        // both clauses together pass the phone-length limit, so the firmer one is asked about alone
+        assertEquals("Is this off the table for you: tell Arjun plainly that weeknight guests past a set time can't keep happening?", q.text)
+        assertFalse(q.text.any { it.isDigit() })
+        assertFalse(q.text.contains("snap"))
+    }
+
+    @Test fun theMoveThisReplyAdvisesIsNeverTheOneAskedAbout() {
+        val s = vendor(HumanContext(relationship = "manager"))
+        assertEquals("Is this off the table for you: offer extras first?", IdentifyGaps.limitsQuestion(s, advised = setOf("Hold firm")).text)
+        assertEquals(IdentifyGaps.TEMPLATES.getValue(IdentifyGaps.LIMITS), IdentifyGaps.limitsQuestion(s, advised = setOf("hold firm", "Offer extras first")).text)
+        assertEquals("Is this off the table for you: offer extras first?",
+            IdentifyGaps.next(s, listOf(IntakeGap("limits", hint = "x")), null, null, advised = setOf("Hold firm"))?.text)
+    }
+
+    @Test fun withNoPlainOptionTheQuestionIsTheShortGenericOne() {
+        val base = vendor(HumanContext(relationship = "manager"))
+        val s = base.copy(actions = base.actions.map {
+            when (it.id) {
+                "hold" -> it.copy(label = "Offer 2 evenings a week")
+                "give" -> it.copy(label = "Say you're serious and propose a specific coffee date for her next visit home and offer to come to her city instead")
+                else -> it
+            }
+        })
+        val q = IdentifyGaps.limitsQuestion(s)
+        assertEquals(IdentifyGaps.TEMPLATES.getValue(IdentifyGaps.LIMITS), q.text)
+        assertTrue(q.text.contains(IdentifyGaps.LIMITS_MARK))
+    }
+
+    @Test fun theLimitsQuestionIsAskedOnce_evenWhenTheOptionsItNamesChange() {
+        val s = vendor(HumanContext(relationship = "spouse"))
+        val gaps = listOf(IntakeGap("limits", hint = "x"))
+        val first = IdentifyGaps.next(s, gaps, null, null)
+        assertEquals(IdentifyGaps.LIMITS, first?.id)
+        val renamed = s.copy(actions = s.actions.map { if (it.id == "hold") it.copy(label = "Keep your position") else it })
+        assertNull("asked before, in other words", IdentifyGaps.next(renamed, gaps, null, null, alreadyAsked = listOf("Advice.\n\n${first!!.text}")))
+    }
+
+    @Test fun withNoConfidentPick_theLimitsQuestionNeverStandsInForTheAdvice_butOtherGapsStill() {
+        assertFalse(IdentifyGaps.asksInsteadOfAdvice(IdentifyGaps.limitsQuestion(vendor(HumanContext(relationship = "manager")))))
+        assertFalse(IdentifyGaps.asksInsteadOfAdvice(null))
+        assertTrue(IdentifyGaps.asksInsteadOfAdvice(IdentifyGaps.walkAwayQuestion()))
+    }
 }

@@ -2,7 +2,9 @@ package com.drkkr.strategos.domain.intent
 
 import com.drkkr.strategos.domain.agent.IntakeChecklist
 import com.drkkr.strategos.domain.agent.IntakeGap
+import com.drkkr.strategos.domain.agent.Postures
 import com.drkkr.strategos.domain.agent.StressResult
+import com.drkkr.strategos.domain.human.BannedWords
 import com.drkkr.strategos.domain.human.RelationshipDomain
 import com.drkkr.strategos.domain.human.RelationshipDomains
 import com.drkkr.strategos.domain.model.Scenario
@@ -26,6 +28,7 @@ object IdentifyGaps {
     const val THEIR_REPLY = "their_reply"
     const val WALK_AWAY = "walk_away"
     const val DECIDER = "decider"
+    const val LIMITS = "limits"
 
     /** Every template, for the banned-words test. `{name}` is the other person's name as the user gave it. */
     val TEMPLATES: Map<String, String> = linkedMapOf(
@@ -38,11 +41,65 @@ object IdentifyGaps {
         "their_options" to "How might {name} respond?",
         "my_options" to "What else could you do here, including waiting?",
         "goal" to "What would a good outcome look like for you?",
-        "limits" to "Is there anything you won't do, or that must not happen?"
+        LIMITS to "Is anything off the table for you here?"
     )
 
+    /** Every limits question carries this, so it is never asked twice even when the options named in it change. */
+    const val LIMITS_MARK = "off the table for you"
+
     /** Intake gaps that become a question, in priority order after the flip, walk-away and decider gaps. */
-    private val REST = listOf("wants_fears", "their_options", "my_options", "goal", "limits")
+    private val REST = listOf("wants_fears", "their_options", "my_options", "goal", LIMITS)
+
+    /** An option named in the limits question: its main clause, short enough to read in one breath. */
+    private const val MAX_NAMED_OPTION_CHARS = 80
+    /** Two named options only while the whole question stays readable on a phone; otherwise the firmest one alone. */
+    private const val MAX_TWO_OPTION_CHARS = 150
+    /** Where an option's main clause ends: an aside, an example, an alternative ("…, or snap at him"). */
+    private val CLAUSE_END = Regex("""\s+\(|,\s|\s[—–-]\s|;\s|\s+or\s|\s+e\.g\.""")
+
+    /**
+     * The limits question in the user's own situation: names one or two of their options, firm before open (the moves people
+     * most often rule out), e.g. "Is either of these off the table for you: tell Arjun plainly that it can't keep happening,
+     * or propose a weeknight quiet-hours rule?". The reactive move is never named (it is never advised). The short generic
+     * template when no option's main clause is plain enough (no figure, no question, no banned word). [advised] are the moves
+     * this reply recommends: never named, or the question would undercut its own advice (seen live, 8 Nov).
+     */
+    fun limitsQuestion(view: Scenario, advised: Set<String> = emptySet()): NextQuestion {
+        val skip = advised.map { it.trim().lowercase() }.toSet()
+        val you = IntakeChecklist.self(view)
+        val order = listOf(Postures.BOUNDARY, Postures.REPAIR, null)
+        val named = you?.let { view.actionsFor(it.id) }.orEmpty()
+            .filter { Postures.of(it) != Postures.REACTIVE && it.label.trim().lowercase() !in skip }
+            .sortedBy { order.indexOf(Postures.of(it)).let { i -> if (i < 0) order.size else i } }
+            .map { mainClause(it.label) }
+            .filter { it.isNotEmpty() && it.length <= MAX_NAMED_OPTION_CHARS && it.none { c -> c.isDigit() || c == '?' } && !BannedWords.containedIn(it) }
+            .distinctBy { it.lowercase() }
+            .take(2)
+            .map(::asClause)
+        val two = if (named.size == 2) "Is either of these $LIMITS_MARK: ${named[0]}, or ${named[1]}?" else null
+        val text = when {
+            two != null && two.length <= MAX_TWO_OPTION_CHARS -> two
+            named.isNotEmpty() -> "Is this $LIMITS_MARK: ${named[0]}?"
+            else -> TEMPLATES.getValue(LIMITS)
+        }
+        return NextQuestion(LIMITS, text)
+    }
+
+    private fun mainClause(label: String): String =
+        label.trim().let { l -> CLAUSE_END.find(l)?.let { l.substring(0, it.range.first) } ?: l }.trim().trimEnd('.', '!', ',', ':')
+
+    /**
+     * With no confident pick, whether [q] is asked instead of the advice. The limits question never is: it is the last, most
+     * generic gap, and asking it in place of an answer read as a form (8 Nov, user). Then the coach reflects on the message.
+     */
+    fun asksInsteadOfAdvice(q: NextQuestion?): Boolean = q != null && q.id != LIMITS
+
+    /** "Threaten to leave" reads as "threaten to leave" mid-sentence; a name or "I" at the start keeps its capital. */
+    private fun asClause(label: String): String {
+        val first = label.substringBefore(' ')
+        val keep = first == "I" || first.drop(1).any { it.isUpperCase() }
+        return if (keep) label else label.replaceFirstChar { it.lowercase() }
+    }
 
     /** A negotiation: the deal frame exists, the relationship is one, or the user gave negotiation facts. */
     fun negotiation(view: Scenario, deal: DealFrame?): Boolean {
@@ -70,12 +127,13 @@ object IdentifyGaps {
      */
     fun next(
         view: Scenario, gaps: List<IntakeGap>, stress: StressResult?, deal: DealFrame?,
-        flips: Set<String> = emptySet(), alreadyAsked: List<String> = emptyList()
+        flips: Set<String> = emptySet(), alreadyAsked: List<String> = emptyList(), advised: Set<String> = emptySet()
     ): NextQuestion? {
         val you = IntakeChecklist.self(view)
         val other = view.players().firstOrNull { it.id != you?.id }
         val name = other?.name?.takeIf { it.isNotBlank() }
         fun q(id: String): NextQuestion? {
+            if (id == LIMITS) return limitsQuestion(view, advised)
             val t = TEMPLATES.getValue(id)
             if ("{name}" in t && name == null) return null
             return NextQuestion(id, t.replace("{name}", name.orEmpty()))
@@ -91,6 +149,8 @@ object IdentifyGaps {
             if (other != null && !close && gaps.any { it.id == "power" && it.about == other.name }) add(DECIDER)
             for (id in REST) if (gaps.any { it.id == id && (it.about == null || it.about == other?.name) }) add(id)
         }.distinct()
-        return candidates.asSequence().mapNotNull(::q).firstOrNull { c -> alreadyAsked.none { it.contains(c.text) } }
+        return candidates.asSequence().mapNotNull(::q).firstOrNull { c ->
+            alreadyAsked.none { it.contains(c.text) || (c.id == LIMITS && it.contains(LIMITS_MARK)) }
+        }
     }
 }

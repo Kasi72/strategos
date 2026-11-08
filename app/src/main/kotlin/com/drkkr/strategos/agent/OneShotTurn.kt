@@ -544,7 +544,8 @@ class OneShotTurn(
                     if (com.drkkr.strategos.domain.human.FallbackShift.unknownFallbackMatters(negotiated, deal, support, lock, gapPick)) add(com.drkkr.strategos.domain.intent.IdentifyGaps.YOUR_FALLBACK)
                     if (com.drkkr.strategos.domain.human.FallbackShift.unknownTheirFallbackMatters(negotiated, deal, support, lock, gapPick)) add(com.drkkr.strategos.domain.intent.IdentifyGaps.THEIR_FALLBACK)
                 }
-                com.drkkr.strategos.domain.intent.IdentifyGaps.next(negotiated, com.drkkr.strategos.domain.agent.IntakeChecklist.gaps(s), stress, deal, flips, earlierAssistant)
+                com.drkkr.strategos.domain.intent.IdentifyGaps.next(negotiated, com.drkkr.strategos.domain.agent.IntakeChecklist.gaps(s), stress, deal, flips, earlierAssistant,
+                    advised = setOfNotNull(powered.recommendedMove, powered.moveToImplement))
             }.getOrNull()
         }
         // D3: a negotiation move that carries a figure while no walk-away is known asks first (the walk-away), instead of advising.
@@ -615,7 +616,8 @@ class OneShotTurn(
             DebugLog.d { "FALLBACK engine has no pick (directive not ready); asking the coach to reflect on the message" }
             onActivity("Writing my reply…")
             // ID2.4: Kotlin decides readiness; with a gap to ask about, ask it (one question) instead of reflecting.
-            if (nextQuestion != null) return buildClarify(listOf(nextQuestion.text))
+            // The limits question never stands in for the advice; with only that gap left, the coach reflects on the message below.
+            if (com.drkkr.strategos.domain.intent.IdentifyGaps.asksInsteadOfAdvice(nextQuestion)) return buildClarify(listOf(nextQuestion!!.text))
             // Negotiation Numbers: the engine's own text and the reflection never offer an option that crosses the walk-away.
             val within = com.drkkr.strategos.domain.negotiation.NegotiationView.withinWalkAway(pr, deal)
             return reflect(cid, turnId, s, within, text)?.takeIf { com.drkkr.strategos.domain.negotiation.DealCheck.usable(listOf(it), deal) }
