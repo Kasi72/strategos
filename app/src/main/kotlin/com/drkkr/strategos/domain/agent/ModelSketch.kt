@@ -57,7 +57,9 @@ data class ModelSketch(
      */
     @SerialName("enough_to_recommend") val enoughToRecommend: Boolean? = null,
     /** Phase G.3: 1-2 short, targeted questions that would most strengthen the model, used only when [enoughToRecommend] is false. */
-    @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList()
+    @SerialName("clarifying_questions") val clarifyingQuestions: List<String> = emptyList(),
+    /** Day-to-day domain: shapes coach vocabulary, not engine computation. RELATIONSHIP | WORKPLACE | NEGOTIATION | DECISION */
+    @SerialName("domain") val domain: String? = null
 )
 
 /** The coach guide. It is no longer part of [ModelSketch] (call 1 extracts only); call 2's [CoachReply] carries it. */

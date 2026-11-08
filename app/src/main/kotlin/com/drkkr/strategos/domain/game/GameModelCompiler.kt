@@ -147,7 +147,11 @@ object GameModelCompiler {
             }
             if (isZeroSum) return GameClass.ZERO_SUM_2P
         }
-        if (scenario.repeated) return GameClass.REPEATED_FINITE
+        if (scenario.informationAsymmetry) return GameClass.BAYESIAN
+        if (scenario.repeated) {
+            return if (scenario.discountFactor != null) GameClass.REPEATED_INFINITE
+                   else GameClass.REPEATED_FINITE
+        }
         return GameClass.FINITE_NORMAL_FORM
     }
 }

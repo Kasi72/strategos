@@ -62,7 +62,17 @@ object GameModelService {
         /** Non-null for 3–8 player games; Shapley values and coalition stability. */
         val coalitionResult: CoalitionEngine.ShapleyResult? = null,
         /** Non-null when the scenario looks like a mechanism design problem. */
-        val mechanismHint: MechanismAdvisor.MechanismHint? = null
+        val mechanismHint: MechanismAdvisor.MechanismHint? = null,
+        /** Payoff-ordering violations detected by [ExtractionValidator]; empty when IR is consistent. */
+        val validationWarnings: List<String> = emptyList(),
+        /** Non-null for repeated/infinite games with PD structure; folk theorem cooperation threshold. */
+        val folkResult: RepeatedGameAnalyzer.FolkThresholdResult? = null,
+        /** Non-null when multiple equilibria exist; identifies the focal point and selection rationale. */
+        val focalSelection: FocalEquilibriumSelector.FocalSelection? = null,
+        /** Structured narrative for the coach and UI; non-null whenever a solved equilibrium exists. */
+        val strategicNarrative: StrategicNarrative? = null,
+        /** Payoff gaps the extraction layer flagged; non-empty means the user should be prompted. */
+        val missingPayoffs: List<com.drkkr.strategos.domain.model.MissingPayoffQuery> = emptyList()
     )
 
     fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
@@ -86,6 +96,12 @@ object GameModelService {
             )
         }
 
+        // Gap 1: validate payoff-ordering invariants against detected archetype (soft — never blocks solving)
+        val validationWarnings = when (val v = ExtractionValidator.validate(rawIr)) {
+            is ExtractionValidator.ValidationResult.Valid   -> emptyList()
+            is ExtractionValidator.ValidationResult.Invalid -> v.violations
+        }
+
         // Step 2: backward induction for extensive-form games (when a game tree is present)
         val biResult = scenario.gameTree?.let { root ->
             BackwardInductionSolver.solve(root, scenario.weights)
@@ -99,13 +115,23 @@ object GameModelService {
         val pruneResult = IteratedDominancePruner.prune(adjustedIr)
         val ir = pruneResult.ir
 
+        // Gap 2: folk theorem threshold analysis for repeated games
+        val folkResult = if (scenario.repeated || ir.gameClass == GameClass.REPEATED_INFINITE) {
+            RepeatedGameAnalyzer.analyze(ir, scenario.discountFactor)
+        } else null
+
         // Step 4: solver selection
-        // 2×2 games use the analytic indifference-equation solver (faster, exact).
-        // Larger 2-player games use support enumeration. n-player uses pure-strategy search.
+        // EVOLUTIONARY → ReplicatorDynamicsSolver (RK4 replicator dynamics, ESS candidates).
+        // BAYESIAN     → BayesianGameSolver (wraps NxM + signalling risk).
+        // 2×2          → MixedNash2x2Solver (analytic indifference equations, faster, exact).
+        // 2-player     → MixedNashNxMSolver (support enumeration, finds all mixed NE).
+        // n≥3          → MixedNashNPlayerSolver (pure-NE enumeration + IBR for mixed NE).
         val solver: GameSolver = when {
+            ir.gameClass == GameClass.EVOLUTIONARY                    -> ReplicatorDynamicsSolver
+            ir.gameClass == GameClass.BAYESIAN                        -> BayesianGameSolver
             ir.playerCount == 2 && ir.strategyCounts.all { it == 2 } -> MixedNash2x2Solver
-            ir.playerCount == 2 -> MixedNashNxMSolver
-            else -> PureNashSolver
+            ir.playerCount == 2                                       -> MixedNashNxMSolver
+            else                                                      -> MixedNashNPlayerSolver
         }
 
         val outcome = solver.solve(ir, limits)
@@ -142,7 +168,46 @@ object GameModelService {
         }
 
         val coalitionResult = if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null
-        val mechanismHint = MechanismAdvisor.detect(scenario)
-        return AnalysisContext(analysisResult, pruneResult, biResult, opponentModel, coalitionResult, mechanismHint)
+        val mechanismHint = MechanismAdvisor.detect(scenario, ir.archetype)
+
+        // Focal equilibrium selection — only meaningful when multiple equilibria were found.
+        val equilibria = when (val r = analysisResult) {
+            is GameAnalysisResult.Solved  -> r.outcome.equilibria
+            is GameAnalysisResult.Partial -> (r.partialOutcome as? SolverOutcome.Solved)?.equilibria ?: emptyList()
+            else                          -> emptyList()
+        }
+        val focalSelection = if (equilibria.size > 1) FocalEquilibriumSelector.select(equilibria, ir) else null
+
+        // Structured narrative surfaced to the coach.
+        val strategicNarrative = if (equilibria.isNotEmpty()) {
+            val focal = focalSelection?.equilibrium ?: equilibria.first()
+            val eqType = when {
+                focal.pureProfile != null -> "pure NE"
+                else                      -> "mixed NE"
+            }
+            val sensitivityNote = folkResult?.summary
+            StrategicNarrative(
+                equilibriumType     = eqType,
+                selectionCriterion  = focalSelection?.criterion
+                    ?: FocalEquilibriumSelector.SelectionCriterion.ARBITRARY,
+                isParetoOptimal     = focalSelection?.isParetoOptimal ?: true,
+                riskDominanceMargin = focalSelection?.riskDominanceMargin,
+                sensitivityNote     = sensitivityNote,
+                warningSignals      = validationWarnings
+            )
+        } else null
+
+        return AnalysisContext(
+            result             = analysisResult,
+            pruneResult        = pruneResult,
+            biResult           = biResult,
+            opponentModel      = opponentModel,
+            coalitionResult    = coalitionResult,
+            mechanismHint      = mechanismHint,
+            validationWarnings = validationWarnings,
+            folkResult         = folkResult,
+            focalSelection     = focalSelection,
+            strategicNarrative = strategicNarrative
+        )
     }
 }

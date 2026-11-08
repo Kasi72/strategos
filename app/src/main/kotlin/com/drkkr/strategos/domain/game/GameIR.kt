@@ -19,7 +19,11 @@ data class GameIR(
     val gameClass: GameClass,
     val coveragePct: Int,
     /** Named archetype detected by [GameArchetypeDetector]; [GameArchetype.GENERIC] when no pattern matched. */
-    val archetype: GameArchetype = GameArchetype.GENERIC
+    val archetype: GameArchetype = GameArchetype.GENERIC,
+    /** Groups of SequenceNode indices sharing the same information set (signaling games). */
+    val informationPartition: List<List<Int>>? = null,
+    /** Observable signal labels declared in the game tree. */
+    val signalSpace: List<String> = emptyList()
 ) {
     val playerCount: Int get() = playerIds.size
     val profileCount: Int get() = strategyCounts.fold(1, Int::times)
