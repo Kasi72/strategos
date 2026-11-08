@@ -107,6 +107,8 @@ data class EngineDirective(
     val revisited: com.drkkr.strategos.domain.intent.Revisited? = null,
     /** Companion mode: the user thought aloud with nothing new, so nothing was saved and the move stands. `hold_course` when set. */
     val holdCourse: Boolean = false,
+    /** Phase 3b: timing advice from [TimingAdvisor]. Null when insufficient discount data. */
+    val timingAdvice: TimingAdvisor.TimingAdvice? = null,
     /** Note when one player's perspective is much better known than the other's. Null when info is balanced or absent. */
     val infoAsymmetry: String? = null,
     /** Shapley value allocation for 3–8 player games. Key = player id, value = marginal contribution. */
@@ -156,6 +158,7 @@ data class EngineDirective(
         redTeamChallenge?.let { put("red_team_challenge", it) }
         put("confidence_level", confidenceLevel.name)
         put("stakes_tier", stakesTier.name)
+        timingAdvice?.takeIf { it != TimingAdvisor.TimingAdvice.NO_GUIDANCE }?.let { put("timing_advice", it.name) }
         infoAsymmetry?.let { put("info_asymmetry", it) }
         shapleyValues?.let { sv -> putJsonObject("shapley_values") { sv.forEach { (k, v) -> put(k, v) } } }
         mechanismHint?.let { put("mechanism_hint", it) }
