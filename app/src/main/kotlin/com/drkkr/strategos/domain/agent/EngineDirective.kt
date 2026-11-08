@@ -291,6 +291,8 @@ object EngineDirectiveBuilder {
         opponentRationality: String? = null,
         shapleyValues: Map<String, Double>? = null,
         mechanismHint: String? = null,
+        /** Phase 2: detected game archetype — drives [VoiQuestionSelector] when no payoff-gap clarification exists. */
+        archetype: com.drkkr.strategos.domain.game.GameArchetype? = null,
         /** A figure the user has said they will not go below (walk-away, or "I need X"); options that lead with less are never recommended. */
         statedFloor: Double? = null,
         /** Human Layer (I-H6): the pick changes when the Human Layer's constants are halved or doubled, so it is not a safe pick. */
@@ -310,7 +312,8 @@ object EngineDirectiveBuilder {
         val byId = ownerActions.associateBy { it.id }
         val pathways = report?.pathways.orEmpty().filter { it.actionId == null || ownerActions.isEmpty() || it.actionId in byId }
         val cov = PayoffCoverage.of(s)
-        val clarification = if (cov.missingProfiles.isNotEmpty()) EvsiClarifier.clarify(s) else null
+        val clarification = (if (cov.missingProfiles.isNotEmpty()) EvsiClarifier.clarify(s) else null)
+            ?: archetype?.let { VoiQuestionSelector.select(s, it) }
         val rankedPick = pathways.firstOrNull { it.label == RECOMMENDED && !it.excluded }
         // Negotiation Numbers: when the walk-away rules out the user's top option, the report's next pick can be the OTHER side's
         // move, which leaves the user no ranked pick. Then the best calm option within the walk-away is taken (as for a reactive pick).

@@ -497,7 +497,9 @@ class OneShotTurn(
         val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
             statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile, opponentModel = gameContext.opponentModel, deal = deal,
             // ID1.4: the checks read the AI's labels before the Human Layer moves them (the walk-away view, so excluded moves don't count).
-            labelIssues = com.drkkr.strategos.domain.game.LabelChecks.check(negotiated), fallbackLine = fallback.line)
+            labelIssues = com.drkkr.strategos.domain.game.LabelChecks.check(negotiated),
+            archetype = solvedIr?.archetype,
+            fallbackLine = fallback.line)
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }

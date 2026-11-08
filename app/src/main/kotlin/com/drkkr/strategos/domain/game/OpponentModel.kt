@@ -16,7 +16,13 @@ data class OpponentModel(
     /** Epsilon-rationality: noise probability in [0, 1]. */
     val epsilon: Double,
     /** Long-term discount factor in [0, 1]. */
-    val discountFactor: Double
+    val discountFactor: Double,
+    /** Phase 2: willingness to accept variance; high = risk-seeker, low = risk-averse. Null = unknown. */
+    val riskAversion: Double? = null,
+    /** Phase 2: propensity to cooperate rather than defect. Null = unknown. */
+    val cooperationIndex: Double? = null,
+    /** Phase 2: belief that the opponent shares private information honestly. Null = unknown. */
+    val informationBelief: Double? = null
 ) {
     /** One-line description for the Coach prompt. */
     fun coachNote(): String {
@@ -69,7 +75,10 @@ object OpponentModelBuilder {
         return OpponentModel(
             playerId = opponent.id,
             epsilon = epsilon,
-            discountFactor = discountFactor
+            discountFactor = discountFactor,
+            riskAversion = opponent.riskAversion,
+            cooperationIndex = opponent.cooperationIndex,
+            informationBelief = opponent.informationBelief
         )
     }
 }

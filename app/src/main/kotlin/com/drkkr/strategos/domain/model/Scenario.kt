@@ -99,6 +99,10 @@ data class Stakeholder(
     val probSoftensOnRepair: Double? = null,
     val probRespectsBoundary: Double? = null,
     val probEscalatesOnReactive: Double? = null,
+    // Phase 2: opponent-model extension priors. Null = not yet learned.
+    val riskAversion: Double? = null,
+    val cooperationIndex: Double? = null,
+    val informationBelief: Double? = null,
     val dependencies: List<String> = emptyList(),      // what they depend on others for
     val behavioralAssumptions: List<BehavioralAssumption> = emptyList(),
     val notes: String = "",
