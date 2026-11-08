@@ -28,6 +28,9 @@ import com.drkkr.strategos.domain.agent.SketchGaps
 import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
+import com.drkkr.strategos.domain.game.CompileResult
+import com.drkkr.strategos.domain.game.ExtractionValidator
+import com.drkkr.strategos.domain.game.GameModelCompiler
 import com.drkkr.strategos.llm.LlmClient
 import com.drkkr.strategos.llm.DebugLog
 import com.drkkr.strategos.llm.LlmErrors
@@ -164,6 +167,32 @@ class OneShotTurn(
                 nothingNew = true
             } else {
                 understood += PlainResult.understood(applied.accepted, scenario)
+            }
+        }
+
+        // Phase H.1: structural validation — if the compiled IR violates archetype invariants (e.g. PD payoff ordering),
+        // retry Call 1 exactly once with the violation strings injected as feedback. Max 1 retry to avoid loops.
+        if (!nothingNew && argon != null) {
+            gateway.activeScenario()?.let { saved ->
+                val compileResult = GameModelCompiler.compile(saved)
+                if (compileResult is CompileResult.Success) {
+                    val violations = when (val v = ExtractionValidator.validate(compileResult.ir)) {
+                        is ExtractionValidator.ValidationResult.Invalid -> v.violations
+                        is ExtractionValidator.ValidationResult.Valid   -> emptyList()
+                    }
+                    if (violations.isNotEmpty()) {
+                        val correctionHint = "Your extraction produced a structurally inconsistent model. " +
+                            "Correct these issues before continuing:\n" +
+                            violations.joinToString("\n") { "• $it" } +
+                            "\nReturn corrected JSON only."
+                        val retryInput = appendUserMessage(argon.assembler.build(cid, sid), correctionHint)
+                        val retried = askModel(retryInput, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+                        if (retried is Reply.Sketch) {
+                            val more = SketchConverter.toOps(retried.sketch, saved)
+                            if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let { understood += PlainResult.understood(it.accepted, saved) }
+                        }
+                    }
+                }
             }
         }
 
@@ -570,6 +599,11 @@ class OneShotTurn(
     private suspend fun fail(cid: String, turnId: String, text: String, retryable: Boolean): TurnResult {
         conversations.append(cid, turnId, MessageRole.ERROR, text)
         return TurnResult.Failed(text, retryable)
+    }
+
+    private fun appendUserMessage(base: JsonArray, text: String): JsonArray = buildJsonArray {
+        base.forEach { add(it) }
+        add(buildJsonObject { put("role", "user"); put("content", text) })
     }
 
     private fun input(digest: JsonObject, earlier: List<String>, text: String): JsonArray = buildJsonArray {

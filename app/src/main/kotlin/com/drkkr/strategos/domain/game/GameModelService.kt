@@ -1,6 +1,10 @@
 package com.drkkr.strategos.domain.game
 
 import com.drkkr.strategos.domain.model.Scenario
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /** Result of a full compile → solve → verify pipeline for one scenario. */
 
@@ -75,10 +79,10 @@ object GameModelService {
         val missingPayoffs: List<com.drkkr.strategos.domain.model.MissingPayoffQuery> = emptyList()
     )
 
-    fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
+    suspend fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
         analyzeWithContext(scenario, limits).result
 
-    fun analyzeWithContext(
+    suspend fun analyzeWithContext(
         scenario: Scenario,
         limits: SolverLimits = SolverLimits.ON_DEVICE
     ): AnalysisContext {
@@ -96,29 +100,24 @@ object GameModelService {
             )
         }
 
-        // Gap 1: validate payoff-ordering invariants against detected archetype (soft — never blocks solving)
+        // Validate payoff-ordering invariants (soft — never blocks solving)
         val validationWarnings = when (val v = ExtractionValidator.validate(rawIr)) {
-            is ExtractionValidator.ValidationResult.Valid   -> emptyList()
+            is ExtractionValidator.ValidationResult.Valid    -> emptyList()
             is ExtractionValidator.ValidationResult.Invalid -> v.violations
         }
 
-        // Step 2: backward induction for extensive-form games (when a game tree is present)
-        val biResult = scenario.gameTree?.let { root ->
-            BackwardInductionSolver.solve(root, scenario.weights)
+        // Phase 1 (parallel): backward induction on the game tree runs concurrently with
+        // the Bayesian adjustment + IEDS prune chain, since they share no state.
+        val (biResult, pruneResult, opponentModel) = coroutineScope {
+            val biDef = async(Dispatchers.Default) {
+                scenario.gameTree?.let { root -> BackwardInductionSolver.solve(root, scenario.weights) }
+            }
+            val opModel = OpponentModelBuilder.fromScenario(scenario)
+            val adjIr = BayesianPayoffAdjuster.adjust(rawIr, scenario)
+            val prune = IteratedDominancePruner.prune(adjIr)
+            Triple(biDef.await(), prune, opModel)
         }
-
-        // Step 2b: Bayesian payoff adjustment — re-apply latest learned priors to the compiled IR
-        val opponentModel = OpponentModelBuilder.fromScenario(scenario)
-        val adjustedIr = BayesianPayoffAdjuster.adjust(rawIr, scenario)
-
-        // Step 3: IEDS — prune strictly dominated strategies (on adjusted IR)
-        val pruneResult = IteratedDominancePruner.prune(adjustedIr)
         val ir = pruneResult.ir
-
-        // Gap 2: folk theorem threshold analysis for repeated games
-        val folkResult = if (scenario.repeated || ir.gameClass == GameClass.REPEATED_INFINITE) {
-            RepeatedGameAnalyzer.analyze(ir, scenario.discountFactor)
-        } else null
 
         // Step 4: solver selection
         // EVOLUTIONARY → ReplicatorDynamicsSolver (RK4 replicator dynamics, ESS candidates).
@@ -134,7 +133,30 @@ object GameModelService {
             else                                                      -> MixedNashNPlayerSolver
         }
 
-        val outcome = solver.solve(ir, limits)
+        // Phase 2 (parallel): folk-theorem analysis, solver, coalition analysis, and mechanism
+        // detection are all independent of each other once the pruned IR is known.
+        data class Phase2(
+            val folkResult: RepeatedGameAnalyzer.FolkThresholdResult?,
+            val outcome: SolverOutcome,
+            val coalitionResult: CoalitionEngine.ShapleyResult?,
+            val mechanismHint: MechanismAdvisor.MechanismHint?
+        )
+        val p2 = coroutineScope {
+            val folkDef = async(Dispatchers.Default) {
+                if (scenario.repeated || ir.gameClass == GameClass.REPEATED_INFINITE)
+                    withContext(Dispatchers.Default) { RepeatedGameAnalyzer.analyze(ir, scenario.discountFactor) }
+                else null
+            }
+            val solveDef = async(Dispatchers.Default) { solver.solve(ir, limits) }
+            val coalDef  = async(Dispatchers.Default) { if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null }
+            val mechDef  = async(Dispatchers.Default) { MechanismAdvisor.detect(scenario, ir.archetype) }
+            Phase2(folkDef.await(), solveDef.await(), coalDef.await(), mechDef.await())
+        }
+        val folkResult    = p2.folkResult
+        val outcome       = p2.outcome
+        val coalitionResult = p2.coalitionResult
+        val mechanismHint  = p2.mechanismHint
+
         val analysisResult = when (outcome) {
             is SolverOutcome.Solved -> {
                 machine.transition(DecisionState.CONDITIONAL, "solver found ${outcome.equilibria.size} equilibria")
@@ -166,9 +188,6 @@ object GameModelService {
                 integrity = AnalysisIntegrity.BLOCKED
             )
         }
-
-        val coalitionResult = if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null
-        val mechanismHint = MechanismAdvisor.detect(scenario, ir.archetype)
 
         // Focal equilibrium selection — only meaningful when multiple equilibria were found.
         val equilibria = when (val r = analysisResult) {
