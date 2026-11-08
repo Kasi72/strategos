@@ -1,0 +1,7 @@
+name: get_info_asymmetry
+description: >
+  Map information gaps between players and advise on exploitation or mitigation.
+  Use when the user asks who knows more, what the other side might be hiding, whether
+  to reveal information, or how to use an information advantage. Returns advantage
+  direction (USER_ADVANTAGE, OPPONENT_ADVANTAGE, BALANCED) and a list of specific gaps.
+input_schema: { type: object, properties: {}, required: [] }

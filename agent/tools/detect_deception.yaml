@@ -1,0 +1,15 @@
+name: detect_deception
+description: >
+  Detect whether the opponent's observed action diverges from their equilibrium strategy.
+  Use when the user reports what the other side just did and wants to know if it makes sense
+  or if something is off — bluffing, hidden information, or irrational behaviour.
+  Returns null (consistent with equilibrium), BLUFFING, PRIVATE_INFO, or IRRATIONAL,
+  with an explanation. Requires observed_action_index: the 0-based index of the action
+  the opponent was actually seen taking.
+input_schema:
+  type: object
+  properties:
+    observed_action_index:
+      type: integer
+      description: 0-based index of the action the opponent was observed taking.
+  required: [observed_action_index]

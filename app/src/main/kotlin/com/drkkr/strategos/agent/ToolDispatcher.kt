@@ -3,8 +3,11 @@ package com.drkkr.strategos.agent
 import android.util.Log
 import com.drkkr.strategos.agent.tools.AskUserHandler
 import com.drkkr.strategos.agent.tools.CoalitionAnalysisHandler
+import com.drkkr.strategos.agent.tools.DetectDeceptionHandler
 import com.drkkr.strategos.agent.tools.ExplainFrameworkHandler
+import com.drkkr.strategos.agent.tools.GetCommitmentOpportunitiesHandler
 import com.drkkr.strategos.agent.tools.GetDirectivePlainHandler
+import com.drkkr.strategos.agent.tools.GetInfoAsymmetryHandler
 import com.drkkr.strategos.agent.tools.GetOpponentProfileHandler
 import com.drkkr.strategos.agent.tools.GetOutcomeHistoryHandler
 import com.drkkr.strategos.agent.tools.GetScenarioHandler
@@ -116,7 +119,10 @@ class ToolDispatcher(private val handlers: Map<String, ToolHandler>) {
                 "run_specific_framework" to RunSpecificFrameworkHandler,
                 "get_directive_plain" to GetDirectivePlainHandler,
                 "get_outcome_history" to GetOutcomeHistoryHandler,
-                "get_opponent_profile" to GetOpponentProfileHandler
+                "get_opponent_profile" to GetOpponentProfileHandler,
+                "get_commitment_opportunities" to GetCommitmentOpportunitiesHandler,
+                "get_info_asymmetry" to GetInfoAsymmetryHandler,
+                "detect_deception" to DetectDeceptionHandler
             )
         )
     }

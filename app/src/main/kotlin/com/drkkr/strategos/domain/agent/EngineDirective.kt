@@ -439,6 +439,7 @@ object EngineDirectiveBuilder {
             else -> null
         }
 
+        val timingAdvice = TimingAdvisor.advise(s, opponentModel)
         return EngineDirective(
             ready = true, recommendedMove = recommended.label, recommendedWhy = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY), deal).take(MAX_TEXT)
                 .let { why -> if (fallbackLine == null) why else "$why $fallbackLine".trim() },
@@ -470,7 +471,8 @@ object EngineDirectiveBuilder {
             infoAsymmetry = asymmetry,
             shapleyValues = shapleyValues,
             mechanismHint = mechanismHint,
-            deal = deal?.let(com.drkkr.strategos.domain.negotiation.DealBlock::from)
+            deal = deal?.let(com.drkkr.strategos.domain.negotiation.DealBlock::from),
+            timingAdvice = timingAdvice
         )
     }
 

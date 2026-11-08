@@ -48,6 +48,23 @@
   },
   {
     "type": "function",
+    "name": "detect_deception",
+    "description": "Detect whether the opponent's observed action diverges from their equilibrium strategy. Use when the user reports what the other side just did and wants to know if it makes sense or if something is off — bluffing, hidden information, or irrational behaviour. Returns null (consistent with equilibrium), BLUFFING, PRIVATE_INFO, or IRRATIONAL, with an explanation. Requires observed_action_index: the 0-based index of the action the opponent was actually seen taking.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "observed_action_index": {
+          "type": "integer",
+          "description": "0-based index of the action the opponent was observed taking."
+        }
+      },
+      "required": [
+        "observed_action_index"
+      ]
+    }
+  },
+  {
+    "type": "function",
     "name": "explain_framework",
     "description": "Explain one framework from the last analysis.",
     "parameters": {
@@ -64,8 +81,28 @@
   },
   {
     "type": "function",
+    "name": "get_commitment_opportunities",
+    "description": "Identify actions where publicly committing now shifts the equilibrium in the user's favour. Use when the user asks how to make their position credible, whether to burn bridges, whether a public pledge would help, or how to remove their own option to retreat. Returns a list of commitment opportunities with type (BURN_BRIDGES, PUBLIC_PLEDGE, CONDITIONAL_COMMITMENT), rationale, and credibility risk.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "get_directive_plain",
     "description": "Run the full on-device game-theory engine on the current scenario and return the engine directive as a plain JSON object. Use when you need the engine's recommended move, blocked moves, stress verdict, and supporting frameworks without displaying the full analysis card. Returns badge (one-line summary) and the complete directive fields.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_info_asymmetry",
+    "description": "Map information gaps between players and advise on exploitation or mitigation. Use when the user asks who knows more, what the other side might be hiding, whether to reveal information, or how to use an information advantage. Returns advantage direction (USER_ADVANTAGE, OPPONENT_ADVANTAGE, BALANCED) and a list of specific gaps.\n",
     "parameters": {
       "type": "object",
       "properties": {},
