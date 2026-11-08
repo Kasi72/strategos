@@ -14,6 +14,7 @@ import com.drkkr.strategos.data.repo.ChangeSetStatus
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.OutcomeRepository
+import com.drkkr.strategos.data.repo.OpponentProfileRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SaveResult
 import com.drkkr.strategos.data.repo.SettingsRepository
@@ -71,6 +72,7 @@ class CounselDeps(
     val settings: SettingsRepository,
     val whatIfs: WhatIfDao,
     val outcomes: OutcomeRepository? = null,
+    val opponentProfiles: OpponentProfileRepository? = null,
     val hasKey: suspend () -> Boolean,
     val pipeline: AnalysisPipeline = AnalysisPipeline(),
     val dispatcher: ToolDispatcher = ToolDispatcher.default(),
@@ -121,6 +123,8 @@ class CounselController(
         onSupport = { showModelSupport() }, afterTurn = summarizer::maybeSummarize, coach = deps.coach,
         argon = argonAssembler?.let { OneShotTurn.ArgonTurn(it, deps.trajectory!!, deps.journal) },
         certificates = deps.certificates,
+        outcomes = deps.outcomes,
+        opponentProfiles = deps.opponentProfiles,
         otherProjects = { currentId ->
             gateway.allScenarios().filter { it.id != currentId }.map { s ->
                 com.drkkr.strategos.domain.intent.CrossProjectMatcher.features(s, runCatching { deps.outcomes?.recentForScenario(s.id) }.getOrNull().orEmpty())

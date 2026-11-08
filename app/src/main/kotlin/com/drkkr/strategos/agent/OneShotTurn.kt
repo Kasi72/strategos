@@ -31,6 +31,10 @@ import com.drkkr.strategos.domain.framework.ModuleRunStatus
 import com.drkkr.strategos.domain.agent.DomainContextInjector
 import com.drkkr.strategos.domain.agent.ArcState
 import com.drkkr.strategos.domain.agent.ArcStateMachine
+import com.drkkr.strategos.domain.agent.RetrospectiveEngine
+import com.drkkr.strategos.domain.game.OpponentModelBuilder
+import com.drkkr.strategos.data.repo.OutcomeRepository
+import com.drkkr.strategos.data.repo.OpponentProfileRepository
 import com.drkkr.strategos.domain.agent.PreRouter
 import com.drkkr.strategos.domain.agent.SafetyKeywordScreen
 import com.drkkr.strategos.domain.agent.RouterDecision
@@ -83,6 +87,10 @@ class OneShotTurn(
     private val argon: ArgonTurn? = null,
     /** R4: writes a GameModelEntity + DecisionCertificateEntity when the solver reaches VERIFIED integrity. */
     private val certificates: CertificateRepository? = null,
+    /** Phase 5a: flywheel outcome records for retrospective calibration. */
+    private val outcomes: OutcomeRepository? = null,
+    /** Phase 5b: cross-scenario opponent profiles, keyed by name. */
+    private val opponentProfiles: OpponentProfileRepository? = null,
     /** ID4.2: the user's other projects as the matcher sees them (loaded by the controller from the repositories). */
     private val otherProjects: suspend (currentScenarioId: String) -> List<com.drkkr.strategos.domain.intent.ProjectFeatures> = { emptyList() }
 ) {
@@ -221,6 +229,19 @@ class OneShotTurn(
         if (argon != null && !hypothetical && !holdCourse) {
             val next = ArcStateMachine.advance(currentArcState, text)
             if (next != currentArcState) conversations.saveArcState(cid, next.name)
+            if (next == ArcState.OUTCOME_KNOWN) {
+                val opponentName = scenario.players().drop(1).firstOrNull()?.name
+                val baseModel = OpponentModelBuilder.fromScenario(scenario)
+                    ?: opponentName?.let { n -> opponentProfiles?.get(n) }
+                if (baseModel != null && opponentName != null) {
+                    val recentOutcomes = outcomes?.recentForScenario(sid) ?: emptyList()
+                    val calibration = RetrospectiveEngine.run(baseModel, recentOutcomes)
+                    if (calibration != null) {
+                        opponentProfiles?.upsert(opponentName, calibration.updatedModel, calibration.sampleSize)
+                        conversations.append(cid, turnId, MessageRole.EVENT, calibration.summary)
+                    }
+                }
+            }
         }
 
         val learned = if (argon != null) tacticLearningFor(cid, scenario, parsed.counterpartObservedReaction) else null

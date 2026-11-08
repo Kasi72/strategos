@@ -80,6 +80,16 @@ object DbFactory {
         override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_5_6_SQL.forEach { db.execSQL(it) } }
     }
 
+    /** Statements for 6 -> 7. Adds opponent_profile for Phase 5 Calibration Flywheel. */
+    val MIGRATION_6_7_SQL: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `opponent_profile` (`id` TEXT NOT NULL, `opponent_name` TEXT NOT NULL, `model_json` TEXT NOT NULL, `sample_size` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "CREATE INDEX IF NOT EXISTS `index_opponent_profile_opponent_name` ON `opponent_profile` (`opponent_name`)"
+    )
+
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_6_7_SQL.forEach { db.execSQL(it) } }
+    }
+
     /**
      * The live database: the encrypted `strategos.db`, in every build type (ID0.5). Debug builds used to switch to a plain copy
      * here, and when that copy failed they started empty. Debug inspection is now a one-way export ([DebugDbExport]).
@@ -93,7 +103,7 @@ object DbFactory {
         System.loadLibrary("sqlcipher")
         return Room.databaseBuilder(context, StrategosDatabase::class.java, name)
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .build()
     }
 

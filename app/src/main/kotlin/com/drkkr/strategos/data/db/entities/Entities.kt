@@ -246,6 +246,16 @@ data class OutcomeRecordEntity(
     @ColumnInfo(name = "recorded_at") val recordedAt: Long
 )
 
+/** Phase 5b: cross-scenario opponent rationality profile keyed by opponent name. */
+@Entity(tableName = "opponent_profile", indices = [Index("opponent_name")])
+data class OpponentProfileEntity(
+    @PrimaryKey val id: String,
+    @ColumnInfo(name = "opponent_name") val opponentName: String,
+    @ColumnInfo(name = "model_json") val modelJson: String,
+    @ColumnInfo(name = "sample_size") val sampleSize: Int,
+    @ColumnInfo(name = "updated_at") val updatedAt: Long
+)
+
 /** R1c: compiled game model (GameIR) persisted for a scenario version. decision_state = DecisionState name. */
 @Entity(
     tableName = "game_model",

@@ -12,9 +12,9 @@ import com.drkkr.strategos.data.db.entities.*
         MemoryItemEntity::class, WhatIfEntity::class, LlmCallEntity::class, SettingEntity::class,
         JournalEntryEntity::class, JournalInsightPostNoteEntity::class, TrajectoryPointEntity::class, QuickCheckFeedbackEntity::class,
         GameModelEntity::class, EvidenceRecordEntity::class, DecisionCertificateEntity::class,
-        OutcomeRecordEntity::class
+        OutcomeRecordEntity::class, OpponentProfileEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class StrategosDatabase : RoomDatabase() {
@@ -35,4 +35,5 @@ abstract class StrategosDatabase : RoomDatabase() {
     abstract fun evidenceDao(): EvidenceDao
     abstract fun decisionCertificateDao(): DecisionCertificateDao
     abstract fun outcomeRecordDao(): OutcomeRecordDao
+    abstract fun opponentProfileDao(): OpponentProfileDao
 }
