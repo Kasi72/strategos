@@ -35,21 +35,26 @@ object PatternCatalog {
             "Trust trap",
             "You both gain if this works, but it only works if each of you trusts the other to carry their share. " +
                 "Being wrong is costly, so the careful choice starts to look wiser than the generous one. " +
-                "That pull toward playing safe is the trap — for both of you.",
+                "That pull toward playing safe is the trap — for both of you. " +
+                "The dominant strategy here is to defect, yet mutual defection leaves you both worse off than if you had both cooperated — " +
+                "that tension is the heart of the dilemma. Breaking it requires a commitment device, repeated interaction, or changed incentives.",
             WIKI + "Prisoner%27s_dilemma"
         ),
         "stag-hunt" to Entry(
             "Mutual trust needed",
             "You can both reach the better outcome, but only by going for it together. " +
                 "If either of you plays it safe, the safe move wins and the bigger prize is lost. " +
-                "The whole thing turns on whether each of you believes the other will commit.",
+                "The whole thing turns on whether each of you believes the other will commit. " +
+                "Unlike the trust trap, there is no dominant strategy pulling you apart — only uncertainty about the other's resolve.",
             WIKI + "Stag_hunt"
         ),
         "chicken-game" to Entry(
             "Standoff over who gives way",
             "Neither of you wants to be the one who backs down. " +
                 "If you both hold firm you both get hurt; if one yields, the other comes out ahead. " +
-                "The risk is that each of you is betting the other will blink first.",
+                "The risk is that each of you is betting the other will blink first. " +
+                "A credible commitment to not yielding — made publicly and irreversibly — shifts the pressure entirely onto the other side. " +
+                "Without that, the best available move is to randomise so the other side cannot predict and exploit you.",
             WIKI + "Chicken_(game)"
         ),
         "relational-repair" to Entry(
@@ -72,6 +77,55 @@ object PatternCatalog {
                 "An offer that feels unfair often gets refused even when refusing costs the refuser. " +
                 "So the split that looks fair usually does better than the greedy one.",
             WIKI + "Ultimatum_game"
+        ),
+        "bayesian-game" to Entry(
+            "Private information game",
+            "One or more parties have private information — a type, a cost, a true preference — that the others can only guess. " +
+                "Every move is a signal as well as an action: it reveals something about what you know, " +
+                "and the other side will update their beliefs accordingly. " +
+                "Strategy here means deciding not just what to do, but what to reveal, what to conceal, " +
+                "and how to interpret what you observe. " +
+                "Equilibrium is Bayesian: each party plays optimally given their beliefs about the others' private information.",
+            WIKI + "Bayesian_game"
+        ),
+        "repeated-infinite" to Entry(
+            "Long shadow of the future",
+            "This interaction will repeat indefinitely, and both parties know it. " +
+                "That changes everything: defecting today risks triggering retaliation across all future rounds, " +
+                "making short-term gain potentially very costly. " +
+                "The folk theorem says that if each party cares enough about the future — " +
+                "the discount factor is above a critical threshold — then cooperation can be sustained as a stable equilibrium. " +
+                "The shadow of the future is the enforcement mechanism: " +
+                "it replaces the need for external contracts or courts.",
+            WIKI + "Folk_theorem_(game_theory)"
+        ),
+        "negotiation" to Entry(
+            "Deal zone",
+            "There is a range of outcomes where both of you do better than walking away — the question is where in that range you end up. " +
+                "The first number on the table anchors the whole conversation, so opening well matters more than it looks. " +
+                "Your real power comes from your best outside option: know it cold, because it sets your floor.",
+            WIKI + "Negotiation"
+        ),
+        "principal-agent" to Entry(
+            "Delegation risk",
+            "You are asking someone to act on your behalf, but their incentives are not perfectly aligned with yours. " +
+                "They know more about what they are actually doing than you do, which gives them room to serve themselves. " +
+                "The fix is to design the arrangement so doing the right thing for you is also the easy, rewarding choice for them.",
+            WIKI + "Principal%E2%80%93agent_problem"
+        ),
+        "coordination" to Entry(
+            "Find the obvious meeting point",
+            "There is no real conflict here — both of you want to end up doing the same thing. " +
+                "The only problem is picking which option becomes the shared one. " +
+                "Whoever names a concrete option first usually sets the standard, because switching away from any agreed point costs both sides.",
+            WIKI + "Coordination_game"
+        ),
+        "commitment-problem" to Entry(
+            "Making your word stick",
+            "One party's promise is not believed, because nothing stops them from changing course once circumstances shift. " +
+                "The fix is a pre-commitment: a step taken now that makes backing out costly or impossible. " +
+                "Paradoxically, limiting your own future freedom here is what makes the other side trust you enough to move.",
+            WIKI + "Commitment_device"
         ),
         GENERIC to Entry(
             "A stable pattern",

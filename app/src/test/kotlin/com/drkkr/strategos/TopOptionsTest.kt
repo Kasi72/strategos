@@ -65,7 +65,7 @@ class TopOptionsTest {
             Triple("Ask what budget they have", "repair", 6.0 to 5.5)),
             nc = NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"))
         val view = NegotiationView.apply(raw, DealFrame.build(raw.negotiationContext, null, ""))
-        val dominated = GameModelService.analyzeWithContext(view, contextText = "").pruneResult?.eliminated?.get("you").orEmpty().toSet()
+        val dominated = kotlinx.coroutines.runBlocking { GameModelService.analyzeWithContext(view, contextText = "") }.pruneResult?.eliminated?.get("you").orEmpty().toSet()
         assertTrue("the pruner (no proxy cell here) eliminates the discount: $dominated", "m3" in dominated)
         val moves = TopOptions.of(view, "Hold at the asking price", dominated).map { it.move }
         assertFalse(moves.toString(), moves.any { it in setOf("Beg them to reconsider", "Accept 90k today", "Offer a small discount") })
@@ -99,7 +99,7 @@ class TopOptionsTest {
             nc = NegotiationContext(reservationPoint = "100k", aspirationPoint = "130k"))
         val view = NegotiationView.apply(raw, DealFrame.build(raw.negotiationContext, null, ""))
         // before: the pruner drops the discount because of the excluded move
-        val before = GameModelService.analyzeWithContext(view, contextText = "").pruneResult?.eliminated?.get("you").orEmpty().toSet()
+        val before = kotlinx.coroutines.runBlocking { GameModelService.analyzeWithContext(view, contextText = "") }.pruneResult?.eliminated?.get("you").orEmpty().toSet()
         assertTrue(before.toString(), "m2" in before)
         // after: the walk-away move is set aside first, and the discount survives
         assertEquals(setOf("m1"), com.drkkr.strategos.domain.intent.ExclusionFirst.excluded(view))

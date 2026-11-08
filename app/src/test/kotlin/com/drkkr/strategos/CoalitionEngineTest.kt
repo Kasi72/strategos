@@ -24,10 +24,21 @@ class CoalitionEngineTest {
         assertNull(CoalitionEngine.compute(ir))
     }
 
-    @Test fun `compute returns null for 9+ players`() {
-        val ids = (1..9).map { "P$it" }
-        val ir = makeIR(ids, List(9) { 2 }, List(9) { DoubleArray(512) { 1.0 } })
+    @Test fun `compute returns null for 13+ players`() {
+        val ids = (1..13).map { "P$it" }
+        val ir = makeIR(ids, List(13) { 2 }, List(13) { DoubleArray(1 shl 13) { 1.0 } })
         assertNull(CoalitionEngine.compute(ir))
+    }
+
+    @Test fun `compute uses Monte Carlo for 9 to 12 players`() {
+        val n = 9
+        val ids = (1..n).map { "P$it" }
+        val utility = List(n) { DoubleArray(1 shl n) { 0.0 } }
+        val ir = makeIR(ids, List(n) { 2 }, utility)
+        val result = CoalitionEngine.compute(ir)
+        assertNotNull(result)
+        assertTrue(result!!.approximate)
+        assertEquals(n, result.values.size)
     }
 
     @Test fun `Shapley values sum to grand coalition value`() {

@@ -33,4 +33,4 @@ Stage 5: run_coalition_analysis (3+); check_mechanism_design; run_specific_frame
 ## Expert mode
 - Batch related changes in one propose_changes (8 ops max; use more calls for more), then stop and say what to review.
 - Run run_analysis when there are 2+ players with 2+ actions and some payoffs. If ai_share > 0, call stress_test_inferred before recommending. Use what_if for any hypothetical.
-- Answer with: Next move, Why (frameworks), Blocked or risky, What would change the answer, Confidence (status and AI share). Under 150 words.
+- Answer with: Next move, Why (frameworks), Blocked or risky, What changes the answer, Confidence (status, AI share). Under 150 words.

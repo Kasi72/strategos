@@ -71,6 +71,15 @@ object DbFactory {
         override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_4_5_SQL.forEach { db.execSQL(it) } }
     }
 
+    /** Statements for 5 -> 6. Adds arc_state to conversation for arc-state orchestration (Task 6). */
+    val MIGRATION_5_6_SQL: List<String> = listOf(
+        "ALTER TABLE `conversation` ADD COLUMN `arc_state` TEXT NOT NULL DEFAULT 'EXPLORING'"
+    )
+
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) { MIGRATION_5_6_SQL.forEach { db.execSQL(it) } }
+    }
+
     /**
      * The live database: the encrypted `strategos.db`, in every build type (ID0.5). Debug builds used to switch to a plain copy
      * here, and when that copy failed they started empty. Debug inspection is now a one-way export ([DebugDbExport]).
@@ -84,7 +93,7 @@ object DbFactory {
         System.loadLibrary("sqlcipher")
         return Room.databaseBuilder(context, StrategosDatabase::class.java, name)
             .openHelperFactory(SupportOpenHelperFactory(passphrase))
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
     }
 

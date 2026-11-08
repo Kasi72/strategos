@@ -172,7 +172,9 @@ data class SequenceNode(
     val actionLabel: String,
     val probability: Double = 1.0,
     val terminalPayoffs: Map<String, MultiPayoff> = emptyMap(),
-    val children: List<SequenceNode> = emptyList()
+    val children: List<SequenceNode> = emptyList(),
+    val informationSetId: String? = null,  // groups nodes the mover cannot distinguish
+    val signal: String? = null             // observable signal received before this node
 )
 
 @Serializable
@@ -211,6 +213,7 @@ data class Scenario(
     val constraintAssessments: List<ConstraintAssessment> = emptyList(),
     val timeHorizon: Int = 1,
     val repeated: Boolean = false,
+    val discountFactor: Double? = null,
     val informationAsymmetry: Boolean = false,
     val zeroSum: Boolean = false,
     val decisionRule: DecisionRule = DecisionRule.SIMPLE_MAJORITY,

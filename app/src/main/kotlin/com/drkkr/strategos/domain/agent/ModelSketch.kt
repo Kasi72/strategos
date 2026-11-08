@@ -89,7 +89,11 @@ data class ModelSketch(
     @Serializable(with = WordSerializer::class) val intent: String? = null,
     @SerialName("intent_detail") @Serializable(with = IntentDetailSerializer::class) val intentDetail: IntentDetail? = null,
     /** The hypothetical, kept raw: read only through [whatIf], never by the save path (I-D3). */
-    @SerialName("what_if") val rawWhatIf: JsonElement? = null
+    @SerialName("what_if") val rawWhatIf: JsonElement? = null,
+    /** Day-to-day domain: shapes coach vocabulary, not engine computation. RELATIONSHIP | WORKPLACE | NEGOTIATION | DECISION */
+    @SerialName("domain") val domain: String? = null,
+    /** Task 5: "HIGH" | "MEDIUM" | "LOW" — when LOW and enoughToRecommend != false, triggers a focused second-pass extraction. */
+    @SerialName("confidence_level") val confidenceLevel: String? = null
 ) {
     /** ID2.1: the intent of the turn; unknown or missing is standard. */
     val intentKind: com.drkkr.strategos.domain.intent.Intent get() = com.drkkr.strategos.domain.intent.Intent.of(intent)

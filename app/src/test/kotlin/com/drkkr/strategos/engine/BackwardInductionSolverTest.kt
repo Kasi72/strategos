@@ -1,4 +1,4 @@
-package com.drkkr.strategos
+package com.drkkr.strategos.engine
 
 import com.drkkr.strategos.domain.game.BackwardInductionSolver
 import com.drkkr.strategos.domain.model.MultiPayoff

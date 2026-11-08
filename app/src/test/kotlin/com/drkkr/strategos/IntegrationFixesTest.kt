@@ -62,14 +62,14 @@ class IntegrationFixesTest {
     }
 
     @Test fun `a player with no actions is set aside instead of blocking the game`() {
-        val ctx = GameModelService.analyzeWithContext(actionlessThirdParty())
+        val ctx = kotlinx.coroutines.runBlocking { GameModelService.analyzeWithContext(actionlessThirdParty()) }
         assertFalse("must not fail on PlayerHasNoActions: ${ctx.result}", ctx.result is GameAnalysisResult.Failed)
     }
 
     @Test fun `mechanism hint still computes when the matrix cannot compile`() {
         val s = Scenario(title = "Auction", description = "We run a sealed-bid auction for the shares; highest bidder wins.",
             stakeholders = listOf(Stakeholder(id = "a", name = "You"), Stakeholder(id = "b", name = "Other")))
-        val ctx = GameModelService.analyzeWithContext(s)
+        val ctx = kotlinx.coroutines.runBlocking { GameModelService.analyzeWithContext(s) }
         assertTrue(ctx.result is GameAnalysisResult.Failed)
         assertNotNull("the text-based mechanism hint must survive a failed compile", ctx.mechanismHint)
     }

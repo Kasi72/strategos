@@ -50,7 +50,11 @@ class HumanPromptTest {
         // The stage guard (7 Nov, asked for by the user) added rules 24 STEP UP and 25 RULED OUT and listed steps_up/not_yet in rule 22
         // (+547 chars), so the limit is 4,278. Companion mode (7 Nov, asked for by the user) added "thinking_aloud" to rule 16 and
         // rule 2's "word each from what the user said" (+446 chars), so the limit is 4,724.
-        assertTrue("prompt grew by $growth chars", growth in 1..4724)
+        // Merging main's day-to-day pack into engine-integration (8 Nov, asked for by the user): rule 2's negotiation and workplace
+        // examples (+456), rule 6's NEGOTIATION / PRINCIPAL_AGENT / COORDINATION / COMMITMENT_PROBLEM archetypes (+551), rule 26
+        // DOMAIN (+449) and the schema's "domain" key (+27), +1,483 chars, so the limit is 6,207. Main's ORDINAL PAYOFFS rule was
+        // not taken (rule 4 asks for labels).
+        assertTrue("prompt grew by $growth chars", growth in 1..6207)
     }
 
     @Test

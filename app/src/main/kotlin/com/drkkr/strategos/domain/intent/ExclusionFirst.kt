@@ -35,9 +35,9 @@ object ExclusionFirst {
     }
 
     /** The user's moves that are dominated among the moves left after the exclusion (action ids). */
-    fun dominated(view: Scenario, contextText: String = ""): Set<String> {
+    fun dominated(view: Scenario): Set<String> {
         val ownerId = IntakeChecklist.self(view)?.id ?: return emptySet()
-        return runCatching { GameModelService.analyzeWithContext(filtered(view), contextText = contextText).pruneResult?.eliminated?.get(ownerId).orEmpty().toSet() }
+        return runCatching { GameModelService.pruneOnly(filtered(view))?.eliminated?.get(ownerId).orEmpty().toSet() }
             .getOrDefault(emptySet())
     }
 }

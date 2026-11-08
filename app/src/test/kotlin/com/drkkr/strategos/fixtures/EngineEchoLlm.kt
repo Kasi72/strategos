@@ -13,7 +13,14 @@ class EngineEchoLlm(private val extraction: List<String>, private val wrongMove:
     var lastDirective: JsonObject? = null
     private var turn = 0
 
+    /** The pre-routing calls, answered "proceed" without using the script and kept out of [requests] (see [FakeLlmClient.preRoutes]). */
+    val preRoutes = mutableListOf<LlmRequest>()
+
+    /** What the pre-router answers; tests of the pre-routing shortcuts set it. */
+    var preRouteReply: String = FakeLlmClient.PROCEED
+
     override suspend fun create(req: LlmRequest): LlmResult {
+        if (req.purpose == "PRE_ROUTE") { preRoutes += req; return FakeLlmClient.textReply(preRouteReply) }
         requests += req
         if (req.purpose != "COACH") return FakeLlmClient.textReply(extraction[minOf(turn++, extraction.lastIndex)])
         val user = req.input.last().jsonObject.getValue("content").jsonPrimitive.content

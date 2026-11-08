@@ -28,6 +28,15 @@ import com.drkkr.strategos.domain.agent.SketchGaps
 import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.framework.ModuleRunStatus
+import com.drkkr.strategos.domain.agent.DomainContextInjector
+import com.drkkr.strategos.domain.agent.ArcState
+import com.drkkr.strategos.domain.agent.ArcStateMachine
+import com.drkkr.strategos.domain.agent.PreRouter
+import com.drkkr.strategos.domain.agent.SafetyKeywordScreen
+import com.drkkr.strategos.domain.agent.RouterDecision
+import com.drkkr.strategos.domain.game.CompileResult
+import com.drkkr.strategos.domain.game.ExtractionValidator
+import com.drkkr.strategos.domain.game.GameModelCompiler
 import com.drkkr.strategos.llm.LlmClient
 import com.drkkr.strategos.llm.DebugLog
 import com.drkkr.strategos.llm.LlmErrors
@@ -109,7 +118,7 @@ class OneShotTurn(
             val pr = gateway.analyzeAndPublish()
             val after = gateway.activeScenario() ?: loaded
             val body = if (pr?.report != null)
-                engineGroundedReply(cid, turnId, sid, after, pr, emptyList(), text, onActivity, previousReportJson, quickMode = true)
+                engineGroundedReply(cid, turnId, sid, after, pr, emptyList(), text, onActivity, previousReportJson, domain = null, quickMode = true)
             else
                 pr?.let(PlainResult::needsMore) ?: COULD_NOT_READ
             conversations.append(cid, turnId, MessageRole.ASSISTANT, body)
@@ -117,9 +126,56 @@ class OneShotTurn(
             return TurnResult.Done
         }
 
+        // Pre-routing (Argon path only): ~80-token call that classifies the message BEFORE the full
+        // 3,000-token extraction. Followup questions and too-thin inputs are caught here and routed
+        // directly, skipping Call 1 and saving ~90 % of that call's cost on simple turns.
+        // Safety first (I-H5): a message the on-device screen flags never takes a shortcut; it goes through full extraction
+        // so the support route below sees it. "thin" is only for an empty thread: mid-thread, a short "ok" or a doubt is
+        // companion mode's to handle (it keeps the move), not a "what's the situation?" restart.
+        if (argon != null && !SafetyKeywordScreen.check(text)) {
+            val priorReply = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
+            val decision = preRoute(cid, turnId, text)
+            if (decision != null) {
+                when {
+                    decision.route == "followup" && !priorReply.isNullOrBlank() -> {
+                        onActivity("Answering your question…")
+                        // CP-N: the same deal frame as the extraction path's follow-up, so the walk-away stays masked here too.
+                        val deal = com.drkkr.strategos.domain.negotiation.DealFrame.build(loaded.negotiationContext, loaded.humanContext, text, recent = userTexts.takeLast(6).joinToString("\n"))
+                        answerFollowUp(cid, turnId, text, priorReply, previousReportJson, deal)?.let { answer ->
+                            conversations.append(cid, turnId, MessageRole.ASSISTANT, answer)
+                            afterTurn(cid)
+                            return TurnResult.Done
+                        }
+                        // answerFollowUp returned null: fall through to full extraction.
+                    }
+                    // Only on an empty thread (no reply yet, nothing saved), so it can ask at most once before the first answer.
+                    decision.route == "thin" && decision.clarify.isNotEmpty() && priorReply.isNullOrBlank() && loaded.actions.isEmpty() -> {
+                        conversations.append(cid, turnId, MessageRole.ASSISTANT, buildClarify(decision.clarify))
+                        afterTurn(cid)
+                        return TurnResult.Done
+                    }
+                }
+            }
+        }
+
+        // Task 6: read current arc state; inject hints for ACTED/OUTCOME_KNOWN into Call 1 so extraction focuses on deltas.
+        val currentArcState = if (argon != null) {
+            conversations.get(cid)?.arcState
+                ?.let { runCatching { ArcState.valueOf(it) }.getOrDefault(ArcState.EXPLORING) }
+                ?: ArcState.EXPLORING
+        } else ArcState.EXPLORING
+
         onActivity("Reading your situation…")
         // Argon call 1 is extraction only: small, fast and nearly deterministic. The advice comes from call 2, after the engine.
-        val first = if (argon != null) askModel(argon.assembler.build(cid, sid), cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+        // Task 6: for ACTED/OUTCOME_KNOWN states, inject a header telling Call 1 to focus on deltas, not a full re-extraction.
+        val call1Input = if (argon != null) argon.assembler.build(cid, sid).let { base ->
+            when (currentArcState) {
+                ArcState.ACTED         -> appendUserMessage(base, ARC_STATE_ACTED_HEADER)
+                ArcState.OUTCOME_KNOWN -> appendUserMessage(base, ARC_STATE_OUTCOME_HEADER)
+                else                   -> base
+            }
+        } else null
+        val first = if (argon != null) askModel(call1Input!!, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
                     else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
@@ -159,6 +215,14 @@ class OneShotTurn(
         // Phase F.6: the learned priors update here, before the ops are built, so this turn's SketchConverter.toOps and
         // the engine that reads the saved scenario afterward both see the same just-updated numbers in one commit.
         val scenario = if (argon != null && !holdCourse) BayesianUpdater.applyToScenario(loaded, parsed.userLastMovePosture, parsed.counterpartObservedReaction) else loaded
+
+        // Task 6: advance arc state from the user's message and persist if changed. A hypothetical ("what if I told him…")
+        // or thinking aloud (companion mode saves nothing) is not something the user did, so neither moves the arc.
+        if (argon != null && !hypothetical && !holdCourse) {
+            val next = ArcStateMachine.advance(currentArcState, text)
+            if (next != currentArcState) conversations.saveArcState(cid, next.name)
+        }
+
         val learned = if (argon != null) tacticLearningFor(cid, scenario, parsed.counterpartObservedReaction) else null
         val converted = SketchConverter.toOps(parsed, scenario, learned = learned)
         val hypotheticalOps = if (!hypothetical) emptyList() else
@@ -209,6 +273,35 @@ class OneShotTurn(
             }
         }
 
+        // Phase H.1: structural validation — if the compiled IR violates archetype invariants (e.g. PD payoff ordering),
+        // retry Call 1 exactly once with the violation strings injected as feedback. Max 1 retry to avoid loops.
+        if (!nothingNew && argon != null) {
+            gateway.activeScenario()?.let { saved ->
+                val compileResult = GameModelCompiler.compile(saved)
+                if (compileResult is CompileResult.Success) {
+                    val violations = when (val v = ExtractionValidator.validate(compileResult.ir)) {
+                        is ExtractionValidator.ValidationResult.Invalid -> v.violations
+                        is ExtractionValidator.ValidationResult.Valid   -> emptyList()
+                    }
+                    if (violations.isNotEmpty()) {
+                        val correctionHint = "Your extraction produced a structurally inconsistent model. " +
+                            "Correct these issues before continuing:\n" +
+                            violations.joinToString("\n") { "• $it" } +
+                            "\nReturn corrected JSON only."
+                        val retryInput = appendUserMessage(argon.assembler.build(cid, sid), correctionHint)
+                        val retried = askModel(retryInput, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+                        if (retried is Reply.Sketch) {
+                            val more = SketchConverter.toOps(retried.sketch, saved)
+                            if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let {
+                                understood += PlainResult.understood(it.accepted, saved)
+                                turnOps += it.accepted
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Negotiations: before answering, ask up to two plain-words questions (what you'd do if it falls through, the lowest you'd
         // accept, the best you'd hope for) when those facts are still unknown. Asked once per thread and optional: the next
         // message goes through whatever the user answers, or skips. The saved negotiation context is filled from the replies.
@@ -242,6 +335,24 @@ class OneShotTurn(
             }
         }
 
+        // Task 5: confidence-gated second pass. When Call 1 is thin (LOW confidence) but the user wants an answer,
+        // run a focused mini-extraction on what the other side actually wants — avoids asking more questions.
+        // Never on a turn that saves nothing (thinking aloud, a hypothetical, a restatement): the second pass would save ops.
+        if (argon != null && !nothingNew && parsed.confidenceLevel == "LOW" && parsed.enoughToRecommend != false) {
+            gateway.activeScenario()?.let { saved ->
+                onActivity("Checking the other side's perspective…")
+                val secondPassInput = appendUserMessage(argon.assembler.build(cid, sid), SECOND_PASS_HEADER)
+                val secondPass = askModel(secondPassInput, cid, turnId, jsonMode = true, maxTokens = SECOND_PASS_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
+                if (secondPass is Reply.Sketch) {
+                    val more = SketchConverter.toOps(secondPass.sketch, saved)
+                    if (more.ops.isNotEmpty()) apply(cid, sid, saved, more.ops)?.let {
+                        understood += PlainResult.understood(it.accepted, saved)
+                        turnOps += it.accepted
+                    }
+                }
+            }
+        }
+
         onActivity("Running the analysis on your device…")
         val started = System.currentTimeMillis()
         val pr = gateway.analyzeAndPublish()
@@ -258,7 +369,7 @@ class OneShotTurn(
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
             val engineBody = if (argon != null) {
-                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, onGuide = { guide = it }, support = converted.support,
+                engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, domain = parsed.domain, onGuide = { guide = it }, support = converted.support,
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
@@ -290,6 +401,7 @@ class OneShotTurn(
     private suspend fun engineGroundedReply(
         cid: String, turnId: String, sid: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult,
         understood: List<String>, text: String, onActivity: (String) -> Unit, previousReportJson: String? = null,
+        domain: String? = null,
         onGuide: (CoachGuideSketch) -> Unit = {},
         quickMode: Boolean = false,
         support: Boolean = false,
@@ -340,7 +452,7 @@ class OneShotTurn(
         // only by an excluded one survives. The solver's own run above is unchanged.
         val exclusionFirst = com.drkkr.strategos.domain.intent.ExclusionFirst.filtered(view)
         val pruneAfterExclusion = if (exclusionFirst === view) gameContext.pruneResult else withContext(Dispatchers.Default) {
-            runCatching { com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(exclusionFirst, contextText = recentUserText).pruneResult }.getOrNull()
+            runCatching { com.drkkr.strategos.domain.game.GameModelService.pruneOnly(exclusionFirst) }.getOrNull()
         }
         // The user's moves the pruner eliminated (never offered as an option by an intent block).
         val ownerId = com.drkkr.strategos.domain.agent.IntakeChecklist.self(view)?.id
@@ -512,6 +624,8 @@ class OneShotTurn(
         // Quick mode: skip interpret (Call 2) and return the engine badge only.
         if (quickMode) return directive.badge()
         onActivity("Writing my reply…")
+        // Domain context: pattern-matched anchors injected into Call 2 so the coach can cite them.
+        val domainContext = DomainContextInjector.build(domain, text)
         // Scale interpret tokens by stakes tier: high-stakes decisions deserve a fuller answer.
         val interpretTokens = when (directive.stakesTier) {
             com.drkkr.strategos.domain.agent.StakesTier.HIGH -> 800
@@ -520,7 +634,7 @@ class OneShotTurn(
         }
         val reply = withTimeoutOrNull(INTERPRET_TIMEOUT_MS) {
             interpret(cid, turnId, directive, text, maxTokens = interpretTokens, deal = deal,
-                band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal))
+                band = com.drkkr.strategos.domain.negotiation.DealCheck.band(view.negotiationContext, deal), domainContext = domainContext)
         }
         return if (reply != null) {
             // ID4.2: shown once per conversation per matched project, counted when a reply that could carry it is shown.
@@ -709,15 +823,17 @@ class OneShotTurn(
     private suspend fun interpret(
         cid: String, turnId: String, directive: EngineDirective, text: String, maxTokens: Int = INTERPRET_MAX_TOKENS,
         deal: com.drkkr.strategos.domain.negotiation.DealFrame? = null,
-        band: com.drkkr.strategos.domain.negotiation.DealCheck.PrivateBand? = null
+        band: com.drkkr.strategos.domain.negotiation.DealCheck.PrivateBand? = null,
+        domainContext: String? = null
     ): CoachReply? {
         fun dealOk(r: CoachReply) = com.drkkr.strategos.domain.negotiation.DealCheck.usable(r, deal) && com.drkkr.strategos.domain.negotiation.DealCheck.usableWithoutFrame(r, band)
         val priorRoundCtx = priorRound(cid)
+        val domainBlock = if (!domainContext.isNullOrBlank()) "$domainContext\n\n" else ""
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", background(cid) + priorRoundCtx + thread(cid) + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + priorRoundCtx + thread(cid) + domainBlock + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         var request = LlmRequest(
@@ -840,6 +956,23 @@ class OneShotTurn(
         return text.takeIf { it.length in MIN_RED_TEAM_CHARS..MAX_RED_TEAM_CHARS && !it.startsWith("{") }
     }
 
+    /**
+     * Pre-routing call: ~80 output tokens, temperature 0. Returns a [RouterDecision] or null on any failure.
+     * Null is treated as "proceed" so the main extraction always runs as fallback.
+     */
+    private suspend fun preRoute(cid: String, turnId: String, text: String): RouterDecision? {
+        val input = buildJsonArray {
+            add(buildJsonObject { put("role", "system"); put("content", PreRouter.PROMPT) })
+            add(buildJsonObject { put("role", "user"); put("content", text.take(MAX_USER_CHARS)) })
+        }
+        val request = LlmRequest(
+            settings.model(), input, tools = null, maxOutputTokens = PreRouter.MAX_TOKENS,
+            temperature = PreRouter.TEMPERATURE, purpose = "PRE_ROUTE", conversationId = cid, turnId = turnId
+        )
+        val r = llm.create(request) as? LlmResult.Ok ?: return null
+        return PreRouter.tryParse(r.output.assistantText())
+    }
+
     /** Phase G.3: the ask-first reply — a short lead the controller can also detect, then the 1-2 questions. */
     private fun buildClarify(questions: List<String>): String {
         val qs = questions.map { it.trim() }.filter { it.isNotEmpty() }.take(1)     // I-D6: one question per turn
@@ -918,6 +1051,11 @@ class OneShotTurn(
         return TurnResult.Failed(text, retryable)
     }
 
+    private fun appendUserMessage(base: JsonArray, text: String): JsonArray = buildJsonArray {
+        base.forEach { add(it) }
+        add(buildJsonObject { put("role", "user"); put("content", text) })
+    }
+
     private fun input(digest: JsonObject, earlier: List<String>, text: String): JsonArray = buildJsonArray {
         add(buildJsonObject { put("role", "system"); put("content", PROMPT) })
         add(buildJsonObject {
@@ -986,6 +1124,12 @@ class OneShotTurn(
         private const val MIN_RED_TEAM_CHARS = 20
         private const val MAX_RED_TEAM_CHARS = 300
         private const val REPAIR_HEADER = "The saved model is incomplete. Return ONLY what is missing, in the same JSON format (people can be empty; use the same names and option wordings as the app context):"
+        // Task 5: confidence-gated second pass.
+        private const val SECOND_PASS_MAX_TOKENS = 800
+        const val SECOND_PASS_HEADER = "The model looks thin. Focus only on the other person's perspective: what do THEY actually want from this situation, what are they afraid of, and what options do they have? Return ONLY new or corrected JSON — same format, same names."
+        // Task 6: arc-state extraction hints injected into Call 1 for ACTED and OUTCOME_KNOWN states.
+        private const val ARC_STATE_ACTED_HEADER = "The person has just taken an action. Focus extraction on what changed: the action they took, any reaction observed, and any new information about the other side's position. Skip re-extracting what hasn't changed."
+        private const val ARC_STATE_OUTCOME_HEADER = "The person is reporting an outcome. Extract only the final result: what actually happened, how the other side responded, and what was learned. This is a retrospective — focus on outcome facts, not future options."
         private const val MAX_USER_CHARS = 1_500
         private const val MIN_COACH_CHARS = 40
         // Phase G.2/G.3 (clarification router + ask-first).

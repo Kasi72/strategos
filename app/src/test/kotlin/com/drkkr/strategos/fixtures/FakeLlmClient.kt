@@ -11,7 +11,14 @@ class FakeLlmClient : LlmClient {
 
     fun enqueue(result: LlmResult): FakeLlmClient { queue.addLast(result); return this }
 
+    /** The pre-routing calls (purpose PRE_ROUTE). Answered "proceed" without using the script, and kept out of [requests]. */
+    val preRoutes = mutableListOf<LlmRequest>()
+
+    /** What the pre-router answers; tests of the pre-routing shortcuts set it. */
+    var preRouteReply: String = PROCEED
+
     override suspend fun create(req: LlmRequest): LlmResult {
+        if (req.purpose == "PRE_ROUTE") { preRoutes += req; return textReply(preRouteReply) }
         requests += req
         return queue.removeFirstOrNull() ?: error("FakeLlmClient: no scripted result for request #${requests.size}")
     }
@@ -24,6 +31,8 @@ class FakeLlmClient : LlmClient {
     override suspend fun testKey(key: String, model: String): LlmResult { testKeyCalls += key to model; return testKeyResult }
 
     companion object {
+        /** The pre-router's "go on to the full extraction" answer. */
+        const val PROCEED = """{"route":"proceed"}"""
         private val usage = LlmUsage(100, 0, 20, 0)
 
         fun textReply(text: String, id: String = "resp") = LlmResult.Ok(

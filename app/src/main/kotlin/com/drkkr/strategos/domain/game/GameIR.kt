@@ -24,7 +24,11 @@ data class GameIR(
      * proxy[playerIndex][profileIndex] is true when that cell had no payoff and was filled in by the compiler.
      * Empty = every cell is real (coveragePct == 100).
      */
-    val proxy: List<BooleanArray> = emptyList()
+    val proxy: List<BooleanArray> = emptyList(),
+    /** Groups of SequenceNode indices sharing the same information set (signaling games). */
+    val informationPartition: List<List<Int>>? = null,
+    /** Observable signal labels declared in the game tree. */
+    val signalSpace: List<String> = emptyList()
 ) {
     fun isProxy(player: Int, profileIndex: Int): Boolean = proxy.isNotEmpty() && proxy[player][profileIndex]
 

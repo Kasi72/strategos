@@ -8,6 +8,8 @@ enum class GameClass {
     DYNAMIC,
     BAYESIAN,
     REPEATED_FINITE,
+    REPEATED_INFINITE,
+    EVOLUTIONARY,
     UNKNOWN
 }
 
@@ -53,6 +55,19 @@ enum class SolverCompletion {
     /** Numerical issue prevented convergence. */
     NUMERICAL_FAILURE
 }
+
+/**
+ * Structured strategic narrative surfaced to the coach and UI.
+ * Replaces free-prose LLM output with typed, verifiable fields.
+ */
+data class StrategicNarrative(
+    val equilibriumType: String,
+    val selectionCriterion: FocalEquilibriumSelector.SelectionCriterion,
+    val isParetoOptimal: Boolean,
+    val riskDominanceMargin: Double?,
+    val sensitivityNote: String?,
+    val warningSignals: List<String>
+)
 
 /** Whether incomplete analysis affects a downstream recommendation. */
 enum class AnalysisIntegrity {

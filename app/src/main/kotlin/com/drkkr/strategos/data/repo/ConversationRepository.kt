@@ -148,6 +148,12 @@ class ConversationRepository(private val db: StrategosDatabase) {
         }
     }
 
+    suspend fun saveArcState(conversationId: String, arcState: String) {
+        db.conversationDao().get(conversationId)?.let {
+            db.conversationDao().upsert(it.copy(arcState = arcState, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
     suspend fun saveLastReport(conversationId: String, digestJson: String, scenarioVersion: Int) {
         db.conversationDao().get(conversationId)?.let {
             db.conversationDao().upsert(it.copy(lastReportDigestJson = digestJson, lastReportScenarioVersion = scenarioVersion, updatedAt = System.currentTimeMillis()))

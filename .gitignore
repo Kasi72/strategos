@@ -36,3 +36,7 @@ docs/
 screenshots/
 screenshots.zip
 app/src/main.zip
+
+# JVM crash/replay logs
+hs_err_pid*.log
+replay_pid*.log

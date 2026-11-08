@@ -13,8 +13,11 @@ object MechanismAdvisor {
     private val ALLOCATION_KEYWORDS = setOf("fair division", "split resource", "divide asset", "allocate budget", "resource allocation", "apportion")
     private val DESIGN_TRIGGER = setOf("design", "set up rules", "create system", "build mechanism", "structure the", "how should we structure", "what rules")
 
-    /** [extraText]: recent user messages, passed in memory only (the Talk flow never writes them into the scenario's description). */
-    fun detect(scenario: Scenario, extraText: String = ""): MechanismHint? {
+    /**
+     * [extraText]: recent user messages, passed in memory only (the Talk flow never writes them into the scenario's description).
+     * [archetype]: the compiled game's archetype, when known; cooperation-failure archetypes surface a hint without keywords.
+     */
+    fun detect(scenario: Scenario, extraText: String = "", archetype: GameArchetype? = null): MechanismHint? {
         val parts = buildList {
             add(scenario.title)
             add(scenario.description)
@@ -35,7 +38,16 @@ object MechanismAdvisor {
             ALLOCATION_KEYWORDS.any { text.contains(it) } && hasDesignTrigger -> MechanismType.ALLOCATION
             else -> MechanismType.NONE
         }
-        if (type == MechanismType.NONE) return null
+        // Item H: cooperation-failure archetypes surface mechanism hint by default even without keywords
+        if (type == MechanismType.NONE) {
+            if (archetype == GameArchetype.PRISONERS_DILEMMA || archetype == GameArchetype.CHICKEN) {
+                return MechanismHint(MechanismType.CONTRACT,
+                    "Both parties are trapped in a suboptimal outcome by individually rational choices — this is a cooperation failure.",
+                    "Restructure the incentives so that the cooperative move becomes each party's individually rational choice. " +
+                        "Concrete options: a binding pre-commitment, a credible monitoring mechanism, or a repeated-interaction pledge that makes future cooperation the dominant strategy.")
+            }
+            return null
+        }
         return when (type) {
             MechanismType.AUCTION -> MechanismHint(type,
                 "This looks like an auction design problem — the goal is to elicit truthful bids and allocate efficiently.",

@@ -88,8 +88,9 @@ class PowerSketchTest {
          * intent schema keys, +479; +26 at CP-I2 for copying the option's wording), and the stage guard (rules 24 STEP UP and 25
          * RULED OUT, and steps_up/not_yet in rule 22's tag list: +547, asked for by the user on 7 Nov after a long test thread's
          * high-pressure pick), and companion mode (rule 16's "thinking_aloud", rule 2's "word each from what the user said": +446,
-         * asked for by the user on 7 Nov).
+         * asked for by the user on 7 Nov), and main's day-to-day pack merged in on 8 Nov (rule 2's domain examples, rule 6's new
+         * archetypes, rule 26 DOMAIN and the "domain" schema key: +1,483, see HumanPromptTest).
          */
-        const val LATER_PACKS_GROWTH = 370 + 479 + 26 + 547 + 446
+        const val LATER_PACKS_GROWTH = 370 + 479 + 26 + 547 + 446 + 1483
     }
 }
