@@ -79,6 +79,7 @@ object ReportDigest {
                 put("gate", pr.gate.name)
             }
             put("matrix_coverage", r.matrixCoverage)
+            EngineDirectiveBuilder.computeArchetype(s)?.let { put("dynamic_archetype", it) }
         }
     }
 }

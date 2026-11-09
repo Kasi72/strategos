@@ -27,6 +27,9 @@ class OutcomeRepository(db: StrategosDatabase) {
     suspend fun recentForScenario(scenarioId: String, limit: Int = 20): List<OutcomeRecord> =
         dao.recentForScenario(scenarioId, limit).map { it.toDomain() }
 
+    suspend fun recentAcrossScenarios(excludeScenarioId: String, limit: Int = 30): List<OutcomeRecord> =
+        dao.recentAcrossScenarios(excludeScenarioId, limit).map { it.toDomain() }
+
     private fun OutcomeRecordEntity.toDomain() = OutcomeRecord(
         scenarioId = scenarioId,
         recommendedMove = recommendedMove,

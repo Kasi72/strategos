@@ -1,0 +1,11 @@
+name: get_belief_state
+description: >
+  Returns the Bayesian belief distribution over game archetypes and the level-k epistemic
+  best response for the current scenario. Use when the user asks which type of game they
+  are in, how certain the archetype classification is, or what level of strategic reasoning
+  the other side seems to be applying. Returns belief_state (most_likely_archetype, entropy,
+  top-5 archetype probabilities) and epistemic_advice (opponent_level 0–3, your_best_response
+  strategy index, reasoning). Entropy near 0 means confident archetype identification;
+  near 3.46 means the game type is highly uncertain. Only meaningful for 2-player games
+  with at least one payoff; epistemic_advice is null for n≠2 or no opponent model.
+input_schema: { type: object, properties: {}, required: [] }

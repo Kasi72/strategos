@@ -1,0 +1,12 @@
+name: get_regret_analysis
+description: >
+  Return the minimax regret table for the user (player 0) across all their available moves in
+  the current 2-player game. Minimax regret answers "which move is safest if the opponent plays
+  the worst case against me?" — picking the move whose worst-case regret is smallest. Returns
+  the best action under this criterion, its worst-case regret, the decisiveness gap to the
+  next-best move, and a full per-strategy breakdown so the user can compare options. Only
+  applicable to 2-player games; returns not_applicable otherwise.
+input_schema:
+  type: object
+  properties: {}
+  required: []

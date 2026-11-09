@@ -237,7 +237,9 @@ data class Scenario(
     // Stage 4: negotiation prep wizard context
     val negotiationContext: NegotiationContext? = null,
     // Human Layer: inferred power, status quo, emotional state. Null for projects from before it existed.
-    val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null
+    val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null,
+    // Persistent Bayesian belief state over game archetypes, serialized as JSON. Null until first get_belief_state call.
+    val beliefStateJson: String? = null
 ) {
     fun actionsFor(sid: String) = actions.filter { it.stakeholderId == sid }
 

@@ -1,0 +1,12 @@
+name: get_self_model
+description: >
+  Returns what the opponent likely believes about the user's strategy pattern (self-model),
+  plus a Bayesian Nash Equilibrium recommendation when information asymmetry is high enough.
+  Use when the user asks how they appear to the other side, what strategy the opponent
+  thinks they are playing, or how to account for the opponent's uncertainty about the user's
+  type. Returns self_model (inferred_strategy_label, confidence, history_records_used)
+  and bayesian_ne (recommended_strategy_index, reasoning, type_posteriors), or null for
+  bayesian_ne when info asymmetry score ≤ 0.4 or the game is not 2-player.
+  The self-model label is one of: cooperative, tit-for-tat, aggressive, unpredictable, unknown.
+  Requires at least 3 outcome records for a non-unknown label.
+input_schema: { type: object, properties: {}, required: [] }

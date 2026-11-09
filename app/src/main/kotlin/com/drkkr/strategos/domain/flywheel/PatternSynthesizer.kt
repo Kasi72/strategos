@@ -1,6 +1,38 @@
 package com.drkkr.strategos.domain.flywheel
 
 object PatternSynthesizer {
+
+    data class SimilarScenario(
+        val archetypeName: String?,
+        val avgRating: Double,
+        val followRate: Double,
+        val insight: String,
+        val sampleSize: Int
+    )
+
+    fun findSimilar(currentArchetype: String?, crossRecords: List<OutcomeRecord>, topK: Int = 2): List<SimilarScenario> {
+        if (crossRecords.size < 3) return emptyList()
+        val byArchetype = crossRecords.groupBy { it.archetypeName ?: "GENERIC" }
+        val sorted = byArchetype.entries
+            .filter { it.value.size >= 3 }
+            .sortedWith(
+                compareByDescending<Map.Entry<String, List<OutcomeRecord>>> {
+                    if (it.key == (currentArchetype ?: "GENERIC")) 1 else 0
+                }.thenByDescending { it.value.size }
+            )
+        return sorted.take(topK).map { (arch, recs) ->
+            val avgRating = recs.map { it.outcomeRating }.average()
+            val followRate = recs.count { it.followed }.toDouble() / recs.size
+            val displayArch = arch.takeIf { it != "GENERIC" }
+            SimilarScenario(
+                archetypeName = displayArch,
+                avgRating = avgRating,
+                followRate = followRate,
+                insight = buildInsight("past situations", avgRating, followRate, displayArch, recs.size),
+                sampleSize = recs.size
+            )
+        }
+    }
     data class OpponentPattern(
         val opponentId: String,
         val dominantArchetype: String?,

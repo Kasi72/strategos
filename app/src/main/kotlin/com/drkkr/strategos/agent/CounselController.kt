@@ -103,7 +103,8 @@ class CounselController(
     private val summarizer = ConversationSummarizer(deps.llm, deps.conversations, deps.settings)
     private val assembler = ContextAssembler(
         deps.systemPrompt, deps.conversations, deps.changeSets, deps.memory, deps.settings,
-        scenarioFor = { id -> gateway.activeScenario()?.takeIf { it.id == id } }
+        scenarioFor = { id -> gateway.activeScenario()?.takeIf { it.id == id } },
+        outcomes = deps.outcomes
     )
     private val orchestrator = AgentOrchestrator(
         deps.llm, deps.tools, deps.dispatcher, assembler, deps.conversations, deps.settings,
@@ -114,7 +115,8 @@ class CounselController(
         ContextAssembler(
             { ArgonPrompts.EXTRACTION_PROMPT }, deps.conversations, deps.changeSets, deps.memory, deps.settings,
             scenarioFor = { id -> gateway.activeScenario()?.takeIf { it.id == id } },
-            journal = deps.journal, trajectory = t
+            journal = deps.journal, trajectory = t,
+            outcomes = deps.outcomes
         )
     }
 

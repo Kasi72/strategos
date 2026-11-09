@@ -1,0 +1,19 @@
+name: get_counterfactual
+description: >
+  Runs counterfactual analysis for the active scenario: for each action the
+  specified player could take, computes how much better or worse they would do
+  compared to the Nash equilibrium baseline (opponent best-responding). Returns
+  deviation_gain per action (positive = better than baseline) and the
+  recommended action. Use after run_analysis when the user asks "what if I had
+  done X instead?", "was my move optimal?", or wants to explore alternative
+  strategies post-outcome. Requires a fully solved game; returns
+  analysis_unavailable if the game is not yet solved.
+input_schema:
+  type: object
+  properties:
+    player_id:
+      type: string
+      description: >
+        The player whose counterfactual actions to analyse. Defaults to the
+        first player in the game (usually "You") when omitted.
+  required: []

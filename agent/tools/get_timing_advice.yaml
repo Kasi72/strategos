@@ -1,0 +1,13 @@
+name: get_timing_advice
+description: >
+  Return timing advice for the current situation: whether to act now, wait, or set a deadline.
+  Advice is computed from the opponent's discount factor (patience) and any binding constraints
+  in the scenario. Use when the user asks "should I move now or wait?", "is there urgency?",
+  or when timing feels like a live variable in the negotiation or decision. Returns one of
+  WAIT (opponent is patient — waiting costs little), SET_DEADLINE (opponent is impatient or a
+  deadline constraint applies — pressure them), or NO_GUIDANCE (insufficient data to advise).
+  Includes a plain-English note explaining the reasoning.
+input_schema:
+  type: object
+  properties: {}
+  required: []

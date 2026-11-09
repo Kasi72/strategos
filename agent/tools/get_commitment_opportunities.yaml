@@ -1,8 +1,9 @@
 name: get_commitment_opportunities
 description: >
-  Identify actions where publicly committing now shifts the equilibrium in the user's favour.
+  Identify actions where publicly committing now shifts the equilibrium in the user's favour,
+  organised as a four-level commitment ladder (VERBAL → WRITTEN_PUBLIC → CONTRACTUAL → IRREVERSIBLE).
   Use when the user asks how to make their position credible, whether to burn bridges,
   whether a public pledge would help, or how to remove their own option to retreat.
-  Returns a list of commitment opportunities with type (BURN_BRIDGES, PUBLIC_PLEDGE,
-  CONDITIONAL_COMMITMENT), rationale, and credibility risk.
+  Returns ladder steps ordered from weakest to strongest, each with level, action, rationale,
+  credibility_gain (e.g. "low → medium"), and credibility_risk.
 input_schema: { type: object, properties: {}, required: [] }

@@ -5,19 +5,20 @@ import com.drkkr.strategos.agent.ToolDispatcher
 import com.drkkr.strategos.agent.ToolHandler
 import com.drkkr.strategos.agent.ToolOutcome
 import com.drkkr.strategos.data.repo.UiKind
-import com.drkkr.strategos.domain.agent.CommitmentAdvisor
+import com.drkkr.strategos.domain.agent.CommitmentLadder
 import com.drkkr.strategos.domain.agent.IntakeChecklist
 import com.drkkr.strategos.domain.game.GameAnalysisResult
 import com.drkkr.strategos.domain.game.GameModelService
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.addJsonObject
 
-/** Returns commitment opportunities where publicly binding oneself shifts the equilibrium in the user's favour. */
+/**
+ * Returns commitment ladder steps where publicly binding to an action shifts the equilibrium
+ * in the user's favour. Steps are ordered from weakest (VERBAL) to strongest (IRREVERSIBLE).
+ */
 object GetCommitmentOpportunitiesHandler : ToolHandler {
     override suspend fun handle(args: JsonObject, ctx: ToolContext): ToolOutcome {
         val scenario = ctx.gateway.activeScenario()
@@ -39,9 +40,9 @@ object GetCommitmentOpportunitiesHandler : ToolHandler {
             "No game model"
         )
 
-        val opportunities = CommitmentAdvisor.opportunities(ir, userPlayer.id, scenario)
+        val steps = CommitmentLadder.steps(ir, userPlayer.id, scenario)
 
-        if (opportunities.isEmpty()) {
+        if (steps.isEmpty()) {
             return ToolOutcome(
                 buildJsonObject {
                     put("status", "none_found")
@@ -53,17 +54,18 @@ object GetCommitmentOpportunitiesHandler : ToolHandler {
 
         val out = buildJsonObject {
             put("status", "ok")
-            putJsonArray("opportunities") {
-                opportunities.forEach { opp ->
+            putJsonArray("commitment_ladder") {
+                steps.forEach { step ->
                     addJsonObject {
-                        put("type", opp.type.name)
-                        put("action", opp.action)
-                        put("rationale", opp.rationale)
-                        put("credibility_risk", opp.credibilityRisk)
+                        put("level", step.level.name)
+                        put("action", step.action)
+                        put("rationale", step.rationale)
+                        put("credibility_gain", step.credibilityGain)
+                        put("credibility_risk", step.credibilityRisk)
                     }
                 }
             }
         }
-        return ToolOutcome(out, "Found ${opportunities.size} commitment opportunity(-ies)", UiKind.RECOMMENDATION)
+        return ToolOutcome(out, "Found ${steps.size} commitment step(s)", UiKind.RECOMMENDATION)
     }
 }

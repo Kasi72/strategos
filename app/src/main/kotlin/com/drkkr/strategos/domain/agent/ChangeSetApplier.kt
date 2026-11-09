@@ -82,7 +82,8 @@ object ChangeSetApplier {
                     location = f.location ?: s.location, repeated = f.repeated ?: s.repeated,
                     informationAsymmetry = f.informationAsymmetry ?: s.informationAsymmetry, zeroSum = f.zeroSum ?: s.zeroSum,
                     negotiationContext = f.negotiationContext?.let { NegotiationQuestions.merge(s.negotiationContext, it) } ?: s.negotiationContext,
-                    humanContext = f.humanContext?.let { (s.humanContext ?: com.drkkr.strategos.domain.human.HumanContext()).merge(it) } ?: s.humanContext
+                    humanContext = f.humanContext?.let { (s.humanContext ?: com.drkkr.strategos.domain.human.HumanContext()).merge(it) } ?: s.humanContext,
+                    beliefStateJson = f.beliefStateJson ?: s.beliefStateJson
                 )
             }
             OpType.ADD_STAKEHOLDER -> s.copy(

@@ -1,11 +1,14 @@
 package com.drkkr.strategos.domain.game
 
+import kotlinx.serialization.Serializable
+
 /**
  * Named game-theoretic archetypes recognised in normal-form analysis.
  *
  * Detection covers all 2-player 2×2 games comprehensively (Rapoport-Guyer / Robinson-Goforth
  * taxonomy), plus zero-sum games of any 2-player size.  All other games return [GENERIC].
  */
+@Serializable
 enum class GameArchetype {
     /** Both dominant strategies; NE Pareto-dominated by mutual cooperation — classic social dilemma. */
     PRISONERS_DILEMMA,

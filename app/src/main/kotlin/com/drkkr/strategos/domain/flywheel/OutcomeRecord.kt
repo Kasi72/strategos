@@ -19,7 +19,9 @@ data class OutcomeRecord(
     val outcomeRating: Int,              // 1..5
     val opponentReaction: String? = null,
     val archetypeName: String? = null,
-    val recordedAt: Long = System.currentTimeMillis()
+    val recordedAt: Long = System.currentTimeMillis(),
+    /** 0-based index of the action the opponent was actually observed taking. Null when not recorded. */
+    val observedOpponentActionIndex: Int? = null
 ) {
     init {
         require(outcomeRating in 1..5) { "outcomeRating must be 1..5" }

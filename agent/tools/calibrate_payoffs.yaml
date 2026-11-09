@@ -1,0 +1,10 @@
+name: calibrate_payoffs
+description: >
+  Re-analyse the current scenario's payoff matrix and return a refreshed directive with minimax
+  regret data. Use when the user asks about worst-case guarantees, robustness under uncertainty,
+  or wants to understand how much they lose if they guess wrong about the other side's move.
+  Returns the updated directive plus a regret_analysis block with strategy_index,
+  worst_case_regret, and regret_gap. Only meaningful for 2-player games with at least one
+  filled payoff cell; returns a hint to add payoffs first when the matrix is empty.
+  Note: this tool never modifies the scenario — use propose_changes to adjust payoffs.
+input_schema: { type: object, properties: {}, required: [] }

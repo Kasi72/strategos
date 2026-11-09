@@ -1,0 +1,12 @@
+name: get_pattern_insights
+description: >
+  Mines all past outcome records for this scenario and returns cross-scenario
+  heuristics: win rates per game archetype, strategy-level Shapley deltas
+  (marginal value of following vs deviating from engine recommendations), and
+  timing correlations (whether outcomes are improving or worsening over time).
+  Use when the user asks about patterns in their decision history, what
+  approaches tend to work, or whether following the engine's advice pays off.
+  Returns heuristics list with condition, success_rate (0..1; 0.5 = neutral
+  for trend/delta heuristics), and sample_size. Requires at least 10 outcome
+  records; returns insufficient_data status otherwise.
+input_schema: { type: object, properties: {}, required: [] }

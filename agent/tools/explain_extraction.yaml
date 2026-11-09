@@ -1,0 +1,13 @@
+name: explain_extraction
+description: >
+  Explain what the extraction layer inferred from the user's situation and flag any structural
+  mismatches between the scenario and the game model. Returns payoff coverage (how many cells
+  are filled vs. estimated), the detected game archetype, stress verdict (ROBUST or FRAGILE),
+  player and action counts, and any extraction warning detected by the consistency checker.
+  Use when the user asks "what did you understand?", "how confident are you?", "did you model
+  this correctly?", or when you want to surface that the analysis rests on estimated payoffs
+  or a potentially mismatched archetype before giving a recommendation.
+input_schema:
+  type: object
+  properties: {}
+  required: []

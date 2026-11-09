@@ -99,7 +99,9 @@ data class ScenarioFieldsPatch(
     /** What the user said about their fallback, floor and target; merged into the saved [NegotiationContext], never replacing a saved value with a blank. */
     @SerialName("negotiation_context") val negotiationContext: com.drkkr.strategos.domain.model.NegotiationContext? = null,
     /** What the model read about power, status quo and emotional state; merged into the saved context, never replacing a saved value with null. */
-    @SerialName("human_context") val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null
+    @SerialName("human_context") val humanContext: com.drkkr.strategos.domain.human.HumanContext? = null,
+    /** Serialized BeliefState JSON for persistent Bayesian opponent modeling. Set only by GetBeliefStateHandler, never by the LLM directly. */
+    @SerialName("belief_state_json") val beliefStateJson: String? = null
 )
 
 @Serializable

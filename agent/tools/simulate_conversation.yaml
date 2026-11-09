@@ -1,0 +1,15 @@
+name: simulate_conversation
+description: >
+  Simulate how the interaction is likely to unfold over the next 1–5 rounds given the current
+  game model. Each round shows what each party will probably do, the resulting payoffs, and a
+  short interpretive note. Use when the user asks "what will happen if I do X", wants to
+  anticipate the opponent's reaction sequence, or needs to see whether a strategy sustains
+  over repeated interaction. Returns a summary plus step-by-step rounds with player actions,
+  payoffs, and notes.
+input_schema:
+  type: object
+  properties:
+    rounds:
+      type: number
+      description: Number of rounds to simulate (1–5, default 3).
+  required: []
