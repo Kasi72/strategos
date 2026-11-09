@@ -38,6 +38,16 @@
   },
   {
     "type": "function",
+    "name": "calibrate_payoffs",
+    "description": "Re-analyse the current scenario's payoff matrix and return a refreshed directive with minimax regret data. Use when the user asks about worst-case guarantees, robustness under uncertainty, or wants to understand how much they lose if they guess wrong about the other side's move. Returns the updated directive plus a regret_analysis block with strategy_index, worst_case_regret, and regret_gap. Only meaningful for 2-player games with at least one filled payoff cell; returns a hint to add payoffs first when the matrix is empty. Note: this tool never modifies the scenario — use propose_changes to adjust payoffs.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "check_mechanism_design",
     "description": "Detect if the scenario is a mechanism design problem: auction, matching, contract, voting, or resource allocation. Use when the user is designing rules, processes, or incentive structures, or asks \"how should we structure this\". Returns the detected type, an insight explaining what kind of problem it is, and a concrete recommendation. Returns none if no mechanism structure is detected.\n",
     "parameters": {
@@ -65,6 +75,16 @@
   },
   {
     "type": "function",
+    "name": "explain_extraction",
+    "description": "Explain what the extraction layer inferred from the user's situation and flag any structural mismatches between the scenario and the game model. Returns payoff coverage (how many cells are filled vs. estimated), the detected game archetype, stress verdict (ROBUST or FRAGILE), player and action counts, and any extraction warning detected by the consistency checker. Use when the user asks \"what did you understand?\", \"how confident are you?\", \"did you model this correctly?\", or when you want to surface that the analysis rests on estimated payoffs or a potentially mismatched archetype before giving a recommendation.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "explain_framework",
     "description": "Explain one framework from the last analysis.",
     "parameters": {
@@ -81,11 +101,36 @@
   },
   {
     "type": "function",
-    "name": "get_commitment_opportunities",
-    "description": "Identify actions where publicly committing now shifts the equilibrium in the user's favour. Use when the user asks how to make their position credible, whether to burn bridges, whether a public pledge would help, or how to remove their own option to retreat. Returns a list of commitment opportunities with type (BURN_BRIDGES, PUBLIC_PLEDGE, CONDITIONAL_COMMITMENT), rationale, and credibility risk.\n",
+    "name": "get_belief_state",
+    "description": "Returns the Bayesian belief distribution over game archetypes and the level-k epistemic best response for the current scenario. Use when the user asks which type of game they are in, how certain the archetype classification is, or what level of strategic reasoning the other side seems to be applying. Returns belief_state (most_likely_archetype, entropy, top-5 archetype probabilities) and epistemic_advice (opponent_level 0–3, your_best_response strategy index, reasoning). Entropy near 0 means confident archetype identification; near 3.46 means the game type is highly uncertain. Only meaningful for 2-player games with at least one payoff; epistemic_advice is null for n≠2 or no opponent model.\n",
     "parameters": {
       "type": "object",
       "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_commitment_opportunities",
+    "description": "Identify actions where publicly committing now shifts the equilibrium in the user's favour, organised as a four-level commitment ladder (VERBAL → WRITTEN_PUBLIC → CONTRACTUAL → IRREVERSIBLE). Use when the user asks how to make their position credible, whether to burn bridges, whether a public pledge would help, or how to remove their own option to retreat. Returns ladder steps ordered from weakest to strongest, each with level, action, rationale, credibility_gain (e.g. \"low → medium\"), and credibility_risk.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_counterfactual",
+    "description": "Runs counterfactual analysis for the active scenario: for each action the specified player could take, computes how much better or worse they would do compared to the Nash equilibrium baseline (opponent best-responding). Returns deviation_gain per action (positive = better than baseline) and the recommended action. Use after run_analysis when the user asks \"what if I had done X instead?\", \"was my move optimal?\", or wants to explore alternative strategies post-outcome. Requires a fully solved game; returns analysis_unavailable if the game is not yet solved.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "player_id": {
+          "type": "string",
+          "description": "The player whose counterfactual actions to analyse. Defaults to the first player in the game (usually \"You\") when omitted.\n"
+        }
+      },
       "required": []
     }
   },
@@ -143,11 +188,66 @@
   },
   {
     "type": "function",
+    "name": "get_pattern_insights",
+    "description": "Mines all past outcome records for this scenario and returns cross-scenario heuristics: win rates per game archetype, strategy-level Shapley deltas (marginal value of following vs deviating from engine recommendations), and timing correlations (whether outcomes are improving or worsening over time). Use when the user asks about patterns in their decision history, what approaches tend to work, or whether following the engine's advice pays off. Returns heuristics list with condition, success_rate (0..1; 0.5 = neutral for trend/delta heuristics), and sample_size. Requires at least 10 outcome records; returns insufficient_data status otherwise.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_regret_analysis",
+    "description": "Return the minimax regret table for the user (player 0) across all their available moves in the current 2-player game. Minimax regret answers \"which move is safest if the opponent plays the worst case against me?\" — picking the move whose worst-case regret is smallest. Returns the best action under this criterion, its worst-case regret, the decisiveness gap to the next-best move, and a full per-strategy breakdown so the user can compare options. Only applicable to 2-player games; returns not_applicable otherwise.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
     "name": "get_scenario",
     "description": "Full model digest. The app context already has a short one.",
     "parameters": {
       "type": "object",
       "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_self_model",
+    "description": "Returns what the opponent likely believes about the user's strategy pattern (self-model), plus a Bayesian Nash Equilibrium recommendation when information asymmetry is high enough. Use when the user asks how they appear to the other side, what strategy the opponent thinks they are playing, or how to account for the opponent's uncertainty about the user's type. Returns self_model (inferred_strategy_label, confidence, history_records_used) and bayesian_ne (recommended_strategy_index, reasoning, type_posteriors), or null for bayesian_ne when info asymmetry score ≤ 0.4 or the game is not 2-player. The self-model label is one of: cooperative, tit-for-tat, aggressive, unpredictable, unknown. Requires at least 3 outcome records for a non-unknown label.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_timing_advice",
+    "description": "Return timing advice for the current situation: whether to act now, wait, or set a deadline. Advice is computed from the opponent's discount factor (patience) and any binding constraints in the scenario. Use when the user asks \"should I move now or wait?\", \"is there urgency?\", or when timing feels like a live variable in the negotiation or decision. Returns one of WAIT (opponent is patient — waiting costs little), SET_DEADLINE (opponent is impatient or a deadline constraint applies — pressure them), or NO_GUIDANCE (insufficient data to advise). Includes a plain-English note explaining the reasoning.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "type": "function",
+    "name": "infer_opponent_utility",
+    "description": "Runs inverse utility inference on recorded outcomes to estimate the opponent's underlying PayoffDimension weights. Use when the user asks what the other person actually cares about, wants a utility breakdown of their counterpart's behaviour, or needs to understand why the opponent keeps making surprising moves. Returns opponent_weights: a map from PayoffDimension name to inferred weight (0–1 range, sums to 1.0), plus a confidence label (LOW / MEDIUM / HIGH) and the sample size used. Requires at least 3 outcomes with a recorded opponent action index; returns status \"not_enough_data\" otherwise.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "description": "Maximum number of recent outcomes to use (default 20)."
+        }
+      },
       "required": []
     }
   },
@@ -413,6 +513,21 @@
       "required": [
         "bullets"
       ]
+    }
+  },
+  {
+    "type": "function",
+    "name": "simulate_conversation",
+    "description": "Simulate how the interaction is likely to unfold over the next 1–5 rounds given the current game model. Each round shows what each party will probably do, the resulting payoffs, and a short interpretive note. Use when the user asks \"what will happen if I do X\", wants to anticipate the opponent's reaction sequence, or needs to see whether a strategy sustains over repeated interaction. Returns a summary plus step-by-step rounds with player actions, payoffs, and notes.\n",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "rounds": {
+          "type": "number",
+          "description": "Number of rounds to simulate (1–5, default 3)."
+        }
+      },
+      "required": []
     }
   },
   {

@@ -46,3 +46,11 @@ Stage 5: run_coalition_analysis (3+); check_mechanism_design; run_specific_frame
 - Batch related changes in one propose_changes (8 ops max; use more calls for more), then stop and say what to review.
 - Run run_analysis when there are 2+ players with 2+ actions and some payoffs. If ai_share > 0, call stress_test_inferred before recommending. Use what_if for any hypothetical.
 - Answer with: Next move, Why (frameworks), Blocked or risky, What changes the answer, Confidence (status, AI share). Under 150 words.
+
+## Synergy
+S1: ai_share>0.35->belief+ask+propose+reanalyze(max 2).
+S3: BAYESIAN+belief+self_model;REPEATED+history+patterns;ZERO_SUM+what_if+stress;PD+deception+commitment.
+S4: >0.70 ask;<0.35+dec<=1 direct;else caveat.
+S5: self_model known->opponent sentence.
+S6: dec>0+<0.50->stress 3 priors,min-regret.
+S8: commitment->+coalition,one paragraph.
