@@ -35,7 +35,7 @@ class AgentAssetsTest {
     @Test
     fun TC_ASSET_01_toolsJsonParses() {
         val tools = tools()
-        assertEquals(19, tools.size)
+        assertEquals(29, tools.size)
         tools.forEach { assertEquals("function", it.getValue("type").jsonPrimitive.content) }
         val names = tools.map { it.getValue("name").jsonPrimitive.content }
         assertEquals(names.size, names.toSet().size)
@@ -48,7 +48,12 @@ class AgentAssetsTest {
             "what_if", "stress_test_inferred", "update_memory", "show_understanding", "show_support",
             "run_coalition_analysis", "check_mechanism_design", "run_specific_framework",
             "get_directive_plain", "get_outcome_history", "get_opponent_profile",
-            "get_commitment_opportunities", "get_info_asymmetry", "detect_deception"
+            "get_commitment_opportunities", "get_info_asymmetry", "detect_deception",
+            "calibrate_payoffs", "get_belief_state", "get_self_model",
+            "get_pattern_insights",
+            "get_counterfactual", "simulate_conversation",
+            "get_regret_analysis", "get_timing_advice", "explain_extraction",
+            "infer_opponent_utility"
         )
         assertEquals(expected, tools().map { it.getValue("name").jsonPrimitive.content }.toSet())
         assertEquals(expected, ToolDispatcher.default().names)

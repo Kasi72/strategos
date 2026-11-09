@@ -128,7 +128,23 @@ data class EngineDirective(
     /** Power Mode: a fixed line declining a manipulative request (`DeclineNotes`), set in any mode. */
     val declineNote: String? = null,
     /** Power Mode is on for this conversation (I-P1). The coach gets the flag and the hints, never an id, a law or a source. */
-    val powerMode: Boolean = false
+    val powerMode: Boolean = false,
+    /** ExtractionVerifier warning: structural mismatch between scenario and game model. Null when no issue detected. */
+    val extractionWarning: String? = null,
+    /** Minimax regret result for the user (player 0) in a 2-player game; null for n≠2 or unsolved games. */
+    val regretStrategy: com.drkkr.strategos.domain.game.RegretResult? = null,
+    /** Phase 3: Bayesian belief distribution over game archetypes. Null when insufficient data. */
+    val beliefState: com.drkkr.strategos.domain.game.BeliefState? = null,
+    /** Phase 3: level-k epistemic best response. Null for n≠2 games or no opponent model. */
+    val epistemicAdvice: com.drkkr.strategos.domain.game.EpistemicResult? = null,
+    /** Phase 4: plain-language advice from SelfModelEstimator on what the opponent perceives about the user's strategy. */
+    val selfModelAdvice: String? = null,
+    /** Phase 4: true when BayesianNESolver was used (infoAsymmetryScore > threshold). */
+    val bayesianNEUsed: Boolean = false,
+    /** U9: agreement ratio across opponent-prior hypotheses (0–1). Values below 0.6 prompt alternative surfacing. */
+    val extractionConfidence: Float = 1.0f,
+    /** U9: hypothesis labels that disagreed with the neutral prior's recommendation. */
+    val alternativeInterpretations: List<String> = emptyList()
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -190,6 +206,39 @@ data class EngineDirective(
         if (holdCourse) put("hold_course", true)
         if (powerMode) put("power_mode", true)
         declineNote?.let { put("decline_note", it) }
+        extractionWarning?.let { put("extraction_warning", it) }
+        regretStrategy?.let { r ->
+            putJsonObject("regret_strategy") {
+                put("strategy_index", r.strategy)
+                put("worst_case_regret", r.worstCaseRegret)
+                put("regret_gap", r.regretGap)
+            }
+        }
+        beliefState?.let { bs ->
+            putJsonObject("belief_state") {
+                put("most_likely_archetype", bs.mostLikely.name)
+                put("entropy", bs.entropy)
+                putJsonObject("archetype_probabilities") {
+                    bs.archetypeProbabilities.entries
+                        .sortedByDescending { it.value }
+                        .take(3)
+                        .forEach { (k, v) -> put(k.name, v) }
+                }
+            }
+        }
+        epistemicAdvice?.let { e ->
+            putJsonObject("epistemic_advice") {
+                put("opponent_level", e.opponentLevel)
+                put("your_best_response", e.yourBestResponse)
+                put("reasoning", e.reasoning)
+            }
+        }
+        selfModelAdvice?.let { put("self_model_advice", it) }
+        if (bayesianNEUsed) put("bayesian_ne_used", true)
+        if (extractionConfidence < 1.0f) put("extraction_confidence", extractionConfidence)
+        if (alternativeInterpretations.isNotEmpty()) putJsonArray("alternative_interpretations") {
+            alternativeInterpretations.forEach { add(JsonPrimitive(it)) }
+        }
     }
 
     /**
@@ -307,7 +356,21 @@ object EngineDirectiveBuilder {
         /** Intent Dispatch ID1.4: [com.drkkr.strategos.domain.game.LabelChecks] on the turn's labels. Empty keeps the directive as before. */
         labelIssues: List<com.drkkr.strategos.domain.game.LabelIssue> = emptyList(),
         /** ID1.6: [com.drkkr.strategos.domain.human.FallbackShift]'s fixed line, only when the shift changed the pick. Null keeps the directive as before. */
-        fallbackLine: String? = null
+        fallbackLine: String? = null,
+        /** Phase 2: minimax regret result for the user (player 0); null when not applicable or not solved. */
+        regretResult: com.drkkr.strategos.domain.game.RegretResult? = null,
+        /** Phase 3: Bayesian belief state over archetypes. */
+        beliefState: com.drkkr.strategos.domain.game.BeliefState? = null,
+        /** Phase 3: level-k epistemic best response. */
+        epistemicAdvice: com.drkkr.strategos.domain.game.EpistemicResult? = null,
+        /** Phase 4: plain-language self-model advice. */
+        selfModelAdvice: String? = null,
+        /** Phase 4: true when BayesianNESolver was used. */
+        bayesianNEUsed: Boolean = false,
+        /** U9: agreement ratio across opponent-prior hypotheses from [GameModelService]. */
+        extractionConfidence: Float = 1.0f,
+        /** U9: hypothesis labels that disagreed with the neutral prior. */
+        alternativeInterpretations: List<String> = emptyList()
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -315,6 +378,13 @@ object EngineDirectiveBuilder {
         val byId = ownerActions.associateBy { it.id }
         val pathways = report?.pathways.orEmpty().filter { it.actionId == null || ownerActions.isEmpty() || it.actionId in byId }
         val cov = PayoffCoverage.of(s)
+        val extractionWarning = ExtractionVerifier.verify(
+            scenario = s,
+            archetype = archetype,
+            stressVerdict = if (stress != null && (stress.flips.isNotEmpty() || cov.filled < cov.expected)) "FRAGILE" else "ROBUST",
+            payoffsFilled = cov.filled,
+            payoffsExpected = cov.expected
+        )
         val clarification = (if (cov.missingProfiles.isNotEmpty()) EvsiClarifier.clarify(s) else null)
             ?: archetype?.let { VoiQuestionSelector.select(s, it) }
         val rankedPick = pathways.firstOrNull { it.label == RECOMMENDED && !it.excluded }
@@ -472,7 +542,15 @@ object EngineDirectiveBuilder {
             shapleyValues = shapleyValues,
             mechanismHint = mechanismHint,
             deal = deal?.let(com.drkkr.strategos.domain.negotiation.DealBlock::from),
-            timingAdvice = timingAdvice
+            timingAdvice = timingAdvice,
+            extractionWarning = extractionWarning,
+            regretStrategy = regretResult,
+            beliefState = beliefState,
+            epistemicAdvice = epistemicAdvice,
+            selfModelAdvice = selfModelAdvice,
+            bayesianNEUsed = bayesianNEUsed,
+            extractionConfidence = extractionConfidence,
+            alternativeInterpretations = alternativeInterpretations
         )
     }
 
@@ -522,6 +600,9 @@ object EngineDirectiveBuilder {
     )
 
     // ── Behavioral patterns ───────────────────────────────────────────────────
+
+    /** Returns the dominant behavioral module id (e.g. "prisoners-dilemma") for the scenario, or null. Used by ReportDigest. */
+    fun computeArchetype(s: Scenario): String? = dynamics(s, emptyList()).third
 
     /**
      * Runs the behavioral and strategic modules on the two people's game, reduced to the choice that matters in a continuing

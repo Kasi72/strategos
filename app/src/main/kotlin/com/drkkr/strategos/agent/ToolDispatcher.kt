@@ -3,6 +3,11 @@ package com.drkkr.strategos.agent
 import android.util.Log
 import com.drkkr.strategos.agent.tools.AskUserHandler
 import com.drkkr.strategos.agent.tools.CoalitionAnalysisHandler
+import com.drkkr.strategos.agent.tools.CalibratePayoffsHandler
+import com.drkkr.strategos.agent.tools.GetBeliefStateHandler
+import com.drkkr.strategos.agent.tools.GetCounterfactualHandler
+import com.drkkr.strategos.agent.tools.GetPatternInsightsHandler
+import com.drkkr.strategos.agent.tools.GetSelfModelHandler
 import com.drkkr.strategos.agent.tools.DetectDeceptionHandler
 import com.drkkr.strategos.agent.tools.ExplainFrameworkHandler
 import com.drkkr.strategos.agent.tools.GetCommitmentOpportunitiesHandler
@@ -19,6 +24,11 @@ import com.drkkr.strategos.agent.tools.ShowSupportHandler
 import com.drkkr.strategos.agent.tools.ShowUnderstandingHandler
 import com.drkkr.strategos.agent.tools.StressTestInferredHandler
 import com.drkkr.strategos.agent.tools.UpdateMemoryHandler
+import com.drkkr.strategos.agent.tools.ExplainExtractionHandler
+import com.drkkr.strategos.agent.tools.GetRegretAnalysisHandler
+import com.drkkr.strategos.agent.tools.GetTimingAdviceHandler
+import com.drkkr.strategos.agent.tools.InferOpponentUtilityHandler
+import com.drkkr.strategos.agent.tools.SimulateConversationHandler
 import com.drkkr.strategos.agent.tools.WhatIfHandler
 import com.drkkr.strategos.data.db.dao.WhatIfDao
 import com.drkkr.strategos.data.repo.ChangeSetRepository
@@ -122,7 +132,17 @@ class ToolDispatcher(private val handlers: Map<String, ToolHandler>) {
                 "get_opponent_profile" to GetOpponentProfileHandler,
                 "get_commitment_opportunities" to GetCommitmentOpportunitiesHandler,
                 "get_info_asymmetry" to GetInfoAsymmetryHandler,
-                "detect_deception" to DetectDeceptionHandler
+                "detect_deception" to DetectDeceptionHandler,
+                "calibrate_payoffs" to CalibratePayoffsHandler,
+                "get_belief_state" to GetBeliefStateHandler,
+                "get_self_model" to GetSelfModelHandler,
+                "get_pattern_insights" to GetPatternInsightsHandler,
+                "get_counterfactual" to GetCounterfactualHandler,
+                "simulate_conversation" to SimulateConversationHandler,
+                "get_regret_analysis" to GetRegretAnalysisHandler,
+                "get_timing_advice" to GetTimingAdviceHandler,
+                "explain_extraction" to ExplainExtractionHandler,
+                "infer_opponent_utility" to InferOpponentUtilityHandler
             )
         )
     }

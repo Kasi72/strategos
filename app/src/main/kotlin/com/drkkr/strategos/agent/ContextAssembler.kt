@@ -5,11 +5,16 @@ import com.drkkr.strategos.data.repo.ChangeSetRepository
 import com.drkkr.strategos.data.repo.ConversationRepository
 import com.drkkr.strategos.data.repo.JournalRepository
 import com.drkkr.strategos.data.repo.MemoryKind
+import com.drkkr.strategos.data.repo.OutcomeRepository
 import com.drkkr.strategos.data.repo.TrajectoryRepository
+import com.drkkr.strategos.domain.flywheel.PatternAnalysis
+import com.drkkr.strategos.domain.flywheel.PatternAnalyzer
+import com.drkkr.strategos.domain.flywheel.PatternSynthesizer
 import com.drkkr.strategos.domain.agent.TokenEstimator
 import com.drkkr.strategos.data.repo.MemoryRepository
 import com.drkkr.strategos.data.repo.MessageRole
 import com.drkkr.strategos.data.repo.SettingsRepository
+import com.drkkr.strategos.domain.agent.BiasDetector
 import com.drkkr.strategos.domain.agent.IntakeChecklist
 import com.drkkr.strategos.domain.agent.LanguageDetector
 import com.drkkr.strategos.domain.agent.LiveDigest
@@ -44,7 +49,9 @@ class ContextAssembler(
     private val today: () -> LocalDate = LocalDate::now,
     /** Argon: with [trajectory] set the request uses the 4-layer prefix-cached order and the token budget. */
     private val journal: JournalRepository? = null,
-    private val trajectory: TrajectoryRepository? = null
+    private val trajectory: TrajectoryRepository? = null,
+    /** Upgrades 2 + 9: flywheel coaching context and cross-scenario similarity priming. */
+    private val outcomes: OutcomeRepository? = null
 ) {
     // BLUEPRINT-QUESTION: §10.3 tracks the last-sent version on CounselController; it lives here because the assembler
     // is the only reader. Defaults to "changed" on the first turn of each conversation.
@@ -65,7 +72,8 @@ class ContextAssembler(
         var turns = all.filter { it.seq > (conversation?.summarizedThroughSeq ?: 0) && it.id != newest?.id }
             .mapNotNull(::toInput).takeLast(RECENT_MESSAGES)
         var summary = conversation?.rollingSummary?.takeIf { it.isNotBlank() }
-        val base = liveContextObject(conversationId, scenarioId, scenarioFor(scenarioId), newest, conversation?.let { it.lastReportDigestJson to it.lastReportScenarioVersion })
+        val recentUserTexts = all.filter { it.role == MessageRole.USER.name }.takeLast(5).map { it.text }
+        val base = liveContextObject(conversationId, scenarioId, scenarioFor(scenarioId), newest, conversation?.let { it.lastReportDigestJson to it.lastReportScenarioVersion }, recentUserTexts)
         val snap = traj.current(scenarioId)
         val notes = journal?.activePostNotes(scenarioId).orEmpty().filter { !it.applied }.take(MAX_POST_NOTES)
         var siblings = conversations.listThreads(scenarioId).filter { it.id != conversationId }.take(MAX_SIBLINGS).map { t ->
@@ -120,16 +128,18 @@ class ContextAssembler(
                 add(message("system", "Summary of earlier conversation:\n$it"))
             }
             history.forEach { add(it) }
+            val legacyUserTexts = all.filter { it.role == MessageRole.USER.name }.takeLast(5).map { it.text }
             add(message(AgentConfig.CONTEXT_ROLE, "$HEADER\n```json\n" + liveContextObject(conversationId, scenarioId, scenario, newest, conversation?.let {
                 it.lastReportDigestJson to it.lastReportScenarioVersion
-            }) + "\n```"))
+            }, legacyUserTexts) + "\n```"))
             newest?.let { toInput(it) }?.let { add(it) }
         }
     }
 
     private suspend fun liveContextObject(
         conversationId: String, scenarioId: String, scenario: Scenario?, newest: MessageEntity?,
-        lastReport: Pair<String?, Int?>?
+        lastReport: Pair<String?, Int?>?,
+        userTexts: List<String> = emptyList()
     ): JsonObject {
         val changed = scenario == null || lastSentVersion[conversationId] != scenario.version
         scenario?.let { lastSentVersion[conversationId] = it.version }
@@ -178,8 +188,77 @@ class ContextAssembler(
             }
             put("last_analysis", reportJson?.let(::analysisLine) ?: JsonNull)
             put("last_analysis_stale", reportJson != null && scenario != null && lastReport?.second != scenario.version)
+            val archetype = (reportJson as? JsonObject)?.get("dynamic_archetype")?.let { (it as? JsonPrimitive)?.content }
+            val focusTools = when (archetype) {
+                "prisoners-dilemma" -> listOf("get_directive_plain", "get_timing_advice", "get_regret_analysis", "detect_deception")
+                "chicken", "chicken-game" -> listOf("get_directive_plain", "get_commitment_opportunities", "get_timing_advice")
+                "stag-hunt" -> listOf("get_directive_plain", "get_commitment_opportunities", "get_belief_state")
+                "battle-of-sexes" -> listOf("get_directive_plain", "simulate_conversation", "get_commitment_opportunities")
+                "zero-sum" -> listOf("get_directive_plain", "get_regret_analysis", "explain_extraction")
+                "pure-coordination" -> listOf("get_directive_plain", "get_commitment_opportunities")
+                "harmony" -> listOf("get_directive_plain", "get_timing_advice")
+                "deadlock" -> listOf("get_directive_plain", "get_regret_analysis", "get_counterfactual")
+                "leader" -> listOf("get_directive_plain", "get_timing_advice", "get_commitment_opportunities")
+                "hero" -> listOf("get_directive_plain", "get_self_model", "get_belief_state")
+                "stakeholder-trust-dynamics" -> listOf("get_directive_plain", "get_commitment_opportunities", "get_belief_state", "get_timing_advice")
+                else -> null
+            }
+            if (!focusTools.isNullOrEmpty()) {
+                putJsonArray("engine_focus_tools") { focusTools.forEach { add(JsonPrimitive(it)) } }
+            }
+            // U10: cognitive bias flags
+            val biasFlags = BiasDetector.detect(userTexts)
+            if (biasFlags.isNotEmpty()) {
+                putJsonArray("bias_flags") { biasFlags.forEach { add(JsonPrimitive(it)) } }
+            }
+            // Upgrade 2: flywheel coaching context (fires when ≥10 outcome records exist)
+            // Upgrade 9: cross-scenario similarity priming (injects top-2 similar past archetypes)
+            if (outcomes != null && scenarioId.isNotBlank()) {
+                val records = runCatching { outcomes.forScenario(scenarioId) }.getOrDefault(emptyList())
+                PatternAnalyzer.analyze(records)?.let { pattern ->
+                    put("flywheel_context", buildFlywheelText(pattern, records.size))
+                }
+                val crossRecords = runCatching { outcomes.recentAcrossScenarios(scenarioId) }.getOrDefault(emptyList())
+                if (crossRecords.isNotEmpty()) {
+                    val currentArchetype = records.lastOrNull { it.archetypeName != null }?.archetypeName
+                    val similar = PatternSynthesizer.findSimilar(currentArchetype, crossRecords)
+                    if (similar.isNotEmpty()) {
+                        putJsonArray("similar_scenarios") {
+                            similar.forEach { s ->
+                                addJsonObject {
+                                    s.archetypeName?.let { put("archetype", it) }
+                                    put("avg_rating", s.avgRating)
+                                    put("follow_rate", s.followRate)
+                                    put("insight", s.insight)
+                                    put("sample_size", s.sampleSize)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         return context
+    }
+
+    private fun buildFlywheelText(pattern: PatternAnalysis, recordCount: Int): String {
+        val parts = mutableListOf<String>()
+        pattern.heuristics.forEach { h ->
+            val pct = (h.successRate * 100).toInt()
+            val item: String? = when {
+                h.condition.startsWith("archetype=") ->
+                    "${h.condition.removePrefix("archetype=")} ${pct}% success (n=${h.sampleSize})"
+                h.condition == "strategy=follow_recommendation" -> "following advice ${pct}% success"
+                h.condition == "strategy=deviate_from_recommendation" -> "deviating ${pct}% success"
+                h.condition == "shapley_delta=follow_minus_deviate" ->
+                    "Shapley delta ${if (h.successRate > 0.5) "+" else ""}${((h.successRate - 0.5) * 20.0).toInt() / 10.0}"
+                h.condition == "timing_trend=recent_vs_early" ->
+                    "trend ${if (h.successRate > 0.5) "improving" else "declining"}"
+                else -> null
+            }
+            item?.let { parts += it }
+        }
+        return "FLYWHEEL ($recordCount outcomes): ${parts.joinToString(", ")}."
     }
 
     /** LEAN PROFILE: one line from the stored ReportDigest; the full digest stays in the RECOMMENDATION card. */

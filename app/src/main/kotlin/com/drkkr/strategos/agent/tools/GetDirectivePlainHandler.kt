@@ -21,7 +21,8 @@ object GetDirectivePlainHandler : ToolHandler {
         val out = buildJsonObject {
             put("status", "ok")
             put("badge", directive.badge())
-            put("directive", directive.toJson().toString())
+            // Return structured JsonObject — not toString() — so the LLM reads fields directly
+            put("directive", directive.toJson())
         }
         return ToolOutcome(out, "Engine directive ready", UiKind.RECOMMENDATION)
     }

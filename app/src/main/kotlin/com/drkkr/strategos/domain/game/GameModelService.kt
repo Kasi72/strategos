@@ -77,7 +77,23 @@ object GameModelService {
         /** Structured narrative for the coach and UI; non-null whenever a solved equilibrium exists. */
         val strategicNarrative: StrategicNarrative? = null,
         /** Payoff gaps the extraction layer flagged; non-empty means the user should be prompted. */
-        val missingPayoffs: List<com.drkkr.strategos.domain.model.MissingPayoffQuery> = emptyList()
+        val missingPayoffs: List<com.drkkr.strategos.domain.model.MissingPayoffQuery> = emptyList(),
+        /** Minimax regret result for the user (player 0) in a 2-player game; null for n≠2 or unsolved games. */
+        val regretResult: RegretResult? = null,
+        /** Phase 3: Bayesian belief state over game archetypes derived from the IR's archetype and payoffs. */
+        val beliefState: BeliefState? = null,
+        /** Phase 3: level-k epistemic best response given the opponent model's epsilon. */
+        val epistemicResult: EpistemicResult? = null,
+        /** Phase 4: information asymmetry score in [0,1]; drives BayesianNESolver selection. */
+        val infoAsymmetryScore: Double = 0.0,
+        /** Phase 4: what the opponent likely believes about the user's strategy pattern. */
+        val selfModel: com.drkkr.strategos.domain.agent.SelfModel? = null,
+        /** Phase 4: Bayesian NE result when infoAsymmetryScore > BayesianNESolver.THRESHOLD. */
+        val bayesianNE: BayesianNESolver.BayesianNEResult? = null,
+        /** U9: agreement ratio across cooperative/neutral/adversarial opponent priors (0–1; 1 = all variants agree). */
+        val extractionConfidence: Float = 1.0f,
+        /** U9: interpretations under non-neutral opponent priors that disagree with the neutral recommendation. */
+        val alternativeInterpretations: List<String> = emptyList()
     )
 
     suspend fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
@@ -168,18 +184,31 @@ object GameModelService {
             val folkResult: RepeatedGameAnalyzer.FolkThresholdResult?,
             val outcome: SolverOutcome,
             val coalitionResult: CoalitionEngine.ShapleyResult?,
-            val mechanismHint: MechanismAdvisor.MechanismHint?
+            val mechanismHint: MechanismAdvisor.MechanismHint?,
+            val regretResult: RegretResult?,
+            val beliefState: BeliefState?,
+            val epistemicResult: EpistemicResult?,
+            val infoAsymmetryScore: Double,
+            val bayesianNE: BayesianNESolver.BayesianNEResult?
         )
         val p2 = coroutineScope {
-            val folkDef = async(Dispatchers.Default) {
+            val folkDef   = async(Dispatchers.Default) {
                 if (scenario.repeated || ir.gameClass == GameClass.REPEATED_INFINITE)
                     withContext(Dispatchers.Default) { RepeatedGameAnalyzer.analyze(ir, scenario.discountFactor) }
                 else null
             }
-            val solveDef = async(Dispatchers.Default) { solver.solve(ir, limits) }
-            val coalDef  = async(Dispatchers.Default) { if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null }
-            val mechDef  = async(Dispatchers.Default) { MechanismAdvisor.detect(scenario, contextText, ir.archetype) }
-            Phase2(folkDef.await(), solveDef.await(), coalDef.await(), mechDef.await())
+            val solveDef  = async(Dispatchers.Default) { solver.solve(ir, limits) }
+            val coalDef   = async(Dispatchers.Default) { if (ir.playerCount >= 3) CoalitionEngine.compute(ir) else null }
+            val mechDef   = async(Dispatchers.Default) { MechanismAdvisor.detect(scenario, contextText, ir.archetype) }
+            val regretDef = async(Dispatchers.Default) { MinimaxRegretSolver.solve(ir) }
+            val beliefDef = async(Dispatchers.Default) {
+                val coopRate = BeliefStateTracker.coopRateFromIR(ir)
+                BeliefStateTracker.update(BeliefStateTracker.uniformPrior(), coopRate)
+            }
+            val epistemicDef = async(Dispatchers.Default) { EpistemicDepthSolver.solve(ir, opponentModel) }
+            val asymmetryScore = BayesianNESolver.computeAsymmetryScore(ir)
+            val bayesianNEDef = async(Dispatchers.Default) { BayesianNESolver.solve(ir, opponentModel, asymmetryScore) }
+            Phase2(folkDef.await(), solveDef.await(), coalDef.await(), mechDef.await(), regretDef.await(), beliefDef.await(), epistemicDef.await(), asymmetryScore, bayesianNEDef.await())
         }
         val folkResult    = p2.folkResult
         val outcome       = p2.outcome
@@ -245,17 +274,65 @@ object GameModelService {
             )
         } else null
 
+        // U9: multi-hypothesis extraction confidence.
+        // Create 3 scenario variants with different opponent priors and check if IEDS agrees on surviving user actions.
+        val (extractionConfidence, alternativeInterpretations) = computeExtractionConfidence(rawIr, scenario)
+
         return AnalysisContext(
-            result             = analysisResult,
-            pruneResult        = pruneResult,
-            biResult           = biResult,
-            opponentModel      = opponentModel,
-            coalitionResult    = coalitionResult,
-            mechanismHint      = mechanismHint,
-            validationWarnings = validationWarnings,
-            folkResult         = folkResult,
-            focalSelection     = focalSelection,
-            strategicNarrative = strategicNarrative
+            result               = analysisResult,
+            pruneResult          = pruneResult,
+            biResult             = biResult,
+            opponentModel        = opponentModel,
+            coalitionResult      = coalitionResult,
+            mechanismHint        = mechanismHint,
+            validationWarnings   = validationWarnings,
+            folkResult           = folkResult,
+            focalSelection       = focalSelection,
+            strategicNarrative   = strategicNarrative,
+            regretResult         = p2.regretResult,
+            beliefState          = p2.beliefState,
+            epistemicResult      = p2.epistemicResult,
+            infoAsymmetryScore   = p2.infoAsymmetryScore,
+            bayesianNE           = p2.bayesianNE,
+            extractionConfidence = extractionConfidence,
+            alternativeInterpretations = alternativeInterpretations
         )
+    }
+
+    /**
+     * U9: Creates 3 scenario variants (cooperative/neutral/adversarial opponent priors), runs IEDS on each,
+     * and measures how often the surviving user action set agrees with the neutral variant.
+     * Returns (confidence, alternativeInterpretations).
+     */
+    private fun computeExtractionConfidence(rawIr: GameIR, scenario: Scenario): Pair<Float, List<String>> {
+        if (rawIr.playerCount != 2) return Pair(1.0f, emptyList())
+        val players = scenario.players()
+        if (players.size < 2) return Pair(1.0f, emptyList())
+        val oppId = players[1].id
+        val oppStakeholder = scenario.stakeholders.firstOrNull { it.id == oppId } ?: return Pair(1.0f, emptyList())
+
+        data class Variant(val label: String, val stakeholder: com.drkkr.strategos.domain.model.Stakeholder)
+        val variants = listOf(
+            Variant("If opponent is cooperative", oppStakeholder.copy(probSoftensOnRepair = 0.8, probRespectsBoundary = 0.8, probEscalatesOnReactive = 0.1)),
+            Variant("If opponent is neutral", oppStakeholder),
+            Variant("If opponent is adversarial", oppStakeholder.copy(probSoftensOnRepair = 0.2, probRespectsBoundary = 0.3, probEscalatesOnReactive = 0.8))
+        )
+
+        val recommendations = variants.mapNotNull { (label, opp) ->
+            val variantScenario = scenario.copy(stakeholders = scenario.stakeholders.map { if (it.id == oppId) opp else it })
+            val adjIr = BayesianPayoffAdjuster.adjust(rawIr, variantScenario)
+            val surviving = IteratedDominancePruner.prune(adjIr).ir.actionIds.getOrNull(0)?.toSet()
+            surviving?.let { label to it }
+        }
+
+        if (recommendations.isEmpty()) return Pair(1.0f, emptyList())
+        val neutralSurviving = recommendations.firstOrNull { it.first.contains("neutral") }?.second
+            ?: recommendations.first().second
+
+        val agreeing = recommendations.count { it.second == neutralSurviving }
+        val confidence = agreeing.toFloat() / recommendations.size.toFloat()
+        val alternatives = recommendations.filter { it.second != neutralSurviving }.map { it.first }
+
+        return Pair(confidence, alternatives)
     }
 }
