@@ -23,6 +23,8 @@ import com.drkkr.strategos.data.repo.RevealMath
 import com.drkkr.strategos.data.repo.ThreadSummary
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.calm.projects.ProjectsUi
+import com.drkkr.strategos.domain.files.FileBlock
+import com.drkkr.strategos.domain.files.FileBrief
 import kotlinx.coroutines.launch
 
 /**
@@ -35,7 +37,12 @@ fun TalkRoute(
     onBack: () -> Unit,
     onOpenXRay: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenMemory: () -> Unit
+    onOpenOverview: () -> Unit,
+    /** How the project is trending, for the line under the title. Null until its chart has data. */
+    status: com.drkkr.strategos.domain.analysis.MomentumStatus? = null,
+    /** The pending check-in question, if the user has something to report back on. */
+    checkIn: String? = null,
+    onSaveCheckIn: (did: String, landed: String) -> Unit = { _, _ -> }
 ) {
     val vm: StrategosViewModel = viewModel()
     val app = vm.state.collectAsState().value
@@ -43,7 +50,6 @@ fun TalkRoute(
     val reveal by vm.revealMath.collectAsState()
     val counsel = vm.counsel
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     // Bind the controller to this project once the scenario list has loaded.
     LaunchedEffect(projectId, app.scenarios.size) {
@@ -98,10 +104,11 @@ fun TalkRoute(
         !counselUi.hasKey || counselUi.needsConsent -> TalkProblem.NO_KEY
         else -> TalkProblem.AI_OFF
     }
+    val picked = rememberFilePick(projectId)
     val now = System.currentTimeMillis()
     val state = TalkUiState(
         projectName = scenario?.let { ProjectsUi.displayName(it.title) }.orEmpty(),
-        topics = summaries.map { TopicUi(it.id, it.title, it.lastLine, TalkUi.whenLabel(it.lastAt, now), it.id == counselUi.conversationId) },
+        topics = summaries.map { TopicUi(it.id, it.title, FileBlock.words(it.lastLine), TalkUi.whenLabel(it.lastAt, now), it.id == counselUi.conversationId) },
         turns = TalkUi.turns(counselUi.items.filter { it !is ChatItem.Error }, queued.toList()),
         thinking = counselUi.running,
         activity = counselUi.activity,
@@ -112,23 +119,39 @@ fun TalkRoute(
         loading = scenario == null,
         powerMode = counselUi.powerMode,
         powerAvailable = counselUi.powerModeAvailable && counselUi.conversationId != null,
-        powerExplained = counselUi.powerExplained
+        powerExplained = counselUi.powerExplained,
+        statusLine = when (status) {
+            com.drkkr.strategos.domain.analysis.MomentumStatus.IMPROVING -> "Getting better"
+            com.drkkr.strategos.domain.analysis.MomentumStatus.TENSE -> "Getting tense"
+            com.drkkr.strategos.domain.analysis.MomentumStatus.STEADY -> "Holding steady"
+            null -> ""
+        },
+        statusTone = when (status) {
+            com.drkkr.strategos.domain.analysis.MomentumStatus.IMPROVING -> 1
+            com.drkkr.strategos.domain.analysis.MomentumStatus.TENSE -> -1
+            else -> 0
+        },
+        // Same rule as the label under a reply: the X-ray is offered once the engine has a move, unless the user hid the math.
+        canXRay = reveal != RevealMath.NEVER && counselUi.items.any { it is ChatItem.AssistantText && it.pill != null },
+        checkIn = checkIn,
+        attachment = picked.ui
     )
     TalkScreen(state, TalkActions(
         onBack = onBack,
-        onSend = { text -> if (!online) queued += text else counsel?.send(text) },
+        // A file that is ready goes inside the message as a prepared block (see FileBlock); with no words of the user's own it gets a default ask.
+        onSend = { text ->
+            val full = picked.take()?.let { FileBlock.compose(text, it) } ?: text
+            if (full.isNotBlank()) { if (!online) queued += full else counsel?.send(full) }
+        },
+        onAttach = picked.open,
+        onRemoveAttachment = picked.clear,
         onStop = { counsel?.stop() },
         onRetry = { counsel?.retryLastTurn() },
         onSelectTopic = { counsel?.selectThread(it) },
-        onNewTopic = { text ->
-            scope.launch {
-                counsel?.createNamedThread(ProjectsUi.displayName(text, 28))?.join()
-                counsel?.send(text)
-            }
-        },
         onOpenXRay = onOpenXRay,
         onOpenSettings = onOpenSettings,
-        onOpenMemory = onOpenMemory,
+        onOpenOverview = onOpenOverview,
+        onSaveCheckIn = onSaveCheckIn,
         onSetPowerMode = { on -> counsel?.setPowerMode(on) },
         onPowerExplained = { counsel?.markPowerExplained() },
         // The user's word on the Power Read card: saved through the same userFixed path as the Review sheet (I-H8).

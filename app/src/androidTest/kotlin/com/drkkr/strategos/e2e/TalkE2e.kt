@@ -13,9 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class TalkE2e : E2eBase() {
 
-    private fun openTalk(name: String) {
-        waitForText(name); text(name).performClick(); waitForText("Start chat"); text("Start chat").performClick(); waitForDesc("Back to overview")
-    }
+    private fun openTalk(name: String) = openProject(name)
 
     @Test fun TC_E2E_TALK_01_noKeyShowsTheConnectCardAndSettingsLink() {
         reset(withKey = false); seedProject("Loan for my brother"); launch()
@@ -38,15 +36,14 @@ class TalkE2e : E2eBase() {
         assertTrue(kotlinx.coroutines.runBlocking { dao.countVisibleForScenario(id) } >= 2)
     }
 
-    @Test fun TC_E2E_TALK_03_newTopicCreatesASeparateThread() {
-        requireLiveKey()
-        reset(withKey = true); seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
+    /** One project, one conversation: there is no way to start a second topic, and a single-thread project shows no topic chips. */
+    @Test fun TC_E2E_TALK_03_oneConversationPerProject_noNewTopic() {
+        reset(withKey = false); val id = seedProject("Loan for my brother", "My brother wants me to co-sign a loan for his cafe."); launch()
         openTalk("Loan for my brother")
-        text("+ Topic").performClick()
-        waitForText("A new topic")
-        typeInto(0, "Money angle")
-        text("Start talking").performClick()
-        waitForText("Money angle")      // the new chip
+        assertTrue("no '+ Topic' button", !hasText("+ Topic"))
+        assertTrue("no 'New topic' entry", !hasText("New topic") && !hasText("A new topic"))
+        val threads = kotlinx.coroutines.runBlocking { container.database!!.conversationDao().listThreadsForScenario(id) }
+        assertTrue("at most the one conversation (${threads.size})", threads.size <= 1)
     }
 
     @Test fun TC_E2E_TALK_04_emptyProjectInvitesTheFirstMessage() {
@@ -76,9 +73,8 @@ class TalkE2e : E2eBase() {
     @Test fun TC_E2E_TALK_06_withAKeyTheNoKeyCardNeverFlashes() {
         requireLiveKey()
         reset(withKey = true); seedProject("Loan for my brother"); launch()
-        waitForText("Loan for my brother"); text("Loan for my brother").performClick()
-        waitForText("Start chat"); rule.mainClock.autoAdvance = false
-        text("Start chat").performClick()
+        waitForText("Loan for my brother"); rule.mainClock.autoAdvance = false
+        text("Loan for my brother").performClick()      // straight into the chat, where the card used to flash
         var flashed = false
         repeat(80) { rule.mainClock.advanceTimeByFrame(); Thread.sleep(20); if (hasText("Add your AI key")) flashed = true }
         rule.mainClock.autoAdvance = true

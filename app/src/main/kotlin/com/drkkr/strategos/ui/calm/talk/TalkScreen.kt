@@ -45,6 +45,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Schedule
@@ -54,6 +56,10 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.verticalScroll
+import com.drkkr.strategos.domain.files.AttachedFile
+import com.drkkr.strategos.ui.calm.theme.CalmFonts
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +74,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -83,12 +92,14 @@ import com.drkkr.strategos.ui.calm.theme.Calm
 import com.drkkr.strategos.ui.calm.theme.calmCard
 import com.drkkr.strategos.ui.components.rememberVoiceInput
 
-/** Talk (board 06): back + project name, topic chips, the conversation, and the composer. Stateless. */
+/**
+ * Talk (board 06): the project's one conversation. The top bar holds the title (tap it for the overview) and the
+ * X-ray button; below it the conversation, then the composer. Stateless.
+ */
 @Composable
 fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modifier) {
     val c = Calm.colors
     var explaining by remember { mutableStateOf<EngineTagUi?>(null) }
-    var newTopic by remember { mutableStateOf(false) }
     var allTopics by remember { mutableStateOf(false) }
     var powerExplainer by remember { mutableStateOf(false) }
 
@@ -101,7 +112,7 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
             topPad = with(density) { headerPx.toDp() }, bottomPad = with(density) { footerPx.toDp() })
         // Opaque header (CP-P3): the conversation scrolls under it and must not show through the back arrow or the chips.
         Column(Modifier.align(Alignment.TopCenter).onSizeChanged { headerPx = it.height }.background(c.ground).statusBarsPadding()) {
-            TopBar(ui.projectName, actions.onBack, onNewTopic = { newTopic = true },
+            TopBar(ui, actions.onBack, actions.onOpenOverview, actions.onOpenXRay,
                 power = if (ui.powerAvailable) ui.powerMode else null,
                 onPower = {
                     when {
@@ -112,7 +123,8 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
                 })
             if (ui.powerAvailable && ui.powerMode) PowerBanner()
             if (ui.offline) OfflineBanner()
-            // One topic needs no chip row: the screen goes to the conversation. The row appears once there are several.
+            // One project, one conversation: new topics can no longer be started. The row only appears for older projects
+            // that already have several, so nothing they wrote becomes unreachable.
             if (ui.topics.size > 1) TopicRow(ui, onSelect = actions.onSelectTopic, onAll = { allTopics = true })
         }
         Box(Modifier.align(Alignment.BottomCenter).onSizeChanged { footerPx = it.height }) { Composer(ui, actions) }
@@ -123,33 +135,78 @@ fun TalkScreen(ui: TalkUiState, actions: TalkActions, modifier: Modifier = Modif
         onTurnOn = { powerExplainer = false; actions.onPowerExplained(); actions.onSetPowerMode(true) },
         onClose = { powerExplainer = false; actions.onPowerExplained() }
     )
-    if (newTopic) NewTopicSheet(onStart = { actions.onNewTopic(it); newTopic = false }, onClose = { newTopic = false })
-    if (allTopics) AllTopicsSheet(ui.topics, onPick = { actions.onSelectTopic(it); allTopics = false }, onNew = { allTopics = false; newTopic = true }, onClose = { allTopics = false })
+    if (allTopics) AllTopicsSheet(ui.topics, onPick = { actions.onSelectTopic(it); allTopics = false }, onClose = { allTopics = false })
 }
 
+/**
+ * Back, then the title as the door to the overview (the way a contact's name opens their details in a messaging app),
+ * with one quiet line under it saying how things are trending. The X-ray is the single amber button on the right.
+ */
 @Composable
-private fun TopBar(name: String, onBack: () -> Unit, onNewTopic: () -> Unit, power: Boolean? = null, onPower: () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(Calm.colors.card.copy(alpha = 0.94f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to overview", tint = Calm.colors.ink)
+private fun TopBar(ui: TalkUiState, onBack: () -> Unit, onOverview: () -> Unit, onXRay: () -> Unit, power: Boolean? = null, onPower: () -> Unit = {}) {
+    val c = Calm.colors
+    androidx.compose.foundation.layout.BoxWithConstraints {
+        // With both chips showing on a phone, Power shrinks to its mark so the title keeps room to read.
+        val tight = maxWidth < 480.dp && power != null && ui.canXRay
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(44.dp).clip(CircleShape).background(c.card.copy(alpha = 0.94f)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to projects", tint = c.ink)
+            }
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                // The trend is said in words only when the whole line fits; otherwise the dot carries it, never a cut-off word.
+                val words = ui.statusLine.isNotBlank() && maxWidth >= 200.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale
+                Column(
+                    Modifier.fillMaxWidth().testTag("talk-title").clip(RoundedCornerShape(12.dp))
+                        .clickable(onClickLabel = "Open the project overview", role = androidx.compose.ui.semantics.Role.Button, onClick = onOverview)
+                        .heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(ui.projectName, style = Calm.type.subtitle, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (ui.statusLine.isNotBlank()) {
+                            Box(Modifier.size(7.dp).background(if (ui.statusTone > 0) c.trust else if (ui.statusTone < 0) c.tension else c.ink3, CircleShape))
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(if (words) "${ui.statusLine} · Overview" else "Overview", style = Calm.type.pill, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false).semantics { if (ui.statusLine.isNotBlank()) contentDescription = "${ui.statusLine}. Overview" })
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.ink3, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+            // Power Mode: off by default, per conversation, and visible (I-P1). Hidden under the Power Mode lock (I-P4).
+            if (power != null) { PowerChip(power, onPower, compact = tight); Spacer(Modifier.width(6.dp)) }
+            if (ui.canXRay) XRayButton(onXRay)
         }
-        Spacer(Modifier.weight(1f))
-        // Power Mode: off by default, per conversation, and visible (I-P1). Hidden under the Power Mode lock (I-P4).
-        if (power != null) { PowerChip(power, onPower); Spacer(Modifier.width(8.dp)) }
-        Chip("+ Topic", onNewTopic, dashed = true)
+    }
+}
+
+/** The engine's door: amber, like everything that belongs to the engine. A 36dp pill inside a 48dp touch target. */
+@Composable
+private fun XRayButton(onClick: () -> Unit) {
+    val c = Calm.colors
+    val shape = RoundedCornerShape(18.dp)
+    Box(Modifier.heightIn(min = 48.dp).clip(shape).clickable(onClickLabel = "Open the X-ray", role = androidx.compose.ui.semantics.Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
+        Row(
+            // Opaque: the conversation scrolls under the header.
+            Modifier.height(36.dp).clip(shape).background(c.card).background(c.rigor.copy(alpha = 0.14f)).border(1.dp, c.rigor.copy(alpha = 0.4f), shape).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Box(Modifier.size(8.dp).background(c.rigor, RoundedCornerShape(2.dp)))
+            Text("X-Ray", color = c.rigor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
     }
 }
 
 @Composable
-private fun PowerChip(on: Boolean, onClick: () -> Unit) {
+private fun PowerChip(on: Boolean, onClick: () -> Unit, compact: Boolean = false) {
     val c = Calm.colors
     val shape = RoundedCornerShape(16.dp)
     Box(
         // Opaque: the conversation scrolls under the header, and a see-through chip would show it.
         Modifier.height(32.dp).clip(shape).background(c.card).background(if (on) c.rigor.copy(alpha = 0.18f) else Color.Transparent)
-            .border(1.dp, if (on) c.rigor else c.line, shape).clickable(onClick = onClick).padding(horizontal = 14.dp),
+            .border(1.dp, if (on) c.rigor else c.line, shape).clickable(onClickLabel = "Power Mode", onClick = onClick).padding(horizontal = if (compact) 10.dp else 14.dp),
         contentAlignment = Alignment.Center
-    ) { Text("⚡ Power", color = if (on) c.rigor else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+    ) { Text(if (compact) "⚡" else "⚡ Power", color = if (on) c.rigor else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
 }
 
 @Composable
@@ -232,7 +289,10 @@ private fun Chip(label: String, onClick: () -> Unit, dashed: Boolean = false) {
 private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifier, onExplain: (EngineTagUi) -> Unit, topPad: androidx.compose.ui.unit.Dp = 0.dp, bottomPad: androidx.compose.ui.unit.Dp = 0.dp) {
     val c = Calm.colors
     val state = rememberLazyListState()
-    val lastKey = ui.turns.size + (if (ui.thinking) 1 else 0) + (if (ui.problem != TalkProblem.NONE) 1 else 0)
+    // The check-in is asked once the coach is idle; after it is answered, one quiet line confirms what was logged.
+    val askCheckIn = ui.checkIn != null && !ui.thinking && ui.problem == TalkProblem.NONE && ui.turns.isNotEmpty()
+    var logged by remember { mutableStateOf<String?>(null) }
+    val lastKey = ui.turns.size + (if (ui.thinking) 1 else 0) + (if (ui.problem != TalkProblem.NONE) 1 else 0) + (if (askCheckIn || logged != null) 1 else 0)
     LaunchedEffect(lastKey) { if (lastKey > 0) state.animateScrollToItem((lastKey - 1).coerceAtLeast(0)) }
     // The text dissolves into the status bar and header at the top and into the composer at the bottom, instead of ending on a hard edge.
     val fade = Modifier.graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
@@ -267,6 +327,11 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
         }
         if (ui.thinking) item("thinking") { Thinking(ui.activity) }
         if (ui.problem != TalkProblem.NONE && !ui.thinking) item("problem") { Problem(ui, actions) }
+        if (askCheckIn) item("checkin") {
+            CheckInCard(ui.checkIn.orEmpty()) { did, landed, said -> logged = said; actions.onSaveCheckIn(did, landed) }
+        } else if (logged != null) item("logged") {
+            Text(logged.orEmpty(), color = c.ink3, fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        }
     }
 }
 
@@ -274,19 +339,128 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
 private fun UserBubble(t: TalkTurn.User) {
     val c = Calm.colors
     var expanded by remember(t.id) { mutableStateOf(false) }
+    var reading by remember(t.id) { mutableStateOf(false) }
     val long = t.text.length > 240
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         CopyMenu(t.text) { longPress -> Column(
             Modifier.widthIn(max = 320.dp).alpha(if (t.queued) 0.82f else 1f)
-                .clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(c.action).then(longPress).padding(horizontal = 16.dp, vertical = 12.dp)
+                .clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).background(c.action).then(longPress).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(t.text, color = Color.White, fontSize = 16.sp, lineHeight = 24.sp, maxLines = if (long && !expanded) 6 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+            // The file that went with the message: a chip, not the prepared text. Tapping it shows exactly what the coach read.
+            t.file?.let { f ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.16f))
+                        .clickable(onClickLabel = "See what was read from this file") { reading = true }
+                        .heightIn(min = 56.dp).padding(horizontal = 10.dp, vertical = 8.dp).testTag("file-chip"),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FileBadge(f.badge, onDark = true)
+                    Column(Modifier.weight(1f)) {
+                        Text(f.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(f.facts, color = Color.White.copy(alpha = 0.82f), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Color.White.copy(alpha = 0.82f), modifier = Modifier.size(18.dp))
+                }
+            }
+            if (t.text.isNotEmpty()) Text(t.text, color = Color.White, fontSize = 16.sp, lineHeight = 24.sp, maxLines = if (long && !expanded) 6 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
             if (long && !expanded) Text("Read more", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp).clickable { expanded = true })
+                modifier = Modifier.clickable { expanded = true })
         } }
         if (t.queued) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(Icons.Default.Schedule, null, tint = c.ink3, modifier = Modifier.size(14.dp))
             Text("Waiting for a connection", color = c.ink3, fontSize = 12.sp)
+        }
+    }
+    if (reading) t.file?.let { FileSheet(it) { reading = false } }
+}
+
+/** The three-letter mark for a file: green for sheets, blue for documents, coral for slides, grey for plain text. */
+@Composable
+private fun FileBadge(badge: String, onDark: Boolean = false) {
+    val c = Calm.colors
+    val tint = when (badge) { "CSV", "XLS" -> c.trust; "DOC" -> c.action; "PPT" -> c.tension; else -> c.ink3 }
+    Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (onDark) Color.White else tint), contentAlignment = Alignment.Center) {
+        Text(badge, color = if (onDark) tint else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = CalmFonts.Mono, maxLines = 1)
+    }
+}
+
+/** "What I read from this file": the brief exactly as the coach got it, so the user can check it before trusting the answer. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FileSheet(f: AttachedFile, onClose: () -> Unit) {
+    val c = Calm.colors
+    ModalBottomSheet(
+        onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = c.paper, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 20.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("What I read from this file", style = Calm.type.title, color = c.ink)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FileBadge(f.badge)
+                Column(Modifier.weight(1f)) {
+                    Text(f.name, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${f.label} · ${f.facts}", color = c.ink3, fontSize = 13.sp)
+                }
+            }
+            Box(Modifier.fillMaxWidth().weight(1f, fill = false).clip(RoundedCornerShape(16.dp)).background(c.card).verticalScroll(rememberScrollState()).padding(12.dp)) {
+                Text(f.body, color = c.ink2, fontSize = 12.5.sp, lineHeight = 18.sp, fontFamily = CalmFonts.Mono, modifier = Modifier.testTag("file-brief"))
+            }
+            Text("Prepared on your phone. The coach reads this summary, not the file itself, and uses it for the rest of this conversation.", color = c.ink3, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+private val CHECK_DID = listOf("DID_AS_SUGGESTED" to "Did as suggested", "TRIED_VARIATION" to "Tried a variation", "SKIPPED_REACTIVE" to "Reacted instead")
+private val CHECK_LANDED = listOf("DE_ESCALATED" to "Warmer", "NO_CHANGE" to "About the same", "ESCALATED_ATTACKED" to "Colder")
+
+/**
+ * The check-in, asked where the advice was given: what the user did with the last suggestion and how it landed.
+ * Nothing is pre-selected and nothing is saved until both rows are answered and Save is tapped, so a stray tap
+ * never writes a point onto the chart.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CheckInCard(question: String, onSave: (did: String, landed: String, said: String) -> Unit) {
+    val c = Calm.colors
+    var did by remember(question) { mutableStateOf<String?>(null) }
+    var landed by remember(question) { mutableStateOf<String?>(null) }
+    val shape = RoundedCornerShape(20.dp)
+    Column(Modifier.fillMaxWidth().clip(shape).background(c.coach).border(1.dp, c.selectedBorder, shape).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("CHECK-IN", style = Calm.type.pill, color = c.ink3)
+        Text(question, style = Calm.type.coachLead, color = c.coachInk)
+        Text("WHAT YOU DID", style = Calm.type.pill, color = c.ink3)
+        CheckChips(CHECK_DID, did) { did = it }
+        Text("HOW IT LANDED", style = Calm.type.pill, color = c.ink3)
+        CheckChips(CHECK_LANDED, landed) { landed = it }
+        val ready = did != null && landed != null
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+            if (!ready) Text("Pick one in each row.", color = c.ink3, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Box(
+                Modifier.heightIn(min = 48.dp).alpha(if (ready) 1f else 0.5f).clip(RoundedCornerShape(24.dp)).background(c.action)
+                    .clickable(enabled = ready, onClickLabel = "Save the check-in") {
+                        val a = CHECK_DID.first { it.first == did }.second.lowercase(); val b = CHECK_LANDED.first { it.first == landed }.second.lowercase()
+                        onSave(did!!, landed!!, "Logged: $a · $b. Your chart is updated.")
+                    }.padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center
+            ) { Text("Save", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CheckChips(options: List<Pair<String, String>>, selected: String?, onSelect: (String) -> Unit) {
+    val c = Calm.colors
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { (key, label) ->
+            val on = key == selected
+            val shape = RoundedCornerShape(20.dp)
+            Box(
+                Modifier.heightIn(min = 40.dp).clip(shape).background(if (on) c.selected else Color.Transparent).border(1.dp, if (on) c.selectedBorder else c.line, shape)
+                    .clickable(role = androidx.compose.ui.semantics.Role.RadioButton) { onSelect(key) }.padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) { Text(label, color = if (on) c.selectedText else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1) }
         }
     }
 }
@@ -466,29 +640,58 @@ private fun Composer(ui: TalkUiState, actions: TalkActions) {
     val c = Calm.colors
     var draft by remember { mutableStateOf("") }
     val voice = rememberVoiceInput(onText = { spoken -> draft = (draft + " " + spoken).trim() })
-    val canSend = draft.isNotBlank()
+    val file = ui.attachment
+    // A file that is ready can go on its own; while one is still being read, sending waits so it is never left behind.
+    val canSend = file?.state != AttachState.READING && (draft.isNotBlank() || file?.state == AttachState.READY)
     val shape = RoundedCornerShape(28.dp)
     Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp).navigationBarsPadding()) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).calmCard(c, shape).padding(start = 20.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                if (draft.isEmpty()) Text(if (ui.turns.isEmpty()) "What’s on your mind?" else "What happened next?", color = c.ink3, fontSize = 16.sp)
-                BasicTextField(
-                    draft, { draft = it }, textStyle = Calm.type.body.copy(color = c.ink), cursorBrush = SolidColor(c.action),
-                    modifier = Modifier.fillMaxWidth(), maxLines = 5
-                )
+        Column(Modifier.fillMaxWidth().calmCard(c, shape).padding(4.dp)) {
+            if (file != null) AttachmentRow(file, actions.onRemoveAttachment)
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = actions.onAttach), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.AttachFile, "Attach a file", tint = c.actionLink, modifier = Modifier.size(22.dp))
+                }
+                Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    if (draft.isEmpty()) Text(
+                        when { file?.state == AttachState.READY -> "Add a question (optional)"; ui.turns.isEmpty() -> "What’s on your mind?"; else -> "What happened next?" },
+                        color = c.ink3, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    BasicTextField(
+                        draft, { draft = it }, textStyle = Calm.type.body.copy(color = c.ink), cursorBrush = SolidColor(c.action),
+                        modifier = Modifier.fillMaxWidth(), maxLines = 5
+                    )
+                }
+                Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = voice.start), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Mic, if (voice.listening) "Listening" else "Speak", tint = if (voice.listening) c.tension else c.actionLink, modifier = Modifier.size(24.dp))
+                }
+                if (ui.thinking) Box(Modifier.size(48.dp).clip(CircleShape).border(2.dp, c.action, CircleShape).clickable(onClick = actions.onStop), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Stop, "Stop reply", tint = c.actionLink, modifier = Modifier.size(18.dp))
+                } else Box(
+                    Modifier.size(48.dp).clip(CircleShape).background(if (canSend) c.action else c.yoursBg).clickable(enabled = canSend) { actions.onSend(draft.trim()); draft = "" },
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Default.ArrowUpward, "Send message", tint = if (canSend) Color.White else c.ink3, modifier = Modifier.size(24.dp)) }
             }
-            Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = voice.start), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Mic, if (voice.listening) "Listening" else "Speak", tint = if (voice.listening) c.tension else c.actionLink, modifier = Modifier.size(24.dp))
-            }
-            if (ui.thinking) Box(Modifier.size(48.dp).clip(CircleShape).border(2.dp, c.action, CircleShape).clickable(onClick = actions.onStop), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.Stop, "Stop reply", tint = c.actionLink, modifier = Modifier.size(18.dp))
-            } else Box(
-                Modifier.size(48.dp).clip(CircleShape).background(if (canSend) c.action else c.yoursBg).clickable(enabled = canSend) { actions.onSend(draft.trim()); draft = "" },
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.Default.ArrowUpward, "Send message", tint = if (canSend) Color.White else c.ink3, modifier = Modifier.size(24.dp)) }
+        }
+    }
+}
+
+/** The picked file, waiting above the text box: what it is and how big, or why it can't be read. */
+@Composable
+private fun AttachmentRow(file: AttachmentUi, onRemove: () -> Unit) {
+    val c = Calm.colors
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp).clip(RoundedCornerShape(24.dp, 24.dp, 12.dp, 12.dp)).background(c.yoursBg)
+            .heightIn(min = 56.dp).padding(start = 10.dp).testTag("attachment"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        FileBadge(file.badge)
+        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+            Text(file.name, color = c.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(file.line, color = if (file.state == AttachState.FAILED) c.error else c.ink3, fontSize = 13.sp, lineHeight = 18.sp,
+                maxLines = if (file.state == AttachState.FAILED) 3 else 2, overflow = TextOverflow.Ellipsis)
+        }
+        Box(Modifier.size(48.dp).clip(CircleShape).clickable(onClick = onRemove), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Close, "Remove file", tint = c.ink3, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -518,47 +721,9 @@ private fun PillExplainer(tag: EngineTagUi, onXRay: () -> Unit, onClose: () -> U
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun NewTopicSheet(onStart: (String) -> Unit, onClose: () -> Unit) {
-    val c = Calm.colors
-    var draft by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = c.paper, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp).imePadding().navigationBarsPadding()) {
-            Text("A new topic", style = Calm.type.title, color = c.ink)
-            Text("Same project, a separate conversation. Everything the project learns carries across.", color = c.ink2, fontSize = 16.sp, lineHeight = 24.sp, modifier = Modifier.padding(top = 8.dp))
-            FlowRow(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TalkUi.TOPIC_STARTERS.forEach { s ->
-                    val on = draft == s
-                    val shape = RoundedCornerShape(18.dp)
-                    Box(Modifier.height(36.dp).clip(shape).background(if (on) c.selected else c.paper2).border(1.dp, if (on) c.selectedBorder else c.line, shape).clickable { draft = s }.padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center) { Text(s, color = if (on) c.selectedText else c.ink2, fontSize = 14.sp, fontWeight = FontWeight.Medium) }
-                }
-            }
-            Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card).border(1.5.dp, c.action, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Text("What do you want to talk through?", color = c.actionLink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Box(Modifier.padding(top = 4.dp)) {
-                    if (draft.isEmpty()) Text("Name the angle or write your first line…", color = c.ink3, fontSize = 16.sp)
-                    BasicTextField(draft, { draft = it }, textStyle = Calm.type.body.copy(color = c.ink), cursorBrush = SolidColor(c.action), modifier = Modifier.fillMaxWidth())
-                }
-            }
-            Text("Nothing is created until you send your first message, so you can’t end up with an empty thread.", color = c.ink3, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 12.dp))
-            Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    Modifier.weight(1f).height(52.dp).alpha(if (draft.isBlank()) 0.5f else 1f).clip(RoundedCornerShape(26.dp)).background(c.action).clickable(enabled = draft.isNotBlank()) { onStart(draft.trim()) },
-                    contentAlignment = Alignment.Center
-                ) { Text("Start talking", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
-                Box(Modifier.height(52.dp).clickable(onClick = onClose).padding(horizontal = 20.dp), contentAlignment = Alignment.Center) {
-                    Text("Cancel", color = c.ink2, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AllTopicsSheet(topics: List<TopicUi>, onPick: (String) -> Unit, onNew: () -> Unit, onClose: () -> Unit) {
+private fun AllTopicsSheet(topics: List<TopicUi>, onPick: (String) -> Unit, onClose: () -> Unit) {
     val c = Calm.colors
     ModalBottomSheet(onDismissRequest = onClose, containerColor = c.paper, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 20.dp).navigationBarsPadding()) {
@@ -581,10 +746,6 @@ private fun AllTopicsSheet(topics: List<TopicUi>, onPick: (String) -> Unit, onNe
                         Text(t.whenLabel, color = c.ink3, fontSize = 13.sp)
                     }
                 }
-            }
-            Row(Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onNew), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Add, null, tint = c.actionLink, modifier = Modifier.size(22.dp))
-                Text("New topic", color = c.actionLink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

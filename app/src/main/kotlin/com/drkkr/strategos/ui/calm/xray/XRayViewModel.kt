@@ -8,6 +8,8 @@ import com.drkkr.strategos.domain.agent.NotEnoughPrompt
 import com.drkkr.strategos.domain.agent.Pattern
 import com.drkkr.strategos.domain.agent.PatternCatalog
 import com.drkkr.strategos.domain.agent.PriorId
+import com.drkkr.strategos.domain.agent.XRayArena
+import com.drkkr.strategos.domain.agent.XRayArenaBuilder
 import com.drkkr.strategos.domain.agent.XRayGrid
 import com.drkkr.strategos.domain.agent.XRayGridBuilder
 import com.drkkr.strategos.domain.agent.XRayNotEnough
@@ -47,7 +49,11 @@ data class XRayUiState(
     /** Human Layer: the strongest effect on how the move lands, in one plain line, and where to read more. Null when there is none. */
     val humanLens: String? = null,
     val humanLensTopic: String? = null,
-    val humanLensUrl: String? = null
+    val humanLensUrl: String? = null,
+    /** Slide 1: who is in the game. Null when the scenario has no counterpart yet. */
+    val arena: XRayArena? = null,
+    /** Whole-percent odds where the top-scoring move changes; drawn as ticks under the slider. */
+    val flips: List<Int> = emptyList()
 ) {
     val changed: Boolean get() = kotlin.math.abs(odds - coachOdds) > 0.004f
     val flipped: Boolean get() = grid != null && changed && grid.best.label != coachBestLabel
@@ -98,9 +104,13 @@ class XRayViewModel(app: Application, private val projectId: String) : AndroidVi
         val odds = d ?: coach
         val unchanged = kotlin.math.abs(odds - coach) <= 0.004f
         val pinned = directive?.moveToImplement
-        val grid = XRayGridBuilder.build(s, odds.toDouble(), pinned.takeIf { unchanged })
-        val coachBest = pinned ?: XRayGridBuilder.build(s, coach.toDouble())?.best?.label.orEmpty()
-        val archetype = trajectory?.current(projectId)?.activeArchetype
+        // Rows, their order and the ring are fixed at the coach's odds; a drag only re-blends them, so the
+        // board never reshuffles under the user's finger.
+        val base = XRayGridBuilder.build(s, coach.toDouble(), pinned)
+        val grid = if (unchanged) base else base?.at(odds.toDouble())
+        val coachBest = base?.best?.label ?: pinned.orEmpty()
+        val snap = trajectory?.current(projectId)
+        val archetype = snap?.activeArchetype
         val counts = container.projectBrainRepository?.brain(projectId)?.let {
             "${it.counts.people} people · ${it.counts.options} options · ${it.counts.outcomesFilled}/${it.counts.outcomesExpected} outcomes"
         }.orEmpty()
@@ -114,7 +124,9 @@ class XRayViewModel(app: Application, private val projectId: String) : AndroidVi
             oddsLabel = prior?.label ?: "It goes well",
             pattern = PatternCatalog.of(archetype, s), modelStrip = counts,
             engineMove = pinned, engineRobust = directive?.let { it.stressVerdict == "ROBUST" },
-            humanLens = lens?.line, humanLensTopic = lens?.topic, humanLensUrl = lens?.url
+            humanLens = lens?.line, humanLensTopic = lens?.topic, humanLensUrl = lens?.url,
+            arena = XRayArenaBuilder.from(s, snap?.trustScore, snap?.tensionScore),
+            flips = base?.flipPoints().orEmpty()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), XRayUiState())
 

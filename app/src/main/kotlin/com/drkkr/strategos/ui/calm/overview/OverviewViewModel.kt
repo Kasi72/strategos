@@ -48,19 +48,17 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
             Quad(all, pts, brain, notes)
         }.mapLatest { (all, pts, brain, notes) ->
             val s = all.firstOrNull { it.id == projectId } ?: return@mapLatest OverviewUiState(loading = true)
-            val threads = conversations?.threadSummaries(projectId).orEmpty()
             val msgCount = conversations?.messageCount(projectId) ?: 0
             val trust = pts.map { it.trustScore.toFloat() }
             val tension = pts.map { it.tensionScore.toFloat() }
             val status = MomentumStatus.of(pts.map { it.trustScore }, pts.map { it.tensionScore })
-            val archetype = trajectory?.current(projectId)?.activeArchetype
             val standing = guidanceRepo?.standing(projectId)
             val now = System.currentTimeMillis()
 
             OverviewUiState(
                 loading = false,
                 projectName = ProjectsUi.displayName(s.title),
-                subtitle = subtitle(threads.size, pts.lastOrNull()?.timestamp ?: s.updatedAt, now),
+                subtitle = "Active ${ProjectsUi.activityLabel(pts.lastOrNull()?.timestamp ?: s.updatedAt, now).lowercase()}",
                 linkedJournalCount = journal?.let { countLinked(projectId) } ?: 0,
                 status = status,
                 chart = OverviewChart.ui(trust, tension),
@@ -71,8 +69,6 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
                     g.dos.map { GuidanceRowUi(it.text, true, "From ${it.sourceLabel}", it.refId) } +
                         g.donts.map { GuidanceRowUi(it.text, false, "From ${it.sourceLabel}", it.refId) }
                 }.orEmpty(),
-                pattern = PatternCatalog.of(archetype, s),
-                threads = threads.map { ThreadRowUi(it.id, it.title, it.lastLine, relative(it.lastAt, now), it.isOpenNow) },
                 chatLabel = if (msgCount == 0) "Start chat" else "Continue chat",
                 people = brain?.people.orEmpty(),
                 limits = brain?.limits.orEmpty(),
@@ -113,11 +109,6 @@ class OverviewViewModel(app: Application, private val projectId: String) : Andro
     }
 
     private suspend fun countLinked(id: String): Int = journal?.linkSuggestions(id)?.size ?: 0
-
-    private fun subtitle(topics: Int, lastAt: Long, now: Long): String {
-        val t = if (topics == 1) "1 topic" else "$topics topics"
-        return "$t · active ${ProjectsUi.activityLabel(lastAt, now).lowercase()}"
-    }
 
     private fun blurb(status: MomentumStatus) = when (status) {
         MomentumStatus.IMPROVING -> "Trust has been climbing. Keep doing what's working."

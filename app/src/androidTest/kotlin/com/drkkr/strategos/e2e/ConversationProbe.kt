@@ -29,7 +29,7 @@ class ConversationProbe : E2eBase() {
         reset(withKey = true); launch()
         waitForText("What's on your mind?")
         typeInto(0, messages[0]); desc("Send").performClick()
-        waitForDesc("Back to overview")
+        waitForDesc("Back to projects")
         val sid = runBlocking { container.scenarioRepository.scenarios.value }.first().id
         var expect = 2
         waitFor(180_000, "reply 1") { visibleCount(sid) >= expect }

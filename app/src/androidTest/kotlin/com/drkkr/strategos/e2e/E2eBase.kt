@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performSemanticsAction
@@ -129,6 +130,15 @@ abstract class E2eBase {
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
 
     protected fun hasText(t: String, substring: Boolean = false) = rule.onAllNodesWithText(t, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /** A project opens straight into its conversation: tap its card on the home list and wait for the chat. */
+    protected fun openProject(name: String) { waitForText(name); text(name).performClick(); waitForDesc("Back to projects") }
+
+    /** The overview is a sheet over the chat, opened by tapping the chat's title. */
+    protected fun openOverviewSheet() { rule.onNodeWithTag("talk-title").performClick(); waitForText("MOMENTUM") }
+
+    /** The Overview / Journal tabs inside the overview sheet (tagged, because "Overview" and "Journal" appear elsewhere on screen too). */
+    protected fun projectTab(label: String) = rule.onNodeWithTag("project-tab-$label")
 
     protected fun openTab(name: String) { rule.onAllNodesWithText(name).onLast().performClick(); rule.waitForIdle() }
 

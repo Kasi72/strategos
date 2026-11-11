@@ -17,6 +17,7 @@ import com.drkkr.strategos.domain.agent.CoachGuideSketch
 import com.drkkr.strategos.domain.agent.CoachReply
 import com.drkkr.strategos.domain.agent.GuidanceCodec
 import com.drkkr.strategos.domain.agent.EngineDirective
+import com.drkkr.strategos.domain.files.FileBlock
 import com.drkkr.strategos.domain.agent.EngineDirectiveBuilder
 import com.drkkr.strategos.domain.agent.InferredStressTest
 import com.drkkr.strategos.domain.agent.LiveDigest
@@ -115,8 +116,14 @@ class OneShotTurn(
 
     private suspend fun turn(cid: String, sid: String, turnId: String, onActivity: (String) -> Unit): TurnResult {
         val loaded = gateway.activeScenario() ?: return fail(cid, turnId, "Save the scenario first.", retryable = false)
-        val userTexts = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }
-        val text = userTexts.lastOrNull() ?: return TurnResult.Done
+        val rawTexts = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }
+        // A shared file rides inside the message as a block. Extraction (call 1) reads the whole message through the assembler;
+        // everything else in this turn works from the person's own words plus one line naming the file, and the coach gets the
+        // file itself from background(), so a long file never crowds out what they actually said.
+        val fullText = rawTexts.lastOrNull() ?: return TurnResult.Done
+        val hasFile = FileBlock.present(fullText)
+        val userTexts = rawTexts.map(FileBlock::note)
+        val text = userTexts.last()
         // Phase F.5: read before this turn's saveLastReport overwrites it, so the directive can name what it told you last time.
         val previousReportJson = conversations.get(cid)?.lastReportDigestJson
 
@@ -140,7 +147,8 @@ class OneShotTurn(
         // Safety first (I-H5): a message the on-device screen flags never takes a shortcut; it goes through full extraction
         // so the support route below sees it. "thin" is only for an empty thread: mid-thread, a short "ok" or a doubt is
         // companion mode's to handle (it keeps the move), not a "what's the situation?" restart.
-        if (argon != null && !SafetyKeywordScreen.check(text)) {
+        // A file is always new material: it goes to full extraction, never the follow-up or "too thin" shortcut.
+        if (argon != null && !hasFile && !SafetyKeywordScreen.check(text)) {
             val priorReply = conversations.messages(cid).lastOrNull { it.role == MessageRole.ASSISTANT.name }?.text
             val decision = preRoute(cid, turnId, text)
             if (decision != null) {
@@ -184,7 +192,7 @@ class OneShotTurn(
             }
         } else null
         val first = if (argon != null) askModel(call1Input!!, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
-                    else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), text), cid, turnId)
+                    else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), fullText), cid, turnId)
         val parsed = when (first) {
             is Reply.Sketch -> first.sketch
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
@@ -800,14 +808,31 @@ class OneShotTurn(
         val notes = journal?.activePostNotes(sid).orEmpty().filter { !it.applied }.take(BACKGROUND_ENTRIES)
         val topics = conversations.listThreads(sid).filter { it.id != cid }.take(BACKGROUND_TOPICS).mapNotNull { t ->
             val said = conversations.messages(t.id).lastOrNull { it.role == MessageRole.USER.name }?.text ?: return@mapNotNull null
-            "- ${t.title}: ${said.take(BACKGROUND_LINE_CHARS)}"
+            "- ${t.title}: ${FileBlock.note(said).take(BACKGROUND_LINE_CHARS)}"
         }
-        if (entries.isEmpty() && notes.isEmpty() && topics.isEmpty()) return ""
-        return buildString {
+        val files = sharedFiles(cid)
+        if (entries.isEmpty() && notes.isEmpty() && topics.isEmpty()) return files
+        return files + buildString {
             append("BACKGROUND FROM THIS PROJECT (use it only where it bears on what they say; if they ask about their journal or another topic, answer from it):\n")
             if (entries.isNotEmpty()) append("JOURNAL ENTRIES THEY LINKED (newest first):\n").append(entries.joinToString("\n") { "- " + it.text.take(BACKGROUND_LINE_CHARS) }).append('\n')
             if (notes.isNotEmpty()) append("TAKEAWAYS FROM THEIR JOURNAL:\n").append(notes.joinToString("\n") { "- ${it.insightHeadline}" }).append('\n')
             if (topics.isNotEmpty()) append("OTHER TOPICS IN THIS PROJECT:\n").append(topics.joinToString("\n")).append('\n')
+            append('\n')
+        }
+    }
+
+    /**
+     * The files the person shared in this conversation, newest first, as the briefs prepared on the device. They are read from the
+     * saved messages on every turn, so the coach can still answer from a file long after the message that carried it has been
+     * folded into the rolling summary.
+     */
+    private suspend fun sharedFiles(cid: String): String {
+        val files = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.flatMap { FileBlock.files(it.text) }
+            .asReversed().distinctBy { it.name }.take(COACH_FILES)
+        if (files.isEmpty()) return ""
+        return buildString {
+            append("FILES THEY SHARED (prepared on their phone; use what bears on their question, quote figures and dates exactly, and say so if the part they ask about is not shown):\n")
+            files.forEach { f -> append("FILE \"").append(f.name).append("\" (").append(f.label).append(", ").append(f.facts).append("):\n").append(fileExcerpt(f.body, COACH_FILE_CHARS)).append("\n") }
             append('\n')
         }
     }
@@ -831,7 +856,7 @@ class OneShotTurn(
             append("THIS CONVERSATION SO FAR:\n")
             if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(newestPart(summary, THREAD_SUMMARY_CHARS)).append('\n')
             if (movesTried.isNotEmpty()) append("MOVES YOU ALREADY SUGGESTED (do not just repeat them):\n").append(movesTried.joinToString("\n") { "- $it" }).append('\n')
-            said.forEach { append("- They said recently: ").append(it.text.take(THREAD_USER_CHARS)).append('\n') }
+            said.forEach { append("- They said recently: ").append(FileBlock.note(it.text).take(THREAD_USER_CHARS)).append('\n') }
             if (previous != null) append("YOUR PREVIOUS REPLY TO THEM (opening only):\n").append(previous.take(THREAD_PREVIOUS_CHARS)).append('\n')
             append('\n')
         }
@@ -1107,6 +1132,9 @@ class OneShotTurn(
         private const val BACKGROUND_ENTRIES = 2
         private const val BACKGROUND_TOPICS = 2
         private const val BACKGROUND_LINE_CHARS = 200
+        /** How many shared files the coach sees, and how much of each (about 600 tokens). */
+        private const val COACH_FILES = 2
+        private const val COACH_FILE_CHARS = 2_400
         // BLUEPRINT-QUESTION: 900 was sized for Groq's 8,000 tokens/minute cap (LEAN PROFILE). On DeepSeek it cut the sketch JSON mid-array,
         // so every substantive first message failed with "Couldn't reach the coach" (found by the emulator E2E run). 3,000 fits a full sketch.
         private const val EXTRACTION_MAX_TOKENS = 3_000
@@ -1125,6 +1153,17 @@ class OneShotTurn(
         /** A "thinking_aloud" message on a standard turn, with options already saved, saves nothing and keeps the move. */
         internal fun holdsCourse(messageKind: String?, intent: com.drkkr.strategos.domain.intent.Intent, hasModel: Boolean): Boolean =
             hasModel && messageKind == "thinking_aloud" && intent == com.drkkr.strategos.domain.intent.Intent.STANDARD
+
+        /**
+         * A file brief cut to [max] characters for the coach: the top (what the file is, who, when, how it unfolded) and the
+         * bottom (the newest entries or last rows), each ending on a whole line. The middle is what goes.
+         */
+        internal fun fileExcerpt(body: String, max: Int): String {
+            if (body.length <= max) return body
+            val top = body.take((max * 0.45).toInt()).substringBeforeLast('\n')
+            val bottom = body.takeLast((max * 0.55).toInt() - 40).substringAfter('\n')
+            return "$top\n… part of the file is not shown here …\n$bottom"
+        }
 
         internal fun newestPart(summary: String, max: Int): String {
             if (summary.length <= max) return summary
