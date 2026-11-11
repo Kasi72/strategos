@@ -35,7 +35,7 @@ object CalibratePayoffsHandler : ToolHandler {
             )
         }
 
-        val gameContext = GameModelService.analyzeWithContext(scenario)
+        val gameContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val ir = when (val r = gameContext.result) {
             is com.drkkr.strategos.domain.game.GameAnalysisResult.Solved  -> r.ir
             is com.drkkr.strategos.domain.game.GameAnalysisResult.Partial -> r.ir

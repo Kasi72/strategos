@@ -87,7 +87,9 @@ class CounselDeps(
     val journalScreener: JournalScreenerService? = null,
     val certificates: CertificateRepository? = null,
     /** S5: auto-trigger counterfactual coaching on outcome submission. Null disables the feature. */
-    val counterfactualCoach: CounterfactualCoachService? = null
+    val counterfactualCoach: CounterfactualCoachService? = null,
+    /** Turn-scoped engine result cache — eliminates ~15x redundant analyzeWithContext calls per agent turn. */
+    val analysisCache: TurnAnalysisCache = TurnAnalysisCache()
 )
 
 /**
@@ -420,6 +422,7 @@ class CounselController(
                 return@launch
             }
             _state.update { it.copy(running = true, activity = "Thinking…", error = null, canRetry = false) }
+            deps.analysisCache.clear()
             try {
                 val onActivity = { label: String -> _state.update { it.copy(activity = label) } }
                 val result = if (deps.oneShot) oneShotTurn.run(cid, sid, trigger, onActivity)
@@ -440,7 +443,8 @@ class CounselController(
         userTexts = deps.conversations.userTexts(cid),
         outcomes = deps.outcomes,
         uiMode = deps.settings.uiMode(),
-        autoApply = ::autoApply
+        autoApply = ::autoApply,
+        analysisCache = deps.analysisCache
     )
 
     /**

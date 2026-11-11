@@ -16,7 +16,7 @@ object GetTimingAdviceHandler : ToolHandler {
         val scenario = ctx.gateway.activeScenario()
             ?: return ToolOutcome(Args.error("no_active_scenario"), ToolDispatcher.ERROR_LABEL)
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val opponentModel = analysisContext.opponentModel
 
         val advice = TimingAdvisor.advise(scenario, opponentModel)

@@ -30,7 +30,7 @@ object GetCommitmentOpportunitiesHandler : ToolHandler {
                 "No decision-owner"
             )
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val ir = when (val r = analysisContext.result) {
             is GameAnalysisResult.Solved -> r.ir
             is GameAnalysisResult.Partial -> r.ir

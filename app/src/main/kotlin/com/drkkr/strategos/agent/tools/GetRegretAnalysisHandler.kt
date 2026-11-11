@@ -18,7 +18,7 @@ object GetRegretAnalysisHandler : ToolHandler {
         val scenario = ctx.gateway.activeScenario()
             ?: return ToolOutcome(Args.error("no_active_scenario"), ToolDispatcher.ERROR_LABEL)
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val ir = when (val r = analysisContext.result) {
             is GameAnalysisResult.Solved  -> r.ir
             is GameAnalysisResult.Partial -> r.ir

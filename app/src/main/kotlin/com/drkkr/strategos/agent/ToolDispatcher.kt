@@ -72,7 +72,9 @@ data class ToolContext(
     val outcomes: OutcomeRepository? = null,
     // §17.3: in Guided mode propose_changes applies at once through this hook (CounselController.autoApply).
     val uiMode: UiMode = UiMode.EXPERT,
-    val autoApply: (suspend (changeSetId: String) -> ApplyResult?)? = null
+    val autoApply: (suspend (changeSetId: String) -> ApplyResult?)? = null,
+    /** Turn-scoped engine result cache — eliminates redundant analyzeWithContext calls across tool handlers. */
+    val analysisCache: TurnAnalysisCache? = null
 )
 
 /** Thrown by a handler when its arguments don't fit the tool contract. */

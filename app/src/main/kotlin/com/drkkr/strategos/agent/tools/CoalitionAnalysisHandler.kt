@@ -19,7 +19,7 @@ object CoalitionAnalysisHandler : ToolHandler {
         val scenario = ctx.gateway.activeScenario()
             ?: return ToolOutcome(Args.error("no_scenario"), ToolDispatcher.ERROR_LABEL)
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val coalition = analysisContext.coalitionResult ?: run {
             val playerCount = scenario.players().size
             return ToolOutcome(

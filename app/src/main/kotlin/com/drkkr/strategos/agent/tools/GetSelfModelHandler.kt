@@ -26,7 +26,7 @@ object GetSelfModelHandler : ToolHandler {
         val history = ctx.outcomes?.forScenario(scenario.id) ?: emptyList()
         val selfModel = SelfModelEstimator.estimate(history)
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val bayesianNE = analysisContext.bayesianNE
             ?: run {
                 val ir = when (val r = analysisContext.result) {

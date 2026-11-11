@@ -24,7 +24,7 @@ object SimulateConversationHandler : ToolHandler {
 
         val rounds = Args.double(args, "rounds")?.toInt()?.coerceIn(1, 5) ?: 3
 
-        val analysisContext = GameModelService.analyzeWithContext(scenario)
+        val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val ir = when (val r = analysisContext.result) {
             is GameAnalysisResult.Solved -> r.ir
             is GameAnalysisResult.Partial -> r.ir
