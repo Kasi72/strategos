@@ -32,6 +32,7 @@ import com.drkkr.strategos.domain.analysis.AnalysisPipeline
 import com.drkkr.strategos.domain.analysis.ProvenanceStats
 import com.drkkr.strategos.domain.model.FactStatus
 import com.drkkr.strategos.domain.model.Scenario
+import com.drkkr.strategos.domain.flywheel.OutcomeRecord
 import com.drkkr.strategos.llm.LlmClient
 import com.drkkr.strategos.llm.assistantText
 import kotlinx.coroutines.CoroutineScope
@@ -84,7 +85,9 @@ class CounselDeps(
     val trajectory: TrajectoryRepository? = null,
     val journal: JournalRepository? = null,
     val journalScreener: JournalScreenerService? = null,
-    val certificates: CertificateRepository? = null
+    val certificates: CertificateRepository? = null,
+    /** S5: auto-trigger counterfactual coaching on outcome submission. Null disables the feature. */
+    val counterfactualCoach: CounterfactualCoachService? = null
 )
 
 /**
@@ -291,6 +294,23 @@ class CounselController(
     }
 
     fun clearJournalAck() = _state.update { it.copy(journalAck = null) }
+
+    /**
+     * S5 — Synergy Upgrade 5: persist an [OutcomeRecord] and auto-trigger counterfactual coaching.
+     *
+     * Records the outcome, then asynchronously runs CounterfactualAnalyzer on the active scenario
+     * and writes a "lesson learned" Journal entry.  The launch never throws — a failed coaching
+     * step never surfaces to the UI.
+     */
+    fun submitOutcome(record: OutcomeRecord): Job = scope.launch {
+        val sid = scenarioId ?: return@launch
+        val coach = deps.counterfactualCoach ?: run {
+            // Fallback: save without coaching when service not wired.
+            runCatching { deps.outcomes?.record(sid, record) }
+            return@launch
+        }
+        coach.submitAndCoach(sid, record, gateway.activeScenario()?.takeIf { it.id == sid })
+    }
 
     /** Three taps. Deterministic: no model call (I12). */
     fun submitQuickCheck(executionChoice: String, counterpartReaction: String, selfFeeling: String, note: String = "", recommendedLabel: String = ""): Job = scope.launch {

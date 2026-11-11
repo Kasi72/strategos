@@ -3,6 +3,7 @@ package com.drkkr.strategos
 import android.content.Context
 import com.drkkr.strategos.agent.AgentAssets
 import com.drkkr.strategos.agent.CounselDeps
+import com.drkkr.strategos.agent.CounterfactualCoachService
 import com.drkkr.strategos.agent.KeyVault
 import com.drkkr.strategos.data.db.DatabaseKeyManager
 import com.drkkr.strategos.data.db.DbFactory
@@ -149,7 +150,10 @@ class AppContainer(
             oneShot = true,     // SIMPLE PROFILE
             coach = true,       // COMPANION REPLY
             trajectory = trajectoryRepository, journal = journalRepository, journalScreener = journalScreener,
-            certificates = certificateRepository
+            certificates = certificateRepository,
+            counterfactualCoach = journalRepository?.let { jr ->
+                CounterfactualCoachService(OutcomeRepository(db), jr)
+            }
         )
     }
 
