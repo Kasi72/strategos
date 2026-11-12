@@ -53,6 +53,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -63,6 +65,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.UUID
@@ -376,7 +379,14 @@ class OneShotTurn(
 
         onActivity("Running the analysis on your device…")
         val started = System.currentTimeMillis()
-        val pr = gateway.analyzeAndPublish()
+        val recentUserTextForSpec = userTexts.takeLast(6).joinToString(" ")
+        // U7: fire engine pre-compute in parallel with analyzeAndPublish for follow-up turns (scenario unchanged)
+        val (pr, speculativeCtxDeferred) = coroutineScope {
+            val specDeferred = async(Dispatchers.Default) {
+                runCatching { com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(scenario, contextText = recentUserTextForSpec) }.getOrNull()
+            }
+            Pair(gateway.analyzeAndPublish(), specDeferred)
+        }
         val after = gateway.activeScenario() ?: scenario
         if (pr?.report == null) {
             conversations.append(cid, turnId, MessageRole.ASSISTANT, pr?.let(PlainResult::needsMore) ?: COULD_NOT_READ)
@@ -394,7 +404,8 @@ class OneShotTurn(
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
-                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps, sketch = parsed, holdCourse = holdCourse)
+                    whatIfOps = if (converted.support) emptyList() else hypotheticalOps, sketch = parsed, holdCourse = holdCourse,
+                    speculativeCtxDeferred = speculativeCtxDeferred)
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -438,7 +449,9 @@ class OneShotTurn(
         /** This turn's Call 1 reply, read only for which option revisits a ruled-out move (StageGuard). */
         sketch: com.drkkr.strategos.domain.agent.ModelSketch? = null,
         /** Companion mode: thinking aloud, nothing saved; the coach restates the move (coach rule 34). */
-        holdCourse: Boolean = false
+        holdCourse: Boolean = false,
+        /** U7: speculative engine pre-compute started in parallel with analyzeAndPublish. Null in quick-mode and support paths. */
+        speculativeCtxDeferred: kotlinx.coroutines.Deferred<com.drkkr.strategos.domain.game.GameModelService.AnalysisContext?>? = null
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -461,12 +474,28 @@ class OneShotTurn(
         // In memory only: the last few things the user said, so text-based detectors (mechanism design) see more than the empty frame.
         val recentUserText = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.takeLast(6).joinToString(" ") { it.text }
         val (viewResult, stress, gameContext) = withContext(Dispatchers.Default) {
-            val pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()
-            Triple(
-                pipeline.run(view),
-                runCatching { InferredStressTest.run(view, pipeline = pipeline) }.getOrNull(),
-                com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view, contextText = recentUserText)
-            )
+            coroutineScope {
+                val viewResultDeferred = async { com.drkkr.strategos.domain.analysis.AnalysisPipeline().run(view) }
+                val stressDeferred = async { runCatching { InferredStressTest.run(view, pipeline = com.drkkr.strategos.domain.analysis.AnalysisPipeline()) }.getOrNull() }
+                val gameContextDeferred = async {
+                    // U7: use speculative result when available; fallback to fresh analysis with timeout
+                    val spec = speculativeCtxDeferred?.let {
+                        withTimeoutOrNull(ENGINE_ANALYSIS_TIMEOUT_MS) { it.await() }
+                    }
+                    spec ?: withTimeoutOrNull(ENGINE_ANALYSIS_TIMEOUT_MS) {
+                        com.drkkr.strategos.domain.game.GameModelService.analyzeWithContext(view, contextText = recentUserText)
+                    } ?: com.drkkr.strategos.domain.game.GameModelService.AnalysisContext(
+                        result = com.drkkr.strategos.domain.game.GameAnalysisResult.Partial(
+                            ir = null, partialOutcome = null,
+                            reason = "Engine analysis timed out",
+                            decisionState = com.drkkr.strategos.domain.game.DecisionState.EXPLORATORY,
+                            integrity = com.drkkr.strategos.domain.game.AnalysisIntegrity.INCOMPLETE
+                        ),
+                        pruneResult = null
+                    )
+                }
+                Triple(viewResultDeferred.await(), stressDeferred.await(), gameContextDeferred.await())
+            }
         }
         // ID2.2: exactly one handler for the turn's intent, on copies of the view; none on a support turn (I-D4).
         // ID3.7: dominance is pruned among the moves left after the walk-away and reactive exclusion, so a valid move dominated
@@ -515,12 +544,74 @@ class OneShotTurn(
         val opponentRationality = gameContext.opponentModel?.coachNote()
         val shapleyValues = gameContext.coalitionResult?.values
         val mechanismHint = gameContext.mechanismHint?.let { "${it.type.name.lowercase()}: ${it.insight}" }
+        // E5/E6/E10: cross-turn analysis from previousReportJson.
+        val prevJson = previousReportJson?.let {
+            try { kotlinx.serialization.json.Json.parseToJsonElement(it).jsonObject } catch (e: Exception) { null }
+        }
+        val prevEntropy = prevJson?.get("belief_state")?.jsonObject?.get("entropy")?.jsonPrimitive?.doubleOrNull
+        val prevRegret = prevJson?.get("regret_strategy")?.jsonObject?.get("worst_case_regret")?.jsonPrimitive?.doubleOrNull
+        val prevAsymmetryScore = prevJson?.get("info_asymmetry_score")?.jsonPrimitive?.doubleOrNull
+        val maxEntropy = Math.log(11.0) / Math.log(2.0)
+        val currEntropy = gameContext.beliefState?.entropy
+        val epistemicRatchet = if (prevEntropy != null && currEntropy != null) {
+            val prevConf = 1.0 - prevEntropy / maxEntropy
+            val currConf = 1.0 - currEntropy / maxEntropy
+            val delta = currConf - prevConf
+            com.drkkr.strategos.domain.game.EpistemicRatchet(prevConf, currConf, delta,
+                when { delta > 0.05 -> "improving"; delta < -0.05 -> "degrading"; else -> "stable" })
+        } else null
+        val currRegret = gameContext.regretResult?.worstCaseRegret
+        val regretArc = if (prevRegret != null && currRegret != null) {
+            com.drkkr.strategos.domain.game.RegretArc(prevRegret, currRegret,
+                when { currRegret < prevRegret * 0.95 -> "improving"; currRegret > prevRegret * 1.05 -> "worsening"; else -> "stable" })
+        } else null
+        // E7: accumulate self-model labels per project.
+        val selfLabel = gameContext.selfModel?.inferredStrategyLabel
+        if (selfLabel != null) {
+            strategyLabelAccumulator.getOrPut(cid) { ArrayDeque() }.run {
+                add(selfLabel); while (size > 20) removeFirst()
+            }
+        }
+        val metaStrategyProfile = strategyLabelAccumulator[cid]?.let { labels ->
+            if (labels.size >= 2) {
+                val freq = labels.groupingBy { it }.eachCount()
+                val dominant = freq.maxByOrNull { it.value }?.key
+                val diversity = freq.size.toDouble() / labels.size
+                com.drkkr.strategos.domain.game.MetaStrategyProfile(labels.toList(), dominant, diversity)
+            } else null
+        }
+        val currAsymmetryScore = gameContext.infoAsymmetryScore
+        val metatransparency = if (prevAsymmetryScore != null) {
+            val derivative = currAsymmetryScore - prevAsymmetryScore
+            com.drkkr.strategos.domain.game.MetatransparencyResult(prevAsymmetryScore, currAsymmetryScore, derivative,
+                when { derivative < -0.05 -> "becoming_more_transparent"; derivative > 0.05 -> "becoming_less_transparent"; else -> "stable" })
+        } else null
         val baseDirective = EngineDirectiveBuilder.build(view, viewResult, stress, previousMove, gameResult.integrity, gtPattern, dominated, extensiveFormPath, opponentRationality, shapleyValues, mechanismHint,
             statedFloor = com.drkkr.strategos.domain.agent.StatedFloor.from(view.negotiationContext?.reservationPoint, text), humanFragile = humanFragile, opponentModel = gameContext.opponentModel, deal = deal,
             // ID1.4: the checks read the AI's labels before the Human Layer moves them (the walk-away view, so excluded moves don't count).
             labelIssues = com.drkkr.strategos.domain.game.LabelChecks.check(negotiated),
             archetype = solvedIr?.archetype,
-            fallbackLine = fallback.line)
+            fallbackLine = fallback.line,
+            regretResult = gameContext.regretResult,
+            beliefState = gameContext.beliefState,
+            epistemicAdvice = gameContext.epistemicResult,
+            selfModelAdvice = gameContext.selfModel?.let { "They likely see your approach as ${it.inferredStrategyLabel}" },
+            bayesianNEUsed = gameContext.bayesianNE != null,
+            extractionConfidence = gameContext.extractionConfidence,
+            alternativeInterpretations = gameContext.alternativeInterpretations,
+            focalSelection = gameContext.focalSelection,
+            strategicNarrative = gameContext.strategicNarrative,
+            sensitivityResult = gameContext.sensitivityResult,
+            cvoiResult = gameContext.cvoiResult,
+            bayesianCompletion = gameContext.bayesianCompletion,
+            icSynthesis = gameContext.icSynthesis,
+            epistemicRatchet = epistemicRatchet,
+            regretArc = regretArc,
+            metaStrategyProfile = metaStrategyProfile,
+            surplusResult = gameContext.surplusResult,
+            commitmentLadder = gameContext.commitmentLadder,
+            metatransparency = metatransparency,
+            infoAsymmetryScore = currAsymmetryScore)
         // Red-team call: short devil's-advocate challenge, run before interpret so the coach sees it.
         val challenge = if (baseDirective.ready) {
             withTimeoutOrNull(RED_TEAM_TIMEOUT_MS) { redTeamChallenge(cid, turnId, baseDirective) }
@@ -1095,6 +1186,10 @@ class OneShotTurn(
 
     companion object {
         private const val RECENT = 3
+        /** U6: max wait for analyzeWithContext before falling back to incomplete context. */
+        private const val ENGINE_ANALYSIS_TIMEOUT_MS = 2_500L
+        /** E7: rolling window of strategy labels observed per project, keyed by project id. */
+        private val strategyLabelAccumulator = java.util.concurrent.ConcurrentHashMap<String, ArrayDeque<String>>()
         /** Benign and hardball delivery moves together (Power Mode, STEPS PM4.1). */
         private const val MAX_DELIVERY_TACTICS = 3
         private const val RETRY_PAUSE_MS = 1_500L

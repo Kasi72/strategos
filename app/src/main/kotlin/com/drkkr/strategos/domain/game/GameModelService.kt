@@ -93,7 +93,19 @@ object GameModelService {
         /** U9: agreement ratio across cooperative/neutral/adversarial opponent priors (0–1; 1 = all variants agree). */
         val extractionConfidence: Float = 1.0f,
         /** U9: interpretations under non-neutral opponent priors that disagree with the neutral recommendation. */
-        val alternativeInterpretations: List<String> = emptyList()
+        val alternativeInterpretations: List<String> = emptyList(),
+        /** E1: equilibrium sensitivity — min payoff perturbation to flip the recommendation. */
+        val sensitivityResult: EquilibriumSensitivityAnalyzer.SensitivityResult? = null,
+        /** E2: counterfactual value of information for proxy-filled payoff cells. */
+        val cvoiResult: CounterfactualValueAnalyzer.CvoiResult? = null,
+        /** E3: robust strategy across sampled proxy-cell completions. */
+        val bayesianCompletion: BayesianGameCompletion.BayesianCompletionResult? = null,
+        /** E4: IC mechanism synthesis — binding rule and monitoring note. */
+        val icSynthesis: MechanismAdvisor.IcSynthesis? = null,
+        /** E8: Pareto surplus map — gap between Nash and optimal joint utility. */
+        val surplusResult: ParetoSurplusAnalyzer.SurplusResult? = null,
+        /** E9: commitment ladder — earliest binding action on the equilibrium path. */
+        val commitmentLadder: CommitmentLadderAnalyzer.CommitmentLadder? = null
     )
 
     suspend fun analyze(scenario: Scenario, limits: SolverLimits = SolverLimits.ON_DEVICE): GameAnalysisResult =
@@ -278,6 +290,14 @@ object GameModelService {
         // Create 3 scenario variants with different opponent priors and check if IEDS agrees on surviving user actions.
         val (extractionConfidence, alternativeInterpretations) = computeExtractionConfidence(rawIr, scenario)
 
+        // Phase3: single-turn analyzers (E1-E4, E8-E9).
+        val sensitivityResult = EquilibriumSensitivityAnalyzer.analyze(ir, equilibria)
+        val cvoiResult = CounterfactualValueAnalyzer.analyze(ir, equilibria)
+        val bayesianCompletion = BayesianGameCompletion.analyze(ir)
+        val icSynthesis = mechanismHint?.let { MechanismAdvisor.synthesize(it, ir) }
+        val surplusResult = ParetoSurplusAnalyzer.analyze(ir, focalSelection?.equilibrium ?: equilibria.firstOrNull())
+        val commitmentLadder = CommitmentLadderAnalyzer.analyze(biResult?.equilibriumPath.orEmpty())
+
         return AnalysisContext(
             result               = analysisResult,
             pruneResult          = pruneResult,
@@ -295,7 +315,13 @@ object GameModelService {
             infoAsymmetryScore   = p2.infoAsymmetryScore,
             bayesianNE           = p2.bayesianNE,
             extractionConfidence = extractionConfidence,
-            alternativeInterpretations = alternativeInterpretations
+            alternativeInterpretations = alternativeInterpretations,
+            sensitivityResult = sensitivityResult,
+            cvoiResult = cvoiResult,
+            bayesianCompletion = bayesianCompletion,
+            icSynthesis = icSynthesis,
+            surplusResult = surplusResult,
+            commitmentLadder = commitmentLadder
         )
     }
 

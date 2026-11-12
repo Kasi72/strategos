@@ -67,4 +67,35 @@ object MechanismAdvisor {
             MechanismType.NONE -> null
         }
     }
+
+    data class IcSynthesis(
+        val bindingRule: String,
+        val monitoringNote: String
+    )
+
+    fun synthesize(hint: MechanismHint, ir: GameIR): IcSynthesis? {
+        if (ir.playerCount < 2) return null
+        val bindingRule = when (hint.type) {
+            MechanismType.AUCTION ->
+                "Bidders commit sealed offers before seeing others' bids; the highest bidder pays the second-highest price."
+            MechanismType.MATCHING ->
+                "Proposals flow from the stronger side; each party tentatively accepts only their current best offer until all are matched."
+            MechanismType.CONTRACT ->
+                "Payment is contingent on a verifiable outcome; a fixed base plus a performance bonus ties compensation to the desired action."
+            MechanismType.VOTING ->
+                "Each participant submits a ranked ballot; the aggregation rule is announced in advance and cannot be changed after ballots are cast."
+            MechanismType.ALLOCATION ->
+                "Each party names a value for each item independently; allocation follows the stated values and no one can revise after seeing others' valuations."
+            MechanismType.NONE -> return null
+        }
+        val monitoringNote = when (hint.type) {
+            MechanismType.AUCTION -> "Verify bids are sealed and simultaneous; audit the payment rule after each round."
+            MechanismType.MATCHING -> "Track acceptance chains in real time; flag any party that attempts to withdraw a standing offer."
+            MechanismType.CONTRACT -> "Tie measurement to an observable metric both parties agree on before signing; set review milestones."
+            MechanismType.VOTING -> "Publish the aggregated result before any binding decision; allow a one-round challenge period."
+            MechanismType.ALLOCATION -> "Require value statements in writing before the draw; resolve ties by a predetermined random device."
+            MechanismType.NONE -> return null
+        }
+        return IcSynthesis(bindingRule, monitoringNote)
+    }
 }

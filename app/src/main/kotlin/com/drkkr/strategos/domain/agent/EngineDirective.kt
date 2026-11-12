@@ -144,7 +144,33 @@ data class EngineDirective(
     /** U9: agreement ratio across opponent-prior hypotheses (0–1). Values below 0.6 prompt alternative surfacing. */
     val extractionConfidence: Float = 1.0f,
     /** U9: hypothesis labels that disagreed with the neutral prior's recommendation. */
-    val alternativeInterpretations: List<String> = emptyList()
+    val alternativeInterpretations: List<String> = emptyList(),
+    /** U4: focal equilibrium selection when multiple Nash equilibria exist. Null when only one equilibrium found. */
+    val focalSelection: com.drkkr.strategos.domain.game.FocalEquilibriumSelector.FocalSelection? = null,
+    /** U4: structured strategic narrative — equilibrium type, selection rationale, risk/Pareto status. */
+    val strategicNarrative: com.drkkr.strategos.domain.game.StrategicNarrative? = null,
+    /** E1: minimum payoff perturbation needed to flip the equilibrium recommendation. */
+    val sensitivityResult: com.drkkr.strategos.domain.game.EquilibriumSensitivityAnalyzer.SensitivityResult? = null,
+    /** E2: counterfactual value of information for proxy-filled payoff cells. */
+    val cvoiResult: com.drkkr.strategos.domain.game.CounterfactualValueAnalyzer.CvoiResult? = null,
+    /** E3: robust strategy across sampled proxy-cell completions. */
+    val bayesianCompletion: com.drkkr.strategos.domain.game.BayesianGameCompletion.BayesianCompletionResult? = null,
+    /** E4: IC mechanism synthesis — binding rule and monitoring note. */
+    val icSynthesis: com.drkkr.strategos.domain.game.MechanismAdvisor.IcSynthesis? = null,
+    /** E5: epistemic ratchet — belief confidence delta across turns. */
+    val epistemicRatchet: com.drkkr.strategos.domain.game.EpistemicRatchet? = null,
+    /** E6: regret arc — minimax regret trend across turns. */
+    val regretArc: com.drkkr.strategos.domain.game.RegretArc? = null,
+    /** E7: meta-strategy profile — dominant strategic style across projects. */
+    val metaStrategyProfile: com.drkkr.strategos.domain.game.MetaStrategyProfile? = null,
+    /** E8: Pareto surplus map — gap between Nash joint utility and Pareto-optimal joint utility. */
+    val surplusResult: com.drkkr.strategos.domain.game.ParetoSurplusAnalyzer.SurplusResult? = null,
+    /** E9: commitment ladder — earliest binding action on the backward-induction path. */
+    val commitmentLadder: com.drkkr.strategos.domain.game.CommitmentLadderAnalyzer.CommitmentLadder? = null,
+    /** E10: metatransparency — derivative of information asymmetry score across turns. */
+    val metatransparency: com.drkkr.strategos.domain.game.MetatransparencyResult? = null,
+    /** E10: persisted info asymmetry score for next-turn metatransparency computation. */
+    val infoAsymmetryScore: Double = 0.0
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -238,6 +264,110 @@ data class EngineDirective(
         if (extractionConfidence < 1.0f) put("extraction_confidence", extractionConfidence)
         if (alternativeInterpretations.isNotEmpty()) putJsonArray("alternative_interpretations") {
             alternativeInterpretations.forEach { add(JsonPrimitive(it)) }
+        }
+        focalSelection?.let { fs ->
+            putJsonObject("focal_equilibrium") {
+                put("criterion", fs.criterion.name)
+                put("is_pareto_optimal", fs.isParetoOptimal)
+                fs.riskDominanceMargin?.let { put("risk_dominance_margin", it) }
+            }
+        }
+        strategicNarrative?.let { sn ->
+            putJsonObject("strategic_narrative") {
+                put("equilibrium_type", sn.equilibriumType)
+                put("selection_criterion", sn.selectionCriterion.name)
+                put("is_pareto_optimal", sn.isParetoOptimal)
+                sn.riskDominanceMargin?.let { put("risk_dominance_margin", it) }
+                sn.sensitivityNote?.let { put("sensitivity_note", it) }
+                if (sn.warningSignals.isNotEmpty()) putJsonArray("warning_signals") {
+                    sn.warningSignals.forEach { add(JsonPrimitive(it)) }
+                }
+            }
+        }
+        put("info_asymmetry_score", infoAsymmetryScore)
+        sensitivityResult?.let { sr ->
+            putJsonObject("equilibrium_sensitivity") {
+                sr.flipMargin?.let { put("flip_margin", it) }
+                put("is_robust", sr.isRobust)
+                put("note", sr.note)
+            }
+        }
+        cvoiResult?.let { cr ->
+            putJsonObject("cvoi") {
+                put("max_cvoi", cr.maxCvoi)
+                put("high_value_cells", cr.highValueCells)
+            }
+        }
+        bayesianCompletion?.let { bc ->
+            putJsonObject("bayesian_completion") {
+                put("robust_strategy_index", bc.robustStrategyIndex)
+                put("robust_frequency", bc.robustFrequency)
+                put("note", bc.note)
+            }
+        }
+        icSynthesis?.let { ic ->
+            putJsonObject("ic_synthesis") {
+                put("binding_rule", ic.bindingRule)
+                put("monitoring_note", ic.monitoringNote)
+            }
+        }
+        epistemicRatchet?.let { er ->
+            putJsonObject("epistemic_ratchet") {
+                put("prev_confidence", er.prevConfidence)
+                put("curr_confidence", er.currConfidence)
+                put("delta", er.delta)
+                put("direction", er.direction)
+            }
+        }
+        regretArc?.let { ra ->
+            putJsonObject("regret_arc") {
+                put("prev_regret", ra.prevRegret)
+                put("curr_regret", ra.currRegret)
+                put("trend", ra.trend)
+            }
+        }
+        metaStrategyProfile?.let { mp ->
+            putJsonObject("meta_strategy") {
+                mp.dominant?.let { put("dominant", it) }
+                put("diversity", mp.diversity)
+            }
+        }
+        surplusResult?.let { sr ->
+            putJsonObject("surplus_map") {
+                put("surplus_gap", sr.surplusGap)
+                put("is_socially_optimal", sr.isSociallyOptimal)
+                put("surplus_note", sr.note)
+            }
+        }
+        commitmentLadder?.let { cl ->
+            putJsonObject("commitment_ladder") {
+                cl.firstBindingIndex?.let { put("first_binding_index", it) }
+                putJsonArray("steps") {
+                    cl.steps.forEach { step ->
+                        addJsonObject {
+                            put("action", step.actionLabel)
+                            put("is_binding", step.isBinding)
+                        }
+                    }
+                }
+            }
+        }
+        metatransparency?.let { mt ->
+            putJsonObject("metatransparency") {
+                put("prev_score", mt.prevScore)
+                put("curr_score", mt.currScore)
+                put("derivative", mt.derivative)
+                put("trend", mt.trend)
+            }
+        }
+        if (analysisIntegrity != AnalysisIntegrity.COMPLETE) {
+            put("model_status", analysisIntegrity.name)
+            val incompleteReason = when (analysisIntegrity) {
+                AnalysisIntegrity.INCOMPLETE -> "Engine analysis incomplete — some payoff data is missing or the model could not compile"
+                AnalysisIntegrity.BLOCKED -> "Engine result blocked — the solver could not find a valid equilibrium"
+                else -> null
+            }
+            incompleteReason?.let { put("incomplete_reason", it) }
         }
     }
 
@@ -370,7 +500,22 @@ object EngineDirectiveBuilder {
         /** U9: agreement ratio across opponent-prior hypotheses from [GameModelService]. */
         extractionConfidence: Float = 1.0f,
         /** U9: hypothesis labels that disagreed with the neutral prior. */
-        alternativeInterpretations: List<String> = emptyList()
+        alternativeInterpretations: List<String> = emptyList(),
+        /** U4: focal equilibrium selection from [GameModelService.AnalysisContext]. */
+        focalSelection: com.drkkr.strategos.domain.game.FocalEquilibriumSelector.FocalSelection? = null,
+        /** U4: structured strategic narrative from [GameModelService.AnalysisContext]. */
+        strategicNarrative: com.drkkr.strategos.domain.game.StrategicNarrative? = null,
+        sensitivityResult: com.drkkr.strategos.domain.game.EquilibriumSensitivityAnalyzer.SensitivityResult? = null,
+        cvoiResult: com.drkkr.strategos.domain.game.CounterfactualValueAnalyzer.CvoiResult? = null,
+        bayesianCompletion: com.drkkr.strategos.domain.game.BayesianGameCompletion.BayesianCompletionResult? = null,
+        icSynthesis: com.drkkr.strategos.domain.game.MechanismAdvisor.IcSynthesis? = null,
+        epistemicRatchet: com.drkkr.strategos.domain.game.EpistemicRatchet? = null,
+        regretArc: com.drkkr.strategos.domain.game.RegretArc? = null,
+        metaStrategyProfile: com.drkkr.strategos.domain.game.MetaStrategyProfile? = null,
+        surplusResult: com.drkkr.strategos.domain.game.ParetoSurplusAnalyzer.SurplusResult? = null,
+        commitmentLadder: com.drkkr.strategos.domain.game.CommitmentLadderAnalyzer.CommitmentLadder? = null,
+        metatransparency: com.drkkr.strategos.domain.game.MetatransparencyResult? = null,
+        infoAsymmetryScore: Double = 0.0
     ): EngineDirective {
         val report = pr.report
         val owner = IntakeChecklist.self(s)
@@ -550,7 +695,20 @@ object EngineDirectiveBuilder {
             selfModelAdvice = selfModelAdvice,
             bayesianNEUsed = bayesianNEUsed,
             extractionConfidence = extractionConfidence,
-            alternativeInterpretations = alternativeInterpretations
+            alternativeInterpretations = alternativeInterpretations,
+            focalSelection = focalSelection,
+            strategicNarrative = strategicNarrative,
+            sensitivityResult = sensitivityResult,
+            cvoiResult = cvoiResult,
+            bayesianCompletion = bayesianCompletion,
+            icSynthesis = icSynthesis,
+            epistemicRatchet = epistemicRatchet,
+            regretArc = regretArc,
+            metaStrategyProfile = metaStrategyProfile,
+            surplusResult = surplusResult,
+            commitmentLadder = commitmentLadder,
+            metatransparency = metatransparency,
+            infoAsymmetryScore = infoAsymmetryScore
         )
     }
 
