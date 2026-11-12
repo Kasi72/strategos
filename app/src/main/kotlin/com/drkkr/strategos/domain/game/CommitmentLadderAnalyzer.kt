@@ -16,10 +16,15 @@ object CommitmentLadderAnalyzer {
         val firstBindingIndex: Int?
     )
 
-    fun analyze(equilibriumPath: List<String>): CommitmentLadder? {
-        if (equilibriumPath.isEmpty()) return null
-        val steps = equilibriumPath.mapIndexed { idx, label ->
-            val isBinding = idx == 0 || idx == equilibriumPath.size - 1
+    /**
+     * @param equilibriumPath SPE path from backward induction (non-empty only for game-tree scenarios).
+     * @param syntheticPath   Fallback path derived from the focal pure Nash equilibrium action labels,
+     *                        used when no game tree exists (normal-form / matrix games).
+     */
+    fun analyze(equilibriumPath: List<String>, syntheticPath: List<String>? = null): CommitmentLadder? {
+        val path = equilibriumPath.ifEmpty { syntheticPath ?: return null }
+        val steps = path.mapIndexed { idx, label ->
+            val isBinding = idx == 0 || idx == path.size - 1
             val reason = when (idx) {
                 0                             -> "Opening move — sets the frame and signals intent; reversible but costly to walk back"
                 equilibriumPath.size - 1      -> "Terminal commitment — determines final outcome directly"

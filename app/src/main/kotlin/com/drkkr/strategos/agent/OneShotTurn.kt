@@ -566,6 +566,19 @@ class OneShotTurn(
                 when { currRegret < prevRegret * 0.95 -> "improving"; currRegret > prevRegret * 1.05 -> "worsening"; else -> "stable" })
         } else null
         // E7: accumulate self-model labels per project.
+        // F4: on app restart the in-memory accumulator is empty; restore from previous directive JSON.
+        val prevLabels = prevJson
+            ?.get("meta_strategy_profile")?.jsonObject
+            ?.get("labels")
+            ?.let { it as? kotlinx.serialization.json.JsonArray }
+            ?.mapNotNull { runCatching { it.jsonPrimitive.content }.getOrNull() }
+        if (prevLabels != null) {
+            val current = strategyLabelAccumulator.getOrPut(cid) { ArrayDeque() }
+            if (current.isEmpty()) {
+                prevLabels.forEach { current.add(it) }
+                while (current.size > 20) current.removeFirst()
+            }
+        }
         val selfLabel = gameContext.selfModel?.inferredStrategyLabel
         if (selfLabel != null) {
             strategyLabelAccumulator.getOrPut(cid) { ArrayDeque() }.run {

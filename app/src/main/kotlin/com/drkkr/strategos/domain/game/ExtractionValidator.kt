@@ -21,6 +21,7 @@ object ExtractionValidator {
 
     fun validate(ir: GameIR): ValidationResult {
         val violations = mutableListOf<String>()
+        checkSpread(ir, violations)
         when (ir.archetype) {
             GameArchetype.PRISONERS_DILEMMA -> validatePD(ir, violations)
             GameArchetype.CHICKEN           -> validateChicken(ir, violations)
@@ -30,6 +31,27 @@ object ExtractionValidator {
         }
         return if (violations.isEmpty()) ValidationResult.Valid
                else ValidationResult.Invalid(violations)
+    }
+
+    // ── F8: Payoff spread — compressed payoffs degrade equilibrium quality ──
+
+    private fun checkSpread(ir: GameIR, out: MutableList<String>) {
+        if (ir.playerCount < 1 || ir.utility.isEmpty()) return
+        val payoffs = ir.utility[0]
+        if (payoffs.size < 4) return
+        val min = payoffs.minOrNull() ?: return
+        val max = payoffs.maxOrNull() ?: return
+        val range = max - min
+        if (range < 1e-6) return  // all identical — handled elsewhere
+        if (range < 2.0) {
+            val sorted = payoffs.sortedArray()
+            val q1 = sorted[sorted.size / 4]
+            val q3 = sorted[3 * sorted.size / 4]
+            val iqr = q3 - q1
+            if (iqr < 1.5) {
+                out += "Payoff spread is narrow (range=%.2f, IQR=%.2f); compressed payoffs may distort the equilibrium — consider rescaling to a 1–10 range.".format(range, iqr)
+            }
+        }
     }
 
     // ── PD: T > R > P > S ───────────────────────────────────────────────────

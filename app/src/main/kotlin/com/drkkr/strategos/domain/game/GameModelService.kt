@@ -158,10 +158,15 @@ object GameModelService {
         }
 
         // Validate payoff-ordering invariants (soft — never blocks solving)
-        val validationWarnings = when (val v = ExtractionValidator.validate(rawIr)) {
+        val structureWarnings = when (val v = ExtractionValidator.validate(rawIr)) {
             is ExtractionValidator.ValidationResult.Valid    -> emptyList()
             is ExtractionValidator.ValidationResult.Invalid -> v.violations
         }
+        // F7: surface veto power of stakeholders — compiler does not enforce canVeto, so we surface it to the coach
+        val vetoWarnings = scenario.stakeholders
+            .filter { it.canVeto && it.fears.isNotEmpty() }
+            .map { s -> "Stakeholder '${s.name}' has veto power; avoid actions that could trigger their primary concern: '${s.fears.first()}'." }
+        val validationWarnings = structureWarnings + vetoWarnings
 
         // Phase 1 (parallel): backward induction on the game tree runs concurrently with
         // the Bayesian adjustment + IEDS prune chain, since they share no state.
@@ -294,9 +299,28 @@ object GameModelService {
         val sensitivityResult = EquilibriumSensitivityAnalyzer.analyze(ir, equilibria)
         val cvoiResult = CounterfactualValueAnalyzer.analyze(ir, equilibria)
         val bayesianCompletion = BayesianGameCompletion.analyze(ir)
-        val icSynthesis = mechanismHint?.let { MechanismAdvisor.synthesize(it, ir) }
+        // F2: IC synthesis fires on mechanism keyword OR whenever IEDS eliminated dominated strategies
+        val icSynthesis = when {
+            mechanismHint != null -> MechanismAdvisor.synthesize(mechanismHint, ir)
+            pruneResult.anyEliminated -> {
+                val autoHint = MechanismAdvisor.MechanismHint(
+                    MechanismAdvisor.MechanismType.CONTRACT,
+                    "Dominated strategies eliminated — incentive misalignment detected between players.",
+                    "Restructure payoffs so the cooperative move becomes individually rational; a binding commitment or monitoring mechanism can close the gap."
+                )
+                MechanismAdvisor.synthesize(autoHint, ir)
+            }
+            else -> null
+        }
         val surplusResult = ParetoSurplusAnalyzer.analyze(ir, focalSelection?.equilibrium ?: equilibria.firstOrNull())
-        val commitmentLadder = CommitmentLadderAnalyzer.analyze(biResult?.equilibriumPath.orEmpty())
+        // F1: synthesize commitment path for normal-form games from focal pure Nash equilibrium action labels
+        val syntheticLadderPath: List<String>? = if (biResult?.equilibriumPath.orEmpty().isEmpty()) {
+            val focalForLadder = focalSelection?.equilibrium ?: equilibria.firstOrNull()
+            focalForLadder?.pureProfile?.mapIndexed { playerIdx, actionIdx ->
+                ir.actionIds.getOrNull(playerIdx)?.getOrNull(actionIdx) ?: "action_$actionIdx"
+            }
+        } else null
+        val commitmentLadder = CommitmentLadderAnalyzer.analyze(biResult?.equilibriumPath.orEmpty(), syntheticLadderPath)
 
         return AnalysisContext(
             result               = analysisResult,
@@ -331,11 +355,20 @@ object GameModelService {
      * Returns (confidence, alternativeInterpretations).
      */
     private fun computeExtractionConfidence(rawIr: GameIR, scenario: Scenario): Pair<Float, List<String>> {
-        if (rawIr.playerCount != 2) return Pair(1.0f, emptyList())
         val players = scenario.players()
         if (players.size < 2) return Pair(1.0f, emptyList())
-        val oppId = players[1].id
-        val oppStakeholder = scenario.stakeholders.firstOrNull { it.id == oppId } ?: return Pair(1.0f, emptyList())
+        // F6: for n≥3, vary the highest-influence opponent instead of always using players[1]
+        val userId = players.firstOrNull()?.id
+        val oppStakeholder = if (rawIr.playerCount == 2) {
+            val oppId = players[1].id
+            scenario.stakeholders.firstOrNull { it.id == oppId } ?: return Pair(1.0f, emptyList())
+        } else {
+            scenario.stakeholders
+                .filter { it.id != userId && it.gameRole == com.drkkr.strategos.domain.model.GameRole.PLAYER }
+                .maxByOrNull { it.influence }
+                ?: return Pair(1.0f, emptyList())
+        }
+        val oppId = oppStakeholder.id
 
         data class Variant(val label: String, val stakeholder: com.drkkr.strategos.domain.model.Stakeholder)
         val variants = listOf(
