@@ -8,7 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -66,7 +68,7 @@ fun CalmApp() {
                     is CalmRoute.Overview -> OverviewRoute(nav, route.projectId)
                     is CalmRoute.Talk -> TalkRoutePane(nav, route.projectId)
                     CalmRoute.Archived -> ArchivedRoute(nav, projectsVm)
-                    CalmRoute.Journal -> com.drkkr.strategos.ui.calm.journal.JournalRoute(onOpenProject = { nav.go(CalmRoute.Overview(it)) })
+                    CalmRoute.Journal -> com.drkkr.strategos.ui.calm.journal.JournalRoute(onOpenProject = { nav.go(CalmRoute.Talk(it)) })
                     CalmRoute.Settings -> com.drkkr.strategos.ui.calm.settings.SettingsRoute(viewModel())
                 }
             }
@@ -110,7 +112,8 @@ private fun ProjectsRoute(nav: CalmNav) {
             if (!vm.keyReady()) { com.drkkr.strategos.ui.calm.settings.SettingsNudge.on = true; nav.selectTab(DockTab.SETTINGS); return@launch }   // the draft stays in the box
             val text = ui.draft.trim(); vm.createProject()?.let { id -> com.drkkr.strategos.ui.calm.talk.PendingFirstMessage.set(id, text); nav.go(CalmRoute.Talk(id)) } } },
         onPickExample = vm::setDraft,
-        onOpenProject = { nav.go(CalmRoute.Overview(it)) },
+        // A project opens straight into its conversation; the overview is one tap away, on the title.
+        onOpenProject = { nav.go(CalmRoute.Talk(it)) },
         onRename = { renaming = it },
         onArchive = vm::archive,
         onDelete = { deleting = it },
@@ -123,14 +126,24 @@ private fun ProjectsRoute(nav: CalmNav) {
 
 @Composable
 private fun OverviewRoute(nav: CalmNav, projectId: String) {
+    ProjectOverview(projectId, embedded = false, onBack = { nav.back() }, onOpenChat = { nav.go(CalmRoute.Talk(projectId)) })
+}
+
+@Composable
+private fun overviewViewModel(projectId: String): OverviewViewModel {
     val app = LocalContext.current.applicationContext as Application
+    return viewModel(key = "overview-$projectId", factory = viewModelFactory { initializer { OverviewViewModel(app, projectId) } })
+}
+
+/**
+ * The project overview with its dialogs (rename, review, add a fact). [embedded] is the sheet over the chat, where
+ * "back" and "open chat" both simply close it.
+ */
+@Composable
+private fun ProjectOverview(projectId: String, embedded: Boolean, onBack: () -> Unit, onOpenChat: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    val vm: OverviewViewModel = viewModel(
-        key = "overview-$projectId",
-        factory = viewModelFactory { initializer { OverviewViewModel(app, projectId) } }
-    )
+    val vm = overviewViewModel(projectId)
     val ui by vm.state.collectAsState()
-    var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showReview by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showAdd by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var renaming by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
@@ -145,16 +158,11 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     }
     if (showReview) com.drkkr.strategos.ui.calm.overview.ReviewAiInputsSheet(ui.reviewItems, vm::review, vm::acceptAll) { showReview = false }
     if (showAdd) com.drkkr.strategos.ui.calm.overview.AddFactDialog(onAdd = vm::addFact, onDismiss = { showAdd = false })
-    if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
-    OverviewScreen(ui, journalPage = { ProjectJournalTab(projectId, ui.projectName) }, a = OverviewActions(
-        onBack = { nav.back() },
-        onOpenChat = { nav.go(CalmRoute.Talk(projectId)) },
-        onOpenThread = { id -> com.drkkr.strategos.ui.calm.talk.PendingThread.set(projectId, id); nav.go(CalmRoute.Talk(projectId)) },
-        onNewTopic = { nav.go(CalmRoute.Talk(projectId)) },
-        onSaveQuickCheck = { did, landed -> vm.saveQuickCheck(did, landed) },
-        onOpenReply = { nav.go(CalmRoute.Talk(projectId)) },
+    OverviewScreen(ui, modifier = modifier, embedded = embedded, journalPage = { ProjectJournalTab(projectId, ui.projectName) }, a = OverviewActions(
+        onBack = onBack,
+        onOpenChat = onOpenChat,
+        onOpenReply = { onOpenChat() },
         onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
-        onOpenXRay = { showXRay = true },
         onReview = { showReview = true },
         onAddFact = { showAdd = true },
         onApplyJournal = { vm.review(it, apply = true) },
@@ -164,21 +172,47 @@ private fun OverviewRoute(nav: CalmNav, projectId: String) {
     ))
 }
 
+/** The overview as a sheet over the conversation: opened from the chat's title, closed by a swipe or a tap outside. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun OverviewSheet(projectId: String, onDismiss: () -> Unit) {
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val close: () -> Unit = { scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() } }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheet,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = Calm.dimens.sheetTopRadius, topEnd = Calm.dimens.sheetTopRadius),
+        containerColor = Calm.colors.ground,
+        scrimColor = Color(0xFF09090C).copy(alpha = 0.5f)
+    ) {
+        ProjectOverview(projectId, embedded = true, onBack = close, onOpenChat = close, modifier = Modifier.fillMaxHeight(0.92f))
+    }
+}
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun XRayRoute(projectId: String, onDismiss: () -> Unit, onReadMore: (String) -> Unit) {
     val app = LocalContext.current.applicationContext as Application
     val vm: XRayViewModel = viewModel(key = "xray-$projectId", factory = viewModelFactory { initializer { XRayViewModel(app, projectId) } })
     val ui by vm.state.collectAsState()
+    // Opens straight to full height (no half-open stop), so the board and the pinned slider are both on screen.
+    val sheet = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val panel = Color(0xFF101014)
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheet,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = Calm.dimens.sheetTopRadius, topEnd = Calm.dimens.sheetTopRadius),
-        containerColor = Color.Transparent,
-        scrimColor = Color(0xFF101E40).copy(alpha = 0.4f)
-    ) {
-        androidx.compose.foundation.layout.Box(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-            XRayContent(ui, onOdds = vm::setOdds, onKeep = { vm.keep() }, onReset = vm::reset, onReadMore = onReadMore, onClose = onDismiss)
+        containerColor = panel,
+        scrimColor = Color(0xFF09090C).copy(alpha = 0.64f),
+        dragHandle = {
+            Box(Modifier.padding(top = 8.dp, bottom = 2.dp).size(width = 32.dp, height = 4.dp)
+                .background(Color.White.copy(alpha = 0.22f), androidx.compose.foundation.shape.RoundedCornerShape(2.dp)))
         }
+    ) {
+        XRayContent(ui, onOdds = vm::setOdds, onKeep = { vm.keep() }, onReset = vm::reset, onReadMore = onReadMore,
+            onClose = { scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() } })
     }
 }
 
@@ -196,12 +230,20 @@ private fun LegacyHost(content: @Composable (StrategosViewModel) -> Unit) {
 @Composable
 private fun TalkRoutePane(nav: CalmNav, projectId: String) {
     var showXRay by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showOverview by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val ctx = LocalContext.current
+    // The chat reads two things from the project's overview state: the trend for the line under the title, and the pending check-in.
+    val overview = overviewViewModel(projectId)
+    val project by overview.state.collectAsState()
     BackHandler { nav.back() }
     if (showXRay) XRayRoute(projectId, onDismiss = { showXRay = false }, onReadMore = { url -> runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } })
+    if (showOverview) OverviewSheet(projectId, onDismiss = { showOverview = false })
     com.drkkr.strategos.ui.calm.talk.TalkRoute(
         projectId, onBack = { nav.back() }, onOpenXRay = { showXRay = true },
-        onOpenSettings = { nav.selectTab(DockTab.SETTINGS) }, onOpenMemory = { nav.back() }
+        onOpenSettings = { nav.selectTab(DockTab.SETTINGS) }, onOpenOverview = { showOverview = true },
+        status = project.status.takeIf { project.chart.hasData },
+        checkIn = project.pendingCheck?.question,
+        onSaveCheckIn = { did, landed -> overview.saveQuickCheck(did, landed) }
     )
 }
 

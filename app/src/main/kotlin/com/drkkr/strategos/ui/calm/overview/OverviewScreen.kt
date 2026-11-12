@@ -44,6 +44,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -58,11 +59,17 @@ import com.drkkr.strategos.domain.model.Provenance
 import com.drkkr.strategos.ui.calm.theme.Calm
 import com.drkkr.strategos.ui.calm.theme.calmCard
 
+/**
+ * The project overview: is it getting better, the standing guidance, what the app knows, who pulls on whom, and
+ * the journal. It no longer lists conversations (one project, one chat), asks the check-in (the chat does) or shows
+ * the pattern (the X-ray does). [embedded] is how it is shown now, as a sheet over the chat: no back arrow and no
+ * chat button, since the chat is right behind it.
+ */
 @Composable
-fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier, journalPage: (@Composable () -> Unit)? = null) {
+fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier = Modifier, embedded: Boolean = false, journalPage: (@Composable () -> Unit)? = null) {
     var onJournal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
-        TopBar(ui.projectName, ui.subtitle, a.onBack, a.onRename)
+        TopBar(ui.projectName, ui.subtitle, a.onBack.takeIf { !embedded }, a.onRename)
         if (journalPage != null) ProjectTabs(onJournal, ui.linkedJournalCount) { onJournal = it }
         Box(Modifier.fillMaxSize()) {
             if (onJournal && journalPage != null) androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().imePadding()) {
@@ -70,16 +77,13 @@ fun OverviewScreen(ui: OverviewUiState, a: OverviewActions, modifier: Modifier =
                 item { Spacer(Modifier.height(96.dp)) }
             } else LazyColumn(Modifier.fillMaxSize()) {
                 item { MomentumSection(ui) }
-                if (ui.pendingCheck != null) item { QuickCheckCard(ui.pendingCheck.question, a.onSaveQuickCheck) }
                 if (ui.guidance.isNotEmpty()) item { GuidanceSection(ui, a.onOpenReply) }
-                ui.pattern?.let { item { PatternCard(it, a.onReadMore, a.onOpenXRay) } }
-                if (ui.threads.isNotEmpty()) item { ConversationsSection(ui, a.onOpenThread, a.onNewTopic) }
                 item { MemorySection(ui, a.onReview, a.onAddFact) }
                 ui.influence?.let { if (it.nodes.isNotEmpty()) item { InfluenceSection(it) } }
                 if (ui.journalTeasers.isNotEmpty()) item { JournalTeaserSection(ui, a.onApplyJournal, a.onDismissJournal, a.onOpenJournalTab) }
                 item { Spacer(Modifier.height(96.dp)) }
             }
-            if (!ui.loading) ExtendedFloatingActionButton(
+            if (!ui.loading && !embedded) ExtendedFloatingActionButton(
                 onClick = a.onOpenChat,
                 containerColor = Calm.colors.action, contentColor = Calm.colors.actionText,
                 icon = { Icon(Icons.Outlined.ChatBubbleOutline, ui.chatLabel) }, text = { if (!onJournal) Text(ui.chatLabel) },
@@ -95,7 +99,7 @@ private fun ProjectTabs(onJournal: Boolean, linkedCount: Int, onPick: (Boolean) 
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         listOf(false to "Overview", true to "Journal").forEach { (isJ, label) ->
             val on = onJournal == isJ
-            Column(Modifier.weight(1f).heightIn(min = 48.dp).clickable { onPick(isJ) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Column(Modifier.weight(1f).testTag("project-tab-$label").heightIn(min = 48.dp).clickable { onPick(isJ) }.padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(label, color = if (on) c.ink else c.ink3, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, fontSize = 15.sp)
                     if (isJ && linkedCount > 0) Text("$linkedCount", color = c.selectedText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
@@ -109,13 +113,13 @@ private fun ProjectTabs(onJournal: Boolean, linkedCount: Int, onPick: (Boolean) 
 }
 
 @Composable
-private fun TopBar(name: String, subtitle: String, onBack: () -> Unit, onRename: () -> Unit) {
+private fun TopBar(name: String, subtitle: String, onBack: (() -> Unit)?, onRename: () -> Unit) {
     val c = Calm.colors
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+        if (onBack != null) Box(Modifier.size(48.dp).clip(RoundedCornerShape(24.dp)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to projects", tint = c.ink)
-        }
-        Column(Modifier.weight(1f).clickable(onClick = onRename)) {
+        } else Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).clickable(onClickLabel = "Rename project", onClick = onRename)) {
             Text(name, style = Calm.type.subtitle, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, style = Calm.type.caption, color = c.ink3)
         }
@@ -208,40 +212,6 @@ private fun MomentumChart(chart: ChartUi, eventCount: Int) {
 }
 
 @Composable
-private fun QuickCheckCard(question: String, onSave: (String, String) -> Unit) {
-    val c = Calm.colors
-    var did by remember { mutableStateOf("DID_AS_SUGGESTED") }
-    var landed by remember { mutableStateOf("NO_CHANGE") }
-    Column(Modifier.padding(Calm.dimens.gutter, 24.dp, Calm.dimens.gutter, 0.dp).calmCard(c).padding(Calm.dimens.cardPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(question, style = Calm.type.subtitle, color = c.ink)
-        Text("Takes ten seconds and sharpens the chart above.", style = Calm.type.caption, color = c.ink3)
-        Text("WHAT YOU DID", style = Calm.type.caption, color = c.ink3)
-        ChipRow(listOf("DID_AS_SUGGESTED" to "Did as suggested", "TRIED_VARIATION" to "Tried a variation", "SKIPPED_REACTIVE" to "Reacted instead"), did) { did = it }
-        Text("HOW IT LANDED", style = Calm.type.caption, color = c.ink3)
-        ChipRow(listOf("DE_ESCALATED" to "Warmer", "NO_CHANGE" to "About the same", "ESCALATED_ATTACKED" to "Colder"), landed) { landed = it }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            PrimaryButton("Save") { onSave(did, landed) }
-        }
-    }
-}
-
-@Composable
-private fun ChipRow(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
-    val c = Calm.colors
-    // Wraps to a second line instead of squeezing a long label into a sliver on narrow phones.
-    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { (key, label) ->
-            val on = key == selected
-            Text(label, style = Calm.type.caption, color = if (on) c.selectedText else c.ink2,
-                modifier = Modifier.heightIn(min = Calm.dimens.chipHeight).clip(RoundedCornerShape(16.dp))
-                    .background(if (on) c.selected else Color.Transparent)
-                    .clickable { onSelect(key) }.padding(horizontal = 12.dp, vertical = 7.dp))
-        }
-    }
-}
-
-@Composable
 private fun GuidanceSection(ui: OverviewUiState, onOpenReply: (String?) -> Unit) {
     val c = Calm.colors
     SectionHeader("What to do")
@@ -263,55 +233,6 @@ private fun GuidanceRow(row: GuidanceRowUi, isDo: Boolean, onOpenReply: (String?
         Column(Modifier.weight(1f)) {
             Text(row.text, style = Calm.type.body, color = c.ink)
             Text(row.source, style = Calm.type.caption, color = c.ink3)
-        }
-    }
-}
-
-@Composable
-private fun PatternCard(p: Pattern, onReadMore: (String) -> Unit, onOpenXRay: () -> Unit) {
-    val c = Calm.colors
-    SectionHeader("The pattern here")
-    Column(Modifier.padding(horizontal = Calm.dimens.gutter).clip(RoundedCornerShape(Calm.dimens.cardRadius)).background(c.coach).padding(20.dp, 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(p.name, style = Calm.type.title.copy(fontFamily = com.drkkr.strategos.ui.calm.theme.CalmFonts.Serif), color = c.coachInk)
-        Text(p.summary, style = Calm.type.coachBody, color = c.coachInk)
-        if (p.variables.isNotEmpty()) {
-            Text("WHAT MATTERS IN YOUR CASE", style = Calm.type.caption, color = c.trust)
-            p.variables.forEach { v ->
-                Text(buildString { append(v.label); append(". "); append(v.value) }, style = Calm.type.body, color = c.coachInk)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.heightIn(min = 48.dp).clickable { onReadMore(p.wikiUrl) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Read more", style = Calm.type.subtitle, color = c.action)
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = c.action, modifier = Modifier.size(16.dp))
-            }
-            Text("See how I got here", style = Calm.type.subtitle, color = c.rigor, modifier = Modifier.heightIn(min = 48.dp).clickable { onOpenXRay() })
-        }
-    }
-}
-
-@Composable
-private fun ConversationsSection(ui: OverviewUiState, onOpenThread: (String) -> Unit, onNewTopic: () -> Unit) {
-    val c = Calm.colors
-    SectionHeader("Conversations", "one shared memory")
-    Column(Modifier.padding(horizontal = Calm.dimens.gutter).calmCard(c)) {
-        ui.threads.forEach { t ->
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { onOpenThread(t.id) }.padding(Calm.dimens.cardPadding, 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(t.title, style = Calm.type.subtitle, color = c.ink)
-                        if (t.isOpenNow) Text("open now", style = Calm.type.pill, color = c.selectedText,
-                            modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.selected).padding(horizontal = 8.dp, vertical = 2.dp))
-                    }
-                    if (t.lastLine.isNotBlank()) Text(t.lastLine, style = Calm.type.caption, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text(t.whenLabel, style = Calm.type.caption, color = c.ink3)
-                Icon(Icons.Filled.ChevronRight, null, tint = c.ink3)
-            }
-        }
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onNewTopic).padding(Calm.dimens.cardPadding, 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Filled.Add, null, tint = c.action, modifier = Modifier.size(20.dp))
-            Text("New topic", style = Calm.type.subtitle, color = c.action)
         }
     }
 }

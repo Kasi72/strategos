@@ -3,7 +3,18 @@ package com.drkkr.strategos.domain.agent
 import com.drkkr.strategos.domain.model.Scenario
 
 /** One of your moves in the X-ray grid: its score if he takes it well, if badly, and the blend at the current odds. */
-data class XRayRow(val label: String, val well: Int, val bad: Int, val expected: Int)
+data class XRayRow(val label: String, val well: Int, val bad: Int, val expected: Int) {
+    /** What kind of move this is, read straight off its two cells. */
+    val kind: MoveKind
+        get() = when {
+            minOf(well, bad) >= XRayGridBuilder.ROBUST_FLOOR -> MoveKind.HOLDS_UP
+            maxOf(well, bad) < XRayGridBuilder.ROBUST_FLOOR -> MoveKind.BACKFIRES
+            else -> MoveKind.GAMBLE
+        }
+}
+
+/** HOLDS_UP: both cells are 50+. BACKFIRES: both are under 50. GAMBLE: good one way, bad the other. */
+enum class MoveKind { HOLDS_UP, GAMBLE, BACKFIRES }
 
 /**
  * The X-ray's 3x2 grid (board 07): your moves down, his two likely reactions across, a 0..100 score per
@@ -18,6 +29,33 @@ data class XRayGrid(
     val odds: Double
 ) {
     val best: XRayRow get() = rows[bestIndex]
+
+    /**
+     * The same rows in the same order, re-blended at [odds]. The sheet uses this while the user drags, so
+     * the board's rows never reorder under their finger. The ring moves to the top-scoring row; on a tie it
+     * stays on [prefer] (the coach's row) so nothing flips without a real lead.
+     */
+    fun at(odds: Double, prefer: Int = bestIndex): XRayGrid {
+        val p = odds.coerceIn(0.0, 1.0)
+        val blend = rows.map { p * it.well + (1 - p) * it.bad }
+        val top = blend.max()
+        val best = if (blend.getOrNull(prefer)?.let { it >= top - EPS } == true) prefer else blend.indexOfFirst { it >= top - EPS }
+        val r = rows.mapIndexed { i, x -> x.copy(expected = Math.round(blend[i]).toInt()) }
+        return copy(rows = r, bestIndex = best, robust = minOf(r[best].well, r[best].bad) >= XRayGridBuilder.ROBUST_FLOOR, odds = p)
+    }
+
+    /** Whole-percent odds (1..100) at which the top-scoring move changes. Empty means one move leads at every odds. */
+    fun flipPoints(): List<Int> {
+        fun top(pct: Int): Int {
+            val p = pct / 100.0
+            var b = 0; var bv = Double.NEGATIVE_INFINITY
+            rows.forEachIndexed { i, r -> val v = p * r.well + (1 - p) * r.bad; if (v > bv + EPS) { bv = v; b = i } }
+            return b
+        }
+        return (1..100).filter { top(it) != top(it - 1) }
+    }
+
+    private companion object { const val EPS = 1e-9 }
 }
 
 /**

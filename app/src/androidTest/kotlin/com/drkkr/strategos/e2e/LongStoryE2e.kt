@@ -14,11 +14,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * TC_STORY_01: one project followed over "several weeks" in three topics, with journal entries written in between,
+ * TC_STORY_01: one project followed over "several weeks" in its one conversation, with journal entries written in between,
  * against the real coach (emulator only). Skipped unless run with `-e story 1` and a live key.
  *
  * What it asserts, for every turn: the reply is the coach's own words (not the app's canned template), it is not empty,
- * it picks up something specific the user said, and each topic keeps its own conversation. At the end: the trajectory
+ * it picks up something specific the user said, and the whole story stays in one conversation (since the chat-first flow
+ * a project has exactly one; the three "topics" below are just the three weeks of that conversation). At the end: the trajectory
  * and the Overview have moved, the journal entries were screened/linked to the project, and a question about the
  * journal is answered with details from those entries. Replies are logged under tag STORY (synthetic text, emulator only).
  */
@@ -45,7 +46,7 @@ class LongStoryE2e : E2eBase() {
 
     private fun clean(s: String) = s.lowercase()
 
-    @Test fun TC_STORY_01_threeTopicsWithJournal() {
+    @Test fun TC_STORY_01_threeWeeksInOneConversationWithJournal() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("story") == "1")
         requireLiveKey()
         reset(withKey = true); launch()
@@ -61,7 +62,7 @@ class LongStoryE2e : E2eBase() {
 
         // ── Week 1: project is created by the first message ─────────────────
         typeInto(0, week1[0].say); desc("Send").performClick()
-        waitForDesc("Back to overview")
+        waitForDesc("Back to projects")
         sid = runBlocking { container.scenarioRepository.scenarios.value }.first().id
         expected = 2
         waitFor(180_000, "reply 1") { count() >= expected }
@@ -74,14 +75,7 @@ class LongStoryE2e : E2eBase() {
         val j1 = runBlocking { journal.recordEntry(journal1, "ANXIOUS", sid) }
         runBlocking { container.journalScreener!!.screen(j1.entryId) }
 
-        // ── Week 2: a second topic ──────────────────────────────────────────
-        text("+ Topic").performClick()
-        waitForText("A new topic")
-        rule.onAllNodes(hasSetTextAction()).onLast().performClick()
-        rule.onAllNodes(hasSetTextAction()).onLast().performTextInput("What to say to Alex")
-        text("Start talking").performClick()
-        // The sheet only names the topic; the first line is the topic name itself, so continue the conversation.
-        waitFor(180_000, "topic 2 first reply") { count() >= expected + 2 }; expected += 2; idle()
+        // ── Week 2: the same conversation, a new angle ──────────────────────
         typeWhenComposerReady(week2[0].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 4") { count() >= expected }; idle()
         typeWhenComposerReady(week2[1].say); sendMessage()
@@ -91,22 +85,16 @@ class LongStoryE2e : E2eBase() {
         val j2 = runBlocking { journal.recordEntry(journal2, "ANXIOUS", sid) }
         runBlocking { container.journalScreener!!.screen(j2.entryId) }
 
-        // ── Week 3: a third topic ───────────────────────────────────────────
-        text("+ Topic").performClick()
-        waitForText("A new topic")
-        rule.onAllNodes(hasSetTextAction()).onLast().performClick()
-        rule.onAllNodes(hasSetTextAction()).onLast().performTextInput("If he says no")
-        text("Start talking").performClick()
-        waitFor(180_000, "topic 3 first reply") { count() >= expected + 2 }; expected += 2; idle()
+        // ── Week 3: still the same conversation ─────────────────────────────
         typeWhenComposerReady(week3[0].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 7") { count() >= expected }; idle()
         typeWhenComposerReady(week3[1].say); sendMessage()
         expected += 2; waitFor(180_000, "reply 8") { count() >= expected }; idle()
 
-        // ── Back to topic 1: does it remember the journal? ───────────────────
+        // ── Does it remember the journal? ───────────────────────────────────
         val ask = "Before I go back to Alex: what did I write in my journal this week, and does it change what you'd tell me?"
         val threads = runBlocking { db.conversationDao().listThreadsForScenario(sid) }
-        assertEquals("three separate topics", 3, threads.size)
+        assertEquals("one conversation per project", 1, threads.size)
         typeWhenComposerReady(ask); sendMessage()
         expected += 2; waitFor(180_000, "journal reply") { count() >= expected }; idle()
 
@@ -138,7 +126,7 @@ class LongStoryE2e : E2eBase() {
         report.append("\njournalReplyTouched=$touchedJournal")
         report.toString().lines().forEach { android.util.Log.e("STORY", it) }
 
-        assertTrue("every user turn got a reply (${replies.size})", replies.size >= 9)
+        assertTrue("every user turn got a reply (${replies.size})", replies.size >= 7)
         assertTrue("canned fallbacks: $cannedCount of ${replies.size}\n$report", cannedCount <= 1)
         assertTrue("replies that never touched what the user said: $misses", misses.size <= 1)
         assertTrue("the coach asked a question before most replies ($asked of ${replies.size})", asked <= 4)

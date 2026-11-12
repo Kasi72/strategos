@@ -37,10 +37,9 @@ data class OverviewUiState(
     val chart: ChartUi = ChartUi(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()),
     val momentumBlurb: String = "",
     val events: List<MomentumEvent> = emptyList(),
+    /** The pending check-in. The chat asks it now; it stays in this state because the chat reads it from here. */
     val pendingCheck: PendingCheck? = null,
     val guidance: List<GuidanceRowUi> = emptyList(),
-    val pattern: Pattern? = null,
-    val threads: List<ThreadRowUi> = emptyList(),
     val chatLabel: String = "Start chat",
     val people: List<PersonMemory> = emptyList(),
     val limits: List<BrainFact> = emptyList(),
@@ -53,18 +52,11 @@ data class OverviewUiState(
     val reviewItems: List<com.drkkr.strategos.domain.agent.ReviewItem> = emptyList()
 )
 
-/** A conversation row for the Conversations section. */
-data class ThreadRowUi(val id: String, val title: String, val lastLine: String, val whenLabel: String, val isOpenNow: Boolean)
-
 data class OverviewActions(
     val onBack: () -> Unit = {},
     val onOpenChat: () -> Unit = {},
-    val onOpenThread: (String) -> Unit = {},
-    val onNewTopic: () -> Unit = {},
-    val onSaveQuickCheck: (did: String, landed: String) -> Unit = { _, _ -> },
     val onOpenReply: (String?) -> Unit = {},
     val onReadMore: (String) -> Unit = {},
-    val onOpenXRay: () -> Unit = {},
     val onReview: () -> Unit = {},
     val onAddFact: () -> Unit = {},
     val onApplyJournal: (String) -> Unit = {},

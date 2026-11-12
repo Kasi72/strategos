@@ -35,7 +35,7 @@ class RepeatedAdviceE2e : E2eBase() {
         fun count() = runBlocking { dao.countVisibleForScenario(sid) }
         fun idle() = waitFor(90_000, "composer idle") { !hasText("Stop reply") && rule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty() }
         typeInto(0, say[0]); desc("Send").performClick()
-        waitForDesc("Back to overview")
+        waitForDesc("Back to projects")
         sid = runBlocking { container.scenarioRepository.scenarios.value }.first().id
         var expected = 2
         waitFor(180_000, "reply 1") { count() >= expected }; idle()

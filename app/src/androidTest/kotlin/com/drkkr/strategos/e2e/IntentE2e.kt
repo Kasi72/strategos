@@ -21,7 +21,7 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class IntentE2e : E2eBase() {
     private fun openTalk(name: String) {
-        waitForText(name); text(name).performClick(); waitForText("Start chat"); text("Start chat").performClick(); waitForDesc("Back to overview")
+        waitForText(name); text(name).performClick(); waitForDesc("Back to projects")
     }
 
     private fun replies(sid: String): List<String> = runBlocking {

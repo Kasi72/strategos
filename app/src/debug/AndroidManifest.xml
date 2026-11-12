@@ -6,5 +6,10 @@
             android:name=".ui.calm.CalmPreviewActivity"
             android:exported="true"
             android:theme="@style/Theme.Strategos" />
+        <!-- Debug-only harness for the X-ray sheet over demo data (no AI key or saved project needed). -->
+        <activity
+            android:name=".ui.calm.xray.XRayPreviewActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Strategos" />
     </application>
 </manifest>

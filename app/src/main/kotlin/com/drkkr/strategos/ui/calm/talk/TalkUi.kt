@@ -2,6 +2,8 @@ package com.drkkr.strategos.ui.calm.talk
 
 import com.drkkr.strategos.agent.ChatItem
 import com.drkkr.strategos.data.repo.RevealMath
+import com.drkkr.strategos.domain.files.AttachedFile
+import com.drkkr.strategos.domain.files.FileBlock
 import java.util.concurrent.TimeUnit
 
 /** The engine's label under a coach reply: "Wait · Mutual trust · Robust". Tapping it opens the X-ray. */
@@ -30,7 +32,8 @@ data class CoachText(
 /** A row in the conversation stream. */
 sealed class TalkTurn {
     abstract val id: String
-    data class User(override val id: String, val text: String, val queued: Boolean = false) : TalkTurn()
+    /** [text] is the user's own words; [file] is the file that went with them, shown as a chip above the words. */
+    data class User(override val id: String, val text: String, val queued: Boolean = false, val file: AttachedFile? = null) : TalkTurn()
     data class Coach(override val id: String, val text: CoachText, val tag: EngineTagUi?) : TalkTurn()
     /** A clarifying question with tappable answers; [answered] once the user has replied. */
     data class Ask(override val id: String, val question: String, val options: List<String>, val answered: Boolean) : TalkTurn()
@@ -41,6 +44,12 @@ sealed class TalkTurn {
 }
 
 data class TopicUi(val id: String, val name: String, val lastLine: String, val whenLabel: String, val isOpen: Boolean)
+
+/** Where a file picked in the composer stands: being read on the device, ready to send, or not readable. */
+enum class AttachState { READING, READY, FAILED }
+
+/** The file waiting in the composer. [line] is its size once read ("412 messages · 3 people"), or why it can't be read. */
+data class AttachmentUi(val name: String, val badge: String, val line: String, val state: AttachState)
 
 /** Why the coach can't answer right now. */
 enum class TalkProblem { NONE, KEY_REJECTED, FAILED, NO_KEY, AI_OFF }
@@ -59,7 +68,17 @@ data class TalkUiState(
     /** Power Mode for this conversation (I-P1), whether it may be offered at all (false under the lock, I-P4), and whether its explainer was shown here. */
     val powerMode: Boolean = false,
     val powerAvailable: Boolean = false,
-    val powerExplained: Boolean = false
+    val powerExplained: Boolean = false,
+    /** The line under the title: how the project is trending ("Getting better"). Blank until there is a chart. */
+    val statusLine: String = "",
+    /** +1 improving, -1 tense, 0 steady: the colour of the dot beside [statusLine]. */
+    val statusTone: Int = 0,
+    /** True once the engine has an answer to show; the X-ray button then appears in the top bar. */
+    val canXRay: Boolean = false,
+    /** The pending "how did it go?" question, asked here in the conversation when the user comes back. Null when nothing is pending. */
+    val checkIn: String? = null,
+    /** The file picked but not yet sent. Null when nothing is attached. */
+    val attachment: AttachmentUi? = null
 )
 
 data class TalkActions(
@@ -68,10 +87,15 @@ data class TalkActions(
     val onStop: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onSelectTopic: (String) -> Unit = {},
-    val onNewTopic: (String) -> Unit = {},
     val onOpenXRay: () -> Unit = {},
     val onOpenSettings: () -> Unit = {},
-    val onOpenMemory: () -> Unit = {},
+    /** Tapping the title: the project overview (chart, standing guidance, memory, people) as a sheet over the chat. */
+    val onOpenOverview: () -> Unit = {},
+    /** The check-in's answer: what the user did and how it landed (the Quick-check codes). */
+    val onSaveCheckIn: (did: String, landed: String) -> Unit = { _, _ -> },
+    /** Opens the system file picker; the chosen file is read on the device and waits in the composer. */
+    val onAttach: () -> Unit = {},
+    val onRemoveAttachment: () -> Unit = {},
     val onSetPowerMode: (Boolean) -> Unit = {},
     val onPowerExplained: () -> Unit = {},
     /** The user's own word on the Power Read card ("yourAlternative" / "theyDependOnYou"). */
@@ -81,14 +105,12 @@ data class TalkActions(
 /** Pure mapping from stored chat items to what the Talk screen draws, kept out of the composables for testing. */
 object TalkUi {
 
-    val TOPIC_STARTERS = listOf("What to say to my parents", "The money side", "If he says no", "How I'm feeling about it")
-
     private val BULLET = Regex("^\\s*([-•*])\\s+")
 
     fun turns(items: List<ChatItem>, queued: List<String> = emptyList()): List<TalkTurn> {
         val out = mutableListOf<TalkTurn>()
         for (item in items) when (item) {
-            is ChatItem.UserText -> out += TalkTurn.User(item.id, item.text)
+            is ChatItem.UserText -> out += user(item.id, item.text)
             is ChatItem.AssistantText -> out += TalkTurn.Coach(item.id, split(item.text), item.pill?.let(::tag))
             is ChatItem.Questions -> item.questions.firstOrNull()?.let { q ->
                 out += TalkTurn.Ask(item.id, q.text, q.options, item.answered)
@@ -97,8 +119,14 @@ object TalkUi {
             is ChatItem.PowerRead -> out += TalkTurn.PowerRead(item.id, item.payload)
             else -> Unit   // activity, change sets and the expert cards stay out of the calm conversation
         }
-        queued.forEachIndexed { i, t -> out += TalkTurn.User("queued-$i", t, queued = true) }
+        queued.forEachIndexed { i, t -> out += user("queued-$i", t, queued = true) }
         return out
+    }
+
+    /** A message that carried a file shows as the user's words plus a chip; the prepared text stays out of the bubble. */
+    private fun user(id: String, raw: String, queued: Boolean = false): TalkTurn.User {
+        val file = FileBlock.files(raw).firstOrNull() ?: return TalkTurn.User(id, raw, queued)
+        return TalkTurn.User(id, FileBlock.words(raw), queued, file)
     }
 
     /** "Wait · Mutual trust · Robust" → a tag; null when the pill isn't the three-part form. */

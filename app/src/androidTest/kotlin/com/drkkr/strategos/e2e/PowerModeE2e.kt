@@ -31,7 +31,7 @@ class PowerModeE2e : E2eBase() {
     private val banner = "Power Mode — hardball moves for work and negotiations."
 
     private fun openTalk(name: String) {
-        waitForText(name); text(name).performClick(); waitForText("Start chat"); text("Start chat").performClick(); waitForDesc("Back to overview")
+        waitForText(name); text(name).performClick(); waitForDesc("Back to projects")
     }
 
     private fun cid(): String = runBlocking {

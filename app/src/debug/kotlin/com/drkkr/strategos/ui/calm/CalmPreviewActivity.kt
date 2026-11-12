@@ -1,5 +1,8 @@
 package com.drkkr.strategos.ui.calm
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,7 +28,6 @@ import com.drkkr.strategos.ui.calm.overview.OverviewActions
 import com.drkkr.strategos.ui.calm.overview.OverviewChart
 import com.drkkr.strategos.ui.calm.overview.OverviewScreen
 import com.drkkr.strategos.ui.calm.overview.OverviewUiState
-import com.drkkr.strategos.ui.calm.overview.ThreadRowUi
 import com.drkkr.strategos.ui.calm.projects.ProjectCardUi
 import com.drkkr.strategos.ui.calm.projects.ProjectsActions
 import com.drkkr.strategos.ui.calm.projects.ProjectsScreen
@@ -47,6 +49,8 @@ class CalmPreviewActivity : ComponentActivity() {
                 when (screen) {
                     "firstrun" -> ProjectsScreen(ProjectsUiState(projects = emptyList(), archivedCount = 0, hasKey = true, loading = false), ProjectsActions())
                     "overview" -> OverviewScreen(SAMPLE_OVERVIEW, OverviewActions())
+                    // The chat-first project flow over demo data: title opens the overview sheet, the check-in sits in the chat.
+                    "flow" -> ProjectFlowPreview(intent.getStringExtra("name") ?: "Loan for my brother", intent.getBooleanExtra("power", false))
                     "talk" -> com.drkkr.strategos.ui.calm.talk.TalkScreen(
                         com.drkkr.strategos.ui.calm.talk.TalkUiState(
                             projectName = "CoFounder conflict",
@@ -82,7 +86,7 @@ class CalmPreviewActivity : ComponentActivity() {
         }
     }
 
-    private companion object {
+    internal companion object {
         val SAMPLE = listOf(
             ProjectCardUi("1", "Loan for my brother", "Today · 3 topics", MomentumStatus.IMPROVING,
                 listOf(50f, 54f, 58f, 55f, 62f, 66f), listOf(60f, 56f, 54f, 50f, 46f, 42f)),
@@ -98,7 +102,7 @@ class CalmPreviewActivity : ComponentActivity() {
         val SAMPLE_OVERVIEW = OverviewUiState(
             loading = false,
             projectName = "Loan for my brother",
-            subtitle = "3 topics · active today",
+            subtitle = "Active today",
             linkedJournalCount = 3,
             status = MomentumStatus.IMPROVING,
             chart = ChartUi(
@@ -118,22 +122,6 @@ class CalmPreviewActivity : ComponentActivity() {
                 GuidanceRowUi("Give the quiet a day before you reach out.", true, "From your journal", null),
                 GuidanceRowUi("Don't send a \"just checking in\" message.", false, "From your journal", null),
                 GuidanceRowUi("Don't co-sign just to keep the peace.", false, "From Main", null)
-            ),
-            pattern = Pattern(
-                "stag-hunt", "Mutual trust needed",
-                "You both gain if this works, but only if each of you trusts the other to carry their share. If either plays it safe, the safe move wins and the bigger prize is lost. The whole thing turns on whether each of you believes the other will commit.",
-                listOf(
-                    PatternVariable("Your limit", "Nothing that puts the house at risk"),
-                    PatternVariable("Brother's need", "Money for the café in about three weeks"),
-                    PatternVariable("Your parents", "Can tip it either way"),
-                    PatternVariable("The doubt", "Each of you wondering if the other will follow through")
-                ),
-                "https://en.wikipedia.org/wiki/Stag_hunt"
-            ),
-            threads = listOf(
-                ThreadRowUi("1", "Main", "Let him ask. Keep your answer the same.", "2h", true),
-                ThreadRowUi("2", "Money angle", "How much could you give without it hurting?", "1d", false),
-                ThreadRowUi("3", "Trust angle", "What would help him feel respected?", "Oct 22", false)
             ),
             chatLabel = "Continue chat",
             people = listOf(
@@ -170,4 +158,41 @@ class CalmPreviewActivity : ComponentActivity() {
             )
         )
     }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@androidx.compose.runtime.Composable
+private fun ProjectFlowPreview(name: String, power: Boolean) {
+    val remember = @androidx.compose.runtime.Composable { androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) } }
+    val overview = remember(); val answered = remember()
+    // The real file picker and the real on-device reader, so attaching a file can be tried here without an AI key.
+    val picked = com.drkkr.strategos.ui.calm.talk.rememberFilePick("preview")
+    val sent = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    val turns = com.drkkr.strategos.ui.calm.talk.TalkUi.turns(listOf(
+        com.drkkr.strategos.agent.ChatItem.UserText("u1", "My brother wants me to co-sign a large loan and my wife is against it."),
+        com.drkkr.strategos.agent.ChatItem.AssistantText("a1",
+            "What's happening underneath: He hears a no as you not believing in him.\n" +
+            "Clear-win move: Offer a fixed amount you can afford to lose, and say your limit once.\n" +
+            "What to say: \"I can't co-sign, but I can give you a fixed amount towards it.\"\n" +
+            "Do this:\n• Say your limit once, kindly.\n" +
+            "Don't do this:\n• Don't co-sign just to keep the peace.\n" +
+            "Tell me how he takes it.")
+    ) + sent.mapIndexed { i, t -> com.drkkr.strategos.agent.ChatItem.UserText("s$i", t) })
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(com.drkkr.strategos.ui.calm.theme.Calm.colors.ground))
+    com.drkkr.strategos.ui.calm.talk.TalkScreen(
+        com.drkkr.strategos.ui.calm.talk.TalkUiState(
+            projectName = name, turns = turns, loading = false, statusLine = "Getting better", statusTone = 1, canXRay = true,
+            powerAvailable = power, checkIn = "How did the last talk with Brother go?".takeIf { !answered.value && sent.isEmpty() },
+            attachment = picked.ui
+        ),
+        com.drkkr.strategos.ui.calm.talk.TalkActions(onOpenOverview = { overview.value = true }, onSaveCheckIn = { _, _ -> answered.value = true },
+            onAttach = picked.open, onRemoveAttachment = picked.clear,
+            onSend = { text -> sent += picked.take()?.let { com.drkkr.strategos.domain.files.FileBlock.compose(text, it) } ?: text })
+    )
+    if (overview.value) androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = { overview.value = false },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        containerColor = com.drkkr.strategos.ui.calm.theme.Calm.colors.ground
+    ) { OverviewScreen(CalmPreviewActivity.SAMPLE_OVERVIEW, OverviewActions(), modifier = androidx.compose.ui.Modifier.fillMaxHeight(0.92f), embedded = true) }
 }

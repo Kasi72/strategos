@@ -45,11 +45,12 @@ class ProjectsE2e : E2eBase() {
         desc("Send").assertIsEnabled()
     }
 
-    @Test fun TC_E2E_PRJ_04_tapOpensTheOverviewNotTheChat() {
+    /** Since the chat-first flow: a project opens its conversation; the overview is one tap further, on the title. */
+    @Test fun TC_E2E_PRJ_04_tapOpensTheChatNotTheOverview() {
         reset(withKey = false); seedProject("Loan for my brother"); launch()
-        waitForText("Loan for my brother"); text("Loan for my brother").performClick()
-        waitForText("Start chat"); waitForText("Overview")
-        assertTrue(!hasText("Send message"))
+        openProject("Loan for my brother")
+        waitForDesc("Send message")
+        assertTrue(!hasText("MOMENTUM") && !hasText("Start chat"))
     }
 
     @Test fun TC_E2E_PRJ_05_renameArchiveRestoreDelete() {
