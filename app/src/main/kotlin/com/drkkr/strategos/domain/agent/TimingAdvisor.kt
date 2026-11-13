@@ -13,20 +13,23 @@ object TimingAdvisor {
     /**
      * @param scenario the current scenario (checks for time constraints)
      * @param opponentModel optional opponent priors; discountFactor drives patience estimates
+     * @param deadline extracted deadline level from HumanContext: "none"|"soft"|"hard"; null means not available
      * @return [TimingAdvice.WAIT] when patience pays off, [TimingAdvice.SET_DEADLINE] when the opponent is impatient
      *         or the scenario has a binding deadline, [TimingAdvice.NO_GUIDANCE] when insufficient information
      */
     fun advise(
         scenario: Scenario,
-        opponentModel: OpponentModel? = null
+        opponentModel: OpponentModel? = null,
+        deadline: String? = null
     ): TimingAdvice {
         val df = opponentModel?.discountFactor ?: scenario.discountFactor
 
-        // Binding time constraint in the scenario
-        val hasDeadlineConstraint = scenario.constraints.any { c ->
-            c.kind == com.drkkr.strategos.domain.model.Constraint.Kind.POLICY ||
-                    c.kind == com.drkkr.strategos.domain.model.Constraint.Kind.RESOURCE
-        }
+        // Binding time constraint: either from scenario constraints or from free-text extraction (SCOPE-2).
+        val hasDeadlineConstraint = deadline == "hard" || deadline == "soft" ||
+            scenario.constraints.any { c ->
+                c.kind == com.drkkr.strategos.domain.model.Constraint.Kind.POLICY ||
+                        c.kind == com.drkkr.strategos.domain.model.Constraint.Kind.RESOURCE
+            }
 
         if (df == null) {
             // No discount data — set a deadline if there is a binding constraint, else no guidance

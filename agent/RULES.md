@@ -38,7 +38,7 @@ Stage 5: run_coalition_analysis (3+); check_mechanism_design; run_specific_frame
 
 ## Synergy
 S1: ai_share>0.35->belief+ask+propose+reanalyze(max 2).
-S3: BAYESIAN+belief+self_model;REPEATED+history+patterns;ZERO_SUM+what_if+stress;PD+deception+commitment.
+S3: BAYESIAN+belief+self_model;REPEATED+history+patterns;ZERO_SUM+what_if+stress;PD+deception+commitment;BARGAINING+commitment+batna.
 S4: >0.70 ask;<0.35+dec<=1 direct;else caveat.
 S5: self_model known->opponent sentence.
 S6: dec>0+<0.50->stress 3 priors,min-regret.

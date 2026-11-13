@@ -299,10 +299,15 @@ object GameModelService {
         val sensitivityResult = EquilibriumSensitivityAnalyzer.analyze(ir, equilibria)
         val cvoiResult = CounterfactualValueAnalyzer.analyze(ir, equilibria)
         val bayesianCompletion = BayesianGameCompletion.analyze(ir)
-        // F2: IC synthesis fires on mechanism keyword OR whenever IEDS eliminated dominated strategies
+        // F2: IC synthesis fires on mechanism keyword OR whenever IEDS eliminated dominated strategies in a social-dilemma game.
+        // BUG-2 fix: auto-trigger only for archetypes where incentive misalignment is structurally meaningful.
+        val icSynthesisEligible = pruneResult.anyEliminated && ir.archetype in setOf(
+            GameArchetype.PRISONERS_DILEMMA, GameArchetype.STAG_HUNT,
+            GameArchetype.CHICKEN, GameArchetype.BATTLE_OF_SEXES
+        )
         val icSynthesis = when {
             mechanismHint != null -> MechanismAdvisor.synthesize(mechanismHint, ir)
-            pruneResult.anyEliminated -> {
+            icSynthesisEligible -> {
                 val autoHint = MechanismAdvisor.MechanismHint(
                     MechanismAdvisor.MechanismType.CONTRACT,
                     "Dominated strategies eliminated — incentive misalignment detected between players.",

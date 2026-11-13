@@ -59,13 +59,14 @@ class LabelChecksTest {
         assertEquals(listOf<LabelIssue>(LabelIssue.RefusalBeatsAcceptance("b", C)), cost)
         // a figure the user gave is theirs, not the AI's reading
         assertTrue(LabelChecks.check(game(balanced + (("a" to "yes") to listOf(8.5, 3.5, 5.0)) + (("a" to "no") to listOf(3.5, 6.5, 5.0)), FactStatus.USER_ESTIMATE)).isEmpty())
-        // confidence one tier lower
-        val pr = AnalysisPipeline().run(s)
-        val plain = EngineDirectiveBuilder.build(s, pr, null, gameTheoreticPattern = "Zero-Sum")
-        val flagged = EngineDirectiveBuilder.build(s, pr, null, gameTheoreticPattern = "Zero-Sum", labelIssues = issues)
+        // confidence one tier lower — use USER_ESTIMATE so W4-A (AI-payoff share cap) does not interfere
+        val sUser = game(balanced + (("a" to "yes") to listOf(8.5, 3.5, 5.0)) + (("a" to "no") to listOf(3.5, 6.5, 5.0)), FactStatus.USER_ESTIMATE)
+        val prUser = AnalysisPipeline().run(sUser)
+        val plain = EngineDirectiveBuilder.build(sUser, prUser, null, gameTheoreticPattern = "Zero-Sum")
+        val flagged = EngineDirectiveBuilder.build(sUser, prUser, null, gameTheoreticPattern = "Zero-Sum", labelIssues = issues)
         assertEquals(ConfidenceLevel.HIGH, plain.confidenceLevel)
         assertEquals(ConfidenceLevel.MEDIUM, flagged.confidenceLevel)
-        assertEquals(ConfidenceLevel.LOW, EngineDirectiveBuilder.build(s, pr, null, labelIssues = issues).confidenceLevel)
+        assertEquals(ConfidenceLevel.LOW, EngineDirectiveBuilder.build(sUser, prUser, null, labelIssues = issues).confidenceLevel)
     }
 
     @Test fun TC_ID_RUB_08_oneOptionLabelledBestEverywhere() {

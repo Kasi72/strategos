@@ -19,7 +19,7 @@ object GetTimingAdviceHandler : ToolHandler {
         val analysisContext = ctx.analysisCache?.getOrCompute(scenario) ?: GameModelService.analyzeWithContext(scenario)
         val opponentModel = analysisContext.opponentModel
 
-        val advice = TimingAdvisor.advise(scenario, opponentModel)
+        val advice = TimingAdvisor.advise(scenario, opponentModel, scenario.humanContext?.deadline)
         val note = TimingAdvisor.note(advice, opponentModel)
 
         val df = opponentModel?.discountFactor ?: scenario.discountFactor
