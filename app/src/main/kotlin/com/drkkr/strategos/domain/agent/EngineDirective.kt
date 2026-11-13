@@ -170,7 +170,13 @@ data class EngineDirective(
     /** E10: metatransparency — derivative of information asymmetry score across turns. */
     val metatransparency: com.drkkr.strategos.domain.game.MetatransparencyResult? = null,
     /** E10: persisted info asymmetry score for next-turn metatransparency computation. */
-    val infoAsymmetryScore: Double = 0.0
+    val infoAsymmetryScore: Double = 0.0,
+    /** W2-A: key assumptions made when building the game model (player count, class, archetype, AI share). Never sent when empty. */
+    val modelAssumptions: List<String> = emptyList(),
+    /** W2-C: 0–100 model fit score based on payoff coverage and AI-inferred share. Null when insufficient data. */
+    val modelFitScore: Int? = null,
+    /** W4-B: "held in N of M stress scenarios" summary for the coach. Null when stress not applicable. */
+    val stressScenarioCount: String? = null
 ) {
     fun toJson(): JsonObject = buildJsonObject {
         put("move_to_implement", moveToImplement)
@@ -285,6 +291,9 @@ data class EngineDirective(
             }
         }
         put("info_asymmetry_score", infoAsymmetryScore)
+        if (modelAssumptions.isNotEmpty()) putJsonArray("model_assumptions") { modelAssumptions.forEach { add(JsonPrimitive(it)) } }
+        modelFitScore?.let { put("model_fit_score", it) }
+        stressScenarioCount?.let { put("stress_scenario_count", it) }
         sensitivityResult?.let { sr ->
             putJsonObject("equilibrium_sensitivity") {
                 sr.flipMargin?.let { put("flip_margin", it) }
@@ -629,9 +638,12 @@ object EngineDirectiveBuilder {
         }
         // ID1.4: a refusal labelled better than acceptance lowers it one tier; labels that favour one option everywhere cap it at MEDIUM.
         val labelDominance = labelIssues.any { it is com.drkkr.strategos.domain.game.LabelIssue.LabelDominance }
+        val aiShare = com.drkkr.strategos.domain.analysis.ProvenanceStats.of(s).aiPayoffShare
         val confidence = solved
             .let { if (labelIssues.any { i -> i is com.drkkr.strategos.domain.game.LabelIssue.RefusalBeatsAcceptance }) ConfidenceLevel.entries[minOf(it.ordinal + 1, ConfidenceLevel.LOW.ordinal)] else it }
             .let { if (labelDominance && it == ConfidenceLevel.HIGH) ConfidenceLevel.MEDIUM else it }
+            // W4-A: high AI-inferred payoff share caps confidence at MEDIUM — engine works with guesses, not facts.
+            .let { if (aiShare > 0.4 && it == ConfidenceLevel.HIGH) ConfidenceLevel.MEDIUM else it }
 
         // Stakes tier: driven by the highest-priority dimension actually used in payoffs (not the default weight map, which always includes SAFETY).
         val activeDims = s.payoffs.flatMap { it.payoff.values.keys }.distinct().toSet()
@@ -654,7 +666,41 @@ object EngineDirectiveBuilder {
             else -> null
         }
 
-        val timingAdvice = TimingAdvisor.advise(s, opponentModel)
+        val timingAdvice = TimingAdvisor.advise(s, opponentModel, s.humanContext?.deadline)
+
+        // W2-A: model assumption card — game structure choices made during build.
+        val assumptions = buildList {
+            add("Players: ${s.players().size}")
+            archetype?.let { add("Archetype: ${it.name.lowercase().replace('_', ' ')}") }
+            val aiPct = (aiShare * 100).toInt()
+            if (aiPct > 0) add("AI-inferred payoffs: $aiPct%")
+            if (cov.expected > 0) add("Payoff coverage: ${cov.filled}/${cov.expected}")
+        }
+
+        // W2-C: model fit score — 100 − penalties for coverage gaps and AI share.
+        val fitScore = run {
+            val coveragePenalty = if (cov.expected > 0) ((1.0 - cov.filled.toDouble() / cov.expected) * 40).toInt() else 0
+            val aiPenalty = (aiShare * 30).toInt()
+            (100 - coveragePenalty - aiPenalty).coerceIn(0, 100)
+        }
+
+        // W4-B: stress count summary.
+        val stressCount = stress?.takeIf { it.verdict != StressVerdict.NOT_APPLICABLE }
+            ?.let { "Recommendation held in ${it.holdsIn} of ${it.runs} stress scenarios" }
+
+        // W1-B: when equilibrium is sensitive AND AI-inferred payoffs exist, surface a targeted clarification.
+        val sensitiveAiOverlap = sensitivityResult != null && !sensitivityResult.isRobust &&
+            s.payoffs.any { it.factStatus == com.drkkr.strategos.domain.model.FactStatus.AI_INFERRED }
+        val finalClarification = if (sensitiveAiOverlap && clarification == null) {
+            Clarification(
+                question = "The recommended move is sensitive to payoff estimates that were AI-inferred. " +
+                    "Can you confirm the relative importance of your top outcomes? " +
+                    sensitivityResult!!.note,
+                profileSummary = "sensitive-ai-payoffs",
+                remainingCount = s.payoffs.count { it.factStatus == com.drkkr.strategos.domain.model.FactStatus.AI_INFERRED }
+            )
+        } else clarification
+
         return EngineDirective(
             ready = true, recommendedMove = recommended.label, recommendedWhy = com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(cleanWhy(recommendedPathway?.rationale ?: rankedPick?.rationale ?: WALK_AWAY_WHY), deal).take(MAX_TEXT)
                 .let { why -> if (fallbackLine == null) why else "$why $fallbackLine".trim() },
@@ -668,7 +714,7 @@ object EngineDirectiveBuilder {
             bayesianLearningNote = BayesianUpdater.learningNote(s),
             dynamicArchetype = dynamicArchetype,
             analysisIntegrity = analysisIntegrity,
-            clarification = clarification,
+            clarification = finalClarification,
             gameTheoreticPattern = gameTheoreticPattern,
             // The solver's dominance view and the pathway ranking can disagree; never tell the coach that a move it is given
             // (the pick, the safe fallback or the complementary move) is dominated.
@@ -708,7 +754,10 @@ object EngineDirectiveBuilder {
             surplusResult = surplusResult,
             commitmentLadder = commitmentLadder,
             metatransparency = metatransparency,
-            infoAsymmetryScore = infoAsymmetryScore
+            infoAsymmetryScore = infoAsymmetryScore,
+            modelAssumptions = assumptions,
+            modelFitScore = fitScore,
+            stressScenarioCount = stressCount
         )
     }
 
