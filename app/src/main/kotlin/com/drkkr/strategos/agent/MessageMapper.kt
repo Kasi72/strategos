@@ -56,6 +56,8 @@ object MessageMapper {
                         UiKind.UNDERSTANDING.name -> ChatItem.Understanding(m.id, strings(parseObject(callPayloads[m.callId])?.get("bullets")), answeredAfter(m))
                         UiKind.SUPPORT.name -> ChatItem.Support(m.id)
                         UiKind.POWER_READ.name -> ChatItem.PowerRead(m.id, com.drkkr.strategos.domain.human.power.PowerReadCodec.decode(m.payloadJson.orEmpty()))
+                        // A card that can't be read in full (an unknown component, a broken reference) is simply not shown.
+                        UiKind.SURFACE.name -> com.drkkr.strategos.domain.a2ui.SurfaceCodec.decode(m.payloadJson)?.let { ChatItem.Surface(m.id, it, answeredAfter(m)) }
                         else -> null
                     }
                     if (card != null) {

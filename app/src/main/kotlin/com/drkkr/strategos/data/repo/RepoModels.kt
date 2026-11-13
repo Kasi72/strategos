@@ -2,8 +2,11 @@ package com.drkkr.strategos.data.repo
 
 enum class MessageRole { USER, ASSISTANT, TOOL_CALL, TOOL_RESULT, EVENT, ERROR }
 
-/** Stored as a string, so a new kind needs no schema change. POWER_READ: the Power Mode card (blueprint §5). */
-enum class UiKind { NONE, CHANGE_SET, QUESTIONS, RECOMMENDATION, WHAT_IF, STRESS_TEST, UNDERSTANDING, SUPPORT, POWER_READ }
+/**
+ * Stored as a string, so a new kind needs no schema change. POWER_READ: the Power Mode card (blueprint §5).
+ * SURFACE: a card the app built on the device, saved as A2UI messages (see domain/a2ui).
+ */
+enum class UiKind { NONE, CHANGE_SET, QUESTIONS, RECOMMENDATION, WHAT_IF, STRESS_TEST, UNDERSTANDING, SUPPORT, POWER_READ, SURFACE }
 
 enum class ChangeSetStatus { PENDING, APPLIED, PARTIAL, REJECTED }
 

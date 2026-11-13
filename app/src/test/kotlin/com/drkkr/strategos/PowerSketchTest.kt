@@ -90,8 +90,9 @@ class PowerSketchTest {
          * high-pressure pick), and companion mode (rule 16's "thinking_aloud", rule 2's "word each from what the user said": +446,
          * asked for by the user on 7 Nov), and main's day-to-day pack merged in on 8 Nov (rule 2's domain examples, rule 6's new
          * archetypes, rule 26 DOMAIN and the "domain" schema key: +1,483, see HumanPromptTest), and the FinCorp polish (rule 2's
-         * word-for-word figures and terms: +152, asked for by the user on 8 Nov).
+         * word-for-word figures and terms: +152, asked for by the user on 8 Nov; rule 23 says plan_ahead is only a reply to
+         * their reaction and preparing a coming step is standard: +152, from the user's looping thread on 13 Nov).
          */
-        const val LATER_PACKS_GROWTH = 370 + 479 + 26 + 547 + 446 + 1483 + 152
+        const val LATER_PACKS_GROWTH = 370 + 479 + 26 + 547 + 446 + 1483 + 152 + 152
     }
 }

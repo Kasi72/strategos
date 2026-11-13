@@ -38,6 +38,8 @@ sealed class TalkTurn {
     /** A clarifying question with tappable answers; [answered] once the user has replied. */
     data class Ask(override val id: String, val question: String, val options: List<String>, val answered: Boolean) : TalkTurn()
     data class Note(override val id: String, val text: String) : TalkTurn()
+    /** A card the app built on the device, drawn from its A2UI description. [answered] retires its reply buttons. */
+    data class Surface(override val id: String, val surface: com.drkkr.strategos.domain.a2ui.Surface, val answered: Boolean) : TalkTurn()
     data class Support(override val id: String, val text: String) : TalkTurn()
     /** Power Mode: the Kotlin-built Power Read card, shown above the reply it belongs to. */
     data class PowerRead(override val id: String, val read: com.drkkr.strategos.domain.human.power.PowerRead) : TalkTurn()
@@ -96,6 +98,8 @@ data class TalkActions(
     /** Opens the system file picker; the chosen file is read on the device and waits in the composer. */
     val onAttach: () -> Unit = {},
     val onRemoveAttachment: () -> Unit = {},
+    /** A tap on a card: a reply to send, or a place to open. */
+    val onCardAction: (com.drkkr.strategos.domain.a2ui.UiAction) -> Unit = {},
     val onSetPowerMode: (Boolean) -> Unit = {},
     val onPowerExplained: () -> Unit = {},
     /** The user's own word on the Power Read card ("yourAlternative" / "theyDependOnYou"). */
@@ -117,6 +121,7 @@ object TalkUi {
             }
             is ChatItem.EventNote -> out += TalkTurn.Note(item.id, item.text)
             is ChatItem.PowerRead -> out += TalkTurn.PowerRead(item.id, item.payload)
+            is ChatItem.Surface -> out += TalkTurn.Surface(item.id, item.surface, item.answered)
             else -> Unit   // activity, change sets and the expert cards stay out of the calm conversation
         }
         queued.forEachIndexed { i, t -> out += user("queued-$i", t, queued = true) }

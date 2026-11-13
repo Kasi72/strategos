@@ -293,7 +293,9 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
     val askCheckIn = ui.checkIn != null && !ui.thinking && ui.problem == TalkProblem.NONE && ui.turns.isNotEmpty()
     var logged by remember { mutableStateOf<String?>(null) }
     val lastKey = ui.turns.size + (if (ui.thinking) 1 else 0) + (if (ui.problem != TalkProblem.NONE) 1 else 0) + (if (askCheckIn || logged != null) 1 else 0)
-    LaunchedEffect(lastKey) { if (lastKey > 0) state.animateScrollToItem((lastKey - 1).coerceAtLeast(0)) }
+    // Cards sit under the reply they belong to, so when they are the newest thing the list settles on that reply, not on the card.
+    val settleOn = if (lastKey == ui.turns.size) (ui.turns.indexOfLast { it !is TalkTurn.Surface }).takeIf { it >= 0 } ?: (lastKey - 1) else lastKey - 1
+    LaunchedEffect(lastKey) { if (lastKey > 0) state.animateScrollToItem(settleOn.coerceAtLeast(0)) }
     // The text dissolves into the status bar and header at the top and into the composer at the bottom, instead of ending on a hard edge.
     val fade = Modifier.graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
         drawContent()
@@ -323,6 +325,7 @@ private fun Conversation(ui: TalkUiState, actions: TalkActions, modifier: Modifi
                 is TalkTurn.Note -> Text(turn.text, color = c.ink3, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 is TalkTurn.Support -> ErrorLike("Support is available", turn.text, null, null)
                 is TalkTurn.PowerRead -> PowerReadCard(turn.read, actions.onSetLeverage)
+                is TalkTurn.Surface -> SurfaceView(turn.surface, turn.answered, actions.onCardAction)
             }
         }
         if (ui.thinking) item("thinking") { Thinking(ui.activity) }

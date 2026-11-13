@@ -53,6 +53,8 @@ sealed class ChatItem {
     data class Support(override val id: String) : ChatItem()
     /** Power Mode: the Kotlin-built Power Read card for this reply. */
     data class PowerRead(override val id: String, val payload: com.drkkr.strategos.domain.human.power.PowerRead) : ChatItem()
+    /** A card the app built on the device (A2UI). [answered] once the user has said something after it, so its reply buttons retire. */
+    data class Surface(override val id: String, val surface: com.drkkr.strategos.domain.a2ui.Surface, val answered: Boolean) : ChatItem()
     data class EventNote(override val id: String, val text: String) : ChatItem()
     data class Error(override val id: String, val text: String, val retryable: Boolean) : ChatItem()
 }

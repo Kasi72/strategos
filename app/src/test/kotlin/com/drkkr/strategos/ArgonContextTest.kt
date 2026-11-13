@@ -3,6 +3,7 @@ package com.drkkr.strategos
 import androidx.test.core.app.ApplicationProvider
 import com.drkkr.strategos.agent.AgentConfig
 import com.drkkr.strategos.agent.ContextAssembler
+import com.drkkr.strategos.agent.OneShotTurn
 import com.drkkr.strategos.agent.CounselController
 import com.drkkr.strategos.agent.CounselDeps
 import com.drkkr.strategos.data.db.DbFactory
@@ -87,6 +88,17 @@ class ArgonContextTest {
         assertEquals(listOf("earlier question", "earlier answer"), input.drop(2).dropLast(1).map(::content))
     }
 
+    @Test fun TC_CTX2_03_aLongNewestMessageDoesNotPushOutWhatCameBefore() = runBlocking {
+        val a = conversations.createNamedThread("loan", "Thread A")
+        conversations.append(a.id, "t0", MessageRole.USER, "earlier question")
+        conversations.append(a.id, "t0", MessageRole.ASSISTANT, "earlier answer")
+        val paste = "pasted chat line\n".repeat(900) + "Saturday it is"   // ~15k chars, well past the budget on its own
+        conversations.append(a.id, "last", MessageRole.USER, paste)
+        val input = assembler.build(a.id, "loan")
+        assertEquals("the paste goes whole", paste, content(input.last()))
+        assertEquals(listOf("earlier question", "earlier answer"), input.drop(2).dropLast(1).map(::content))
+    }
+
     @Test fun TC_CTX2_02_enforcesRequestTokenBudget() = runBlocking {
         val a = conversations.createNamedThread("loan", "Thread A")
         repeat(3) { i -> conversations.createNamedThread("loan", "Sibling $i").also { conversations.saveSummary(it.id, "long ".repeat(200), 0) } }
@@ -132,7 +144,7 @@ class ArgonContextTest {
         assertTrue(directive.getValue("blocked_or_dominated_moves").jsonArray.isNotEmpty())
         // The visible reply implements the engine's pick. Phase G.4: the static "Engine: ..." badge is no longer
         // appended to the chat text (it read as boilerplate); the move still leads the coach reply.
-        val reply = conversations.messages(controller.state.value.conversationId!!).last().text
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == MessageRole.ASSISTANT.name }.text  // the reply; a card may follow it
         // The move's label follows the confidence tier: "Clear-win move" only when it is HIGH (stage guard, 7 Nov).
         val tier = directive["confidence"]?.jsonObject?.get("tier")?.jsonPrimitive?.content
         val label = if (tier == null || tier == "HIGH") PlainResult.CLEAR_WIN else PlainResult.BEST_FOR_NOW
@@ -153,7 +165,7 @@ class ArgonContextTest {
         controller.bindScenario("loan").join()
         controller.send("My brother wants me to co-sign a loan.")!!.join(); controller.awaitIdle()
         assertEquals(2, llm.requests.count { it.purpose == "COACH" })                    // tried twice, then gave up
-        val reply = conversations.messages(controller.state.value.conversationId!!).last().text
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == MessageRole.ASSISTANT.name }.text
         assertFalse(reply.contains("Send ten messages tonight"))
         assertTrue("falls back to the engine's own text", reply.contains("Options to consider"))
         assertFalse("no engine badge in the chat text", reply.lines().any { it.startsWith("Engine: ") })
@@ -185,7 +197,7 @@ class ArgonContextTest {
         controller.send("I already told him I would not sign tonight.")!!.join(); controller.awaitIdle()
         val coach = llm.requests.filter { it.purpose == "COACH" }.last().input.last().jsonObject.getValue("content").jsonPrimitive.content
         assertTrue(coach, coach.contains("THIS CONVERSATION SO FAR"))
-        assertTrue(coach, coach.contains("They said recently: My brother wants me to co-sign a loan."))
+        assertTrue(coach, coach.contains(OneShotTurn.SAID_HEADER + "- My brother wants me to co-sign a loan."))
         assertTrue(coach, coach.contains("YOUR PREVIOUS REPLY TO THEM"))
         assertTrue(coach, coach.contains("THE PERSON SAYS:\nI already told him"))
     }

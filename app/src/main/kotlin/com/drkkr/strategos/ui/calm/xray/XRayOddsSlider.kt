@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
@@ -65,7 +66,9 @@ internal fun OddsSlider(
     badLabel: String,
     spoken: String,
     onChange: (Float) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    status: String? = null,
+    statusColor: Color = XR.ink3
 ) {
     val pct = (value * 100).roundToInt()
     val change by rememberUpdatedState(onChange)
@@ -73,15 +76,20 @@ internal fun OddsSlider(
     val thumb by animateFloatAsState(if (pressed) 13f else 10f, tween(120), label = "thumb")
     val measurer = rememberTextMeasurer()
     val tickStyle = TextStyle(fontFamily = CalmFonts.Mono, fontSize = 10.sp)
-    val mono = Calm.type.caption.copy(fontFamily = CalmFonts.Mono, fontWeight = FontWeight.Medium)
+    val shareStyle = Calm.type.caption.copy(fontFamily = CalmFonts.Mono, fontWeight = FontWeight.Medium)
 
     Column(modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            End(wellLabel, "$pct%", XR.trust, mono, Modifier.weight(1f), alignEnd = false)
-            End(badLabel, "${100 - pct}%", XR.tension, mono, Modifier.weight(1f), alignEnd = true)
+        // One line above the track, so the bar stays slim: the two replies at rest, or [status] (which move wins now)
+        // once the odds have been moved. The board's legend, in the scrolling page above, carries both replies in full.
+        Box(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            if (status != null) Text(status, style = Calm.type.pill.copy(fontWeight = FontWeight.Medium), color = statusColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                End(wellLabel, XR.trust, Modifier.weight(1f), alignEnd = false)
+                End(badLabel, XR.tension, Modifier.weight(1f), alignEnd = true)
+            }
         }
         Canvas(
-            Modifier.fillMaxWidth().height(64.dp)
+            Modifier.fillMaxWidth().height(56.dp)
                 .semantics {
                     contentDescription = spoken
                     stateDescription = "$pct percent"
@@ -89,7 +97,7 @@ internal fun OddsSlider(
                     setProgress { v -> change((v.coerceIn(0f, 1f) * 100).roundToInt() / 100f); true }
                 }
                 .pointerInput(Unit) {
-                    val pad = 14.dp.toPx()
+                    val pad = TRACK_PAD.dp.toPx()
                     fun set(x: Float) = change((((x - pad) / (size.width - 2 * pad)).coerceIn(0f, 1f) * 100).roundToInt() / 100f)
                     awaitEachGesture {
                         // Take the touch at once (no slop), so the sheet behind never steals a horizontal drag.
@@ -100,12 +108,17 @@ internal fun OddsSlider(
                     }
                 }
         ) {
-            val pad = 14.dp.toPx()
+            val pad = TRACK_PAD.dp.toPx()
             val w = size.width - 2 * pad
-            val cy = 22.dp.toPx()
+            val cy = 18.dp.toPx()
             val t = 6.dp.toPx()
             fun x(f: Float) = pad + w * f.coerceIn(0f, 1f)
             val tx = x(value)
+            // Each reply's share sits at its own end of the track, so the labels above keep their full width.
+            val left = measurer.measure("$pct%", shareStyle, maxLines = 1)
+            val right = measurer.measure("${100 - pct}%", shareStyle, maxLines = 1)
+            drawText(left, XR.ink, Offset(0f, cy - left.size.height / 2f))
+            drawText(right, XR.ink, Offset(size.width - right.size.width, cy - right.size.height / 2f))
             drawRoundRect(XR.tension.copy(alpha = .55f), Offset(pad, cy - t / 2), Size(w, t), CornerRadius(t / 2))
             drawRoundRect(XR.trust, Offset(pad, cy - t / 2), Size(tx - pad, t), CornerRadius(t / 2))
 
@@ -136,12 +149,14 @@ internal fun OddsSlider(
 }
 
 @Composable
-private fun End(label: String, share: String, color: Color, mono: TextStyle, modifier: Modifier, alignEnd: Boolean) {
+private fun End(label: String, color: Color, modifier: Modifier, alignEnd: Boolean) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp, if (alignEnd) Alignment.End else Alignment.Start), verticalAlignment = Alignment.CenterVertically) {
         if (!alignEnd) Box(Modifier.size(8.dp).background(color, CircleShape))
-        Text(label, style = Calm.type.caption, color = XR.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Text(label, style = Calm.type.pill, color = XR.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
             textAlign = if (alignEnd) TextAlign.End else TextAlign.Start, modifier = Modifier.weight(1f, fill = false))
-        Text(share, style = mono, color = XR.ink, maxLines = 1)
         if (alignEnd) Box(Modifier.size(8.dp).background(color, CircleShape))
     }
 }
+
+/** Room at each end of the track for that reply's share ("100%" in the mono caption face). */
+private const val TRACK_PAD = 50

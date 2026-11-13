@@ -127,6 +127,7 @@ class OneShotTurn(
         val hasFile = FileBlock.present(fullText)
         val userTexts = rawTexts.map(FileBlock::note)
         val text = userTexts.last()
+        if (hasFile) showTimeline(cid, turnId, fullText)
         // Phase F.5: read before this turn's saveLastReport overwrites it, so the directive can name what it told you last time.
         val previousReportJson = conversations.get(cid)?.lastReportDigestJson
 
@@ -195,9 +196,9 @@ class OneShotTurn(
             }
         } else null
         val first = if (argon != null) askModel(call1Input!!, cid, turnId, jsonMode = true, maxTokens = EXTRACTION_MAX_TOKENS, temperature = EXTRACTION_TEMPERATURE)
-                    else askModel(input(LiveDigest.build(loaded, forSketch = true), userTexts.dropLast(1).takeLast(RECENT), fullText), cid, turnId)
+                    else askModel(input(LiveDigest.build(loaded, forSketch = true), everythingSaid(userTexts.dropLast(1)), fullText), cid, turnId)
         val parsed = when (first) {
-            is Reply.Sketch -> first.sketch
+            is Reply.Sketch -> com.drkkr.strategos.domain.intent.PlanAheadGuard.realIntent(first.sketch)
             is Reply.Failed -> return fail(cid, turnId, first.text, first.retryable)
         }
         // Power Mode: the fixed decline line leads EVERY reply this turn when the user asked for something manipulative (CP-P2b).
@@ -407,13 +408,15 @@ class OneShotTurn(
                 toolName = "run_analysis", callId = turnId, payloadJson = digest.toString(), uiKind = UiKind.RECOMMENDATION
             ).also { conversations.setRefId(it.id, it.id) }
             var guide: CoachGuideSketch? = null
+            var cardFacts: CardFacts? = null
             val engineBody = if (argon != null) {
                 engineGroundedReply(cid, turnId, sid, after, pr, understood, text, onActivity, previousReportJson, domain = parsed.domain, onGuide = { guide = it }, support = converted.support,
                     userAsksFor = com.drkkr.strategos.domain.agent.SketchHuman.context(parsed)?.userAsksFor,
                     // ID2.2: this turn's intent; the hypothetical is converted here and only ever run on copies (I-D3).
                     intent = parsed.intentKind, intentDetail = parsed.intentDetail, turnOps = turnOps, turnBefore = scenario,
                     whatIfOps = if (converted.support) emptyList() else hypotheticalOps, sketch = parsed, holdCourse = holdCourse,
-                    speculativeCtxDeferred = speculativeCtxDeferred)
+                    speculativeCtxDeferred = speculativeCtxDeferred,
+                    onCardFacts = { cardFacts = it })
             } else {
                 val reply = PlainResult.build(after, pr, understood)
                 val talk = if (coach) { onActivity("Writing my reply…"); coachReply(cid, turnId, after, pr, text) } else null
@@ -428,9 +431,41 @@ class OneShotTurn(
                 payloadJson = guide?.let { GuidanceCodec.encode(it) }
             )
             if (guide != null) conversations.setRefId(assistant.id, assistant.id)
+            cardFacts?.let { showCards(cid, turnId, assistant.text, it, understood) }
         }
         afterTurn(cid)
         return TurnResult.Done
+    }
+
+    /** What this turn already worked out that a card can show: Kotlin's question, the other person's name, the ranked moves, the deal frame. */
+    private class CardFacts(
+        val question: com.drkkr.strategos.domain.intent.NextQuestion?, val otherName: String?,
+        val top: List<com.drkkr.strategos.domain.intent.TopOption>?, val deal: com.drkkr.strategos.domain.negotiation.DealFrame?
+    )
+
+    /**
+     * The cards under a reply (quick answers, the ranked options, what was just picked up). Built on the device from this turn's
+     * own results and saved as A2UI messages; no model call, and nothing here ever goes into a prompt (tool results stay out of
+     * the context). The walk-away figure is masked in them exactly as it is in the reply.
+     */
+    private suspend fun showCards(cid: String, turnId: String, shownReply: String, facts: CardFacts, understood: List<String>) {
+        val pickedUp = understood.map { com.drkkr.strategos.domain.negotiation.WalkAwayMask.text(it, facts.deal) }
+        com.drkkr.strategos.domain.a2ui.TurnCards.underReply(shownReply, facts.question, facts.otherName, facts.top, pickedUp).forEach { saveCard(cid, turnId, it) }
+    }
+
+    /** A shared conversation's timeline, shown under the message that carried the file, once per message. */
+    private suspend fun showTimeline(cid: String, turnId: String, fullText: String) {
+        val file = FileBlock.files(fullText).firstOrNull() ?: return
+        val card = com.drkkr.strategos.domain.a2ui.TurnCards.timeline(file) ?: return
+        val all = conversations.messages(cid)
+        val lastUser = all.lastOrNull { it.role == MessageRole.USER.name }?.seq ?: return
+        if (all.any { it.seq > lastUser && it.uiKind == UiKind.SURFACE.name && it.toolName == card.kind }) return      // a retried turn
+        saveCard(cid, turnId, card)
+    }
+
+    private suspend fun saveCard(cid: String, turnId: String, card: com.drkkr.strategos.domain.a2ui.TurnCard) {
+        conversations.append(cid, turnId, MessageRole.TOOL_RESULT, text = "Card", toolName = card.kind, callId = turnId,
+            payloadJson = com.drkkr.strategos.domain.a2ui.SurfaceCodec.encode(card.messages), uiKind = UiKind.SURFACE)
     }
 
     /**
@@ -459,7 +494,9 @@ class OneShotTurn(
         /** Companion mode: thinking aloud, nothing saved; the coach restates the move (coach rule 34). */
         holdCourse: Boolean = false,
         /** U7: speculative engine pre-compute started in parallel with analyzeAndPublish. Null in quick-mode and support paths. */
-        speculativeCtxDeferred: kotlinx.coroutines.Deferred<com.drkkr.strategos.domain.game.GameModelService.AnalysisContext?>? = null
+        speculativeCtxDeferred: kotlinx.coroutines.Deferred<com.drkkr.strategos.domain.game.GameModelService.AnalysisContext?>? = null,
+        /** What the cards under the reply are built from (see [showCards]); called once the directive is final. */
+        onCardFacts: (CardFacts) -> Unit = {}
     ): String {
         onActivity("Checking how solid the pick is…")
         // The engine reads the model as a continuing relationship, with trust and tension from the trajectory (nothing is saved from this view).
@@ -712,6 +749,8 @@ class OneShotTurn(
             topOptions = if (!powered.ready || support) null else (intentResult as? com.drkkr.strategos.domain.intent.IntentResult.TopOptionsList)?.options
                 ?: if (com.drkkr.strategos.domain.intent.TopOptions.wanted(intent, powered.stressVerdict == "FRAGILE", powered.autoTopOptions))
                     com.drkkr.strategos.domain.intent.TopOptions.of(view, powered.recommendedMove, dominatedIds).takeIf { it.size >= 2 } else null)
+        // Cards never appear on a support turn. The question is Kotlin's own (asked even when there is no pick yet).
+        if (!support) onCardFacts(CardFacts(nextQuestion, view.players().firstOrNull { it.id != ownerId }?.name, directive.topOptions, deal))
         // Power Mode: the Kotlin-built Power Read card, saved before the reply so it shows above it (blueprint §6).
         // No card at all on a support turn or under the lock (pm6.1; isPowerMode already reads the lock).
         if (powerOn && directive.ready && !support) {
@@ -877,7 +916,7 @@ class OneShotTurn(
     private suspend fun safetyReply(cid: String, turnId: String, text: String): String {
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.SAFETY_REPLY_PROMPT) })
-            add(buildJsonObject { put("role", "user"); put("content", "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}") })
+            add(buildJsonObject { put("role", "user"); put("content", "THE PERSON SAYS:\n${whole(text)}") })
         }
         val request = LlmRequest(
             settings.model(), input, tools = null, maxOutputTokens = SAFETY_MAX_TOKENS, temperature = INTERPRET_TEMPERATURE,
@@ -948,7 +987,7 @@ class OneShotTurn(
     private suspend fun thread(cid: String): String {
         val all = conversations.messages(cid).filter { it.role == MessageRole.USER.name || it.role == MessageRole.ASSISTANT.name }.dropLast(1)
         val summary = conversations.get(cid)?.rollingSummary?.takeIf { it.isNotBlank() }
-        val said = all.filter { it.role == MessageRole.USER.name }.takeLast(THREAD_USER_MESSAGES)
+        val said = everythingSaid(all.filter { it.role == MessageRole.USER.name }.map { FileBlock.note(it.text) })
         val replies = all.filter { it.role == MessageRole.ASSISTANT.name }
         val previous = replies.lastOrNull()?.text
         // The moves already suggested in this thread (any age), so a long thread keeps moving forward instead of recycling advice.
@@ -960,7 +999,7 @@ class OneShotTurn(
             append("THIS CONVERSATION SO FAR:\n")
             if (summary != null) append("SUMMARY OF THE EARLIER PART (oldest first, facts they shared):\n").append(newestPart(summary, THREAD_SUMMARY_CHARS)).append('\n')
             if (movesTried.isNotEmpty()) append("MOVES YOU ALREADY SUGGESTED (do not just repeat them):\n").append(movesTried.joinToString("\n") { "- $it" }).append('\n')
-            said.forEach { append("- They said recently: ").append(FileBlock.note(it.text).take(THREAD_USER_CHARS)).append('\n') }
+            if (said.isNotEmpty()) append(SAID_HEADER).append(said.joinToString("\n") { "- $it" }).append('\n')
             if (previous != null) append("YOUR PREVIOUS REPLY TO THEM (opening only):\n").append(previous.take(THREAD_PREVIOUS_CHARS)).append('\n')
             append('\n')
         }
@@ -987,7 +1026,7 @@ class OneShotTurn(
             add(buildJsonObject { put("role", "system"); put("content", ArgonPrompts.ENGINE_COACH_PROMPT) })
             add(buildJsonObject {
                 put("role", "user")
-                put("content", background(cid) + priorRoundCtx + thread(cid) + domainBlock + "THE PERSON SAYS:\n${text.take(MAX_USER_CHARS)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
+                put("content", background(cid) + priorRoundCtx + thread(cid) + domainBlock + "THE PERSON SAYS:\n${whole(text)}\n\nENGINE DIRECTIVE:\n${directive.toJson()}")
             })
         }
         var request = LlmRequest(
@@ -1024,7 +1063,7 @@ class OneShotTurn(
      * Null on any failure or an unusable reply, so the app-written view below it still stands on its own.
      */
     private suspend fun coachReply(cid: String, turnId: String, s: com.drkkr.strategos.domain.model.Scenario, pr: com.drkkr.strategos.domain.analysis.PipelineResult, text: String): String? {
-        val earlier = conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { it.text }.dropLast(1).takeLast(RECENT)
+        val earlier = everythingSaid(conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { FileBlock.note(it.text) }.dropLast(1))
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", COACH_PROMPT) })
             add(buildJsonObject {
@@ -1032,8 +1071,8 @@ class OneShotTurn(
                 put("content", buildString {
                     append(background(cid))
                     append("WHAT THE ANALYSIS SHOWS:\n").append(CoachFacts.build(s, pr)).append('\n')
-                    if (earlier.isNotEmpty()) append("EARLIER MESSAGES:\n").append(earlier.joinToString("\n") { "- " + it.take(200) }).append('\n')
-                    append("THE PERSON SAYS:\n").append(text.take(MAX_USER_CHARS))
+                    if (earlier.isNotEmpty()) append(SAID_HEADER).append(earlier.joinToString("\n") { "- $it" }).append('\n')
+                    append("THE PERSON SAYS:\n").append(whole(text))
                 })
             })
         }
@@ -1071,7 +1110,9 @@ class OneShotTurn(
                 put("role", "user")
                 put("content", buildString {
                     append(background(cid))
-                    append("THE PERSON ASKS:\n").append(text.take(MAX_USER_CHARS)).append("\n\n")
+                    val said = everythingSaid(conversations.messages(cid).filter { it.role == MessageRole.USER.name }.map { FileBlock.note(it.text) }.dropLast(1))
+                    if (said.isNotEmpty()) append(SAID_HEADER).append(said.joinToString("\n") { "- $it" }).append("\n\n")
+                    append("THE PERSON ASKS:\n").append(whole(text)).append("\n\n")
                     append("YOUR PREVIOUS REPLY:\n").append(priorReply.take(MAX_PRIOR_CHARS))
                     if (!reportJson.isNullOrBlank()) append("\n\nANALYSIS BEHIND IT (for your reference only, never quote scores):\n").append(reportJson.take(MAX_DIGEST_CHARS))
                 })
@@ -1117,7 +1158,7 @@ class OneShotTurn(
     private suspend fun preRoute(cid: String, turnId: String, text: String): RouterDecision? {
         val input = buildJsonArray {
             add(buildJsonObject { put("role", "system"); put("content", PreRouter.PROMPT) })
-            add(buildJsonObject { put("role", "user"); put("content", text.take(MAX_USER_CHARS)) })
+            add(buildJsonObject { put("role", "user"); put("content", whole(text)) })
         }
         val request = LlmRequest(
             settings.model(), input, tools = null, maxOutputTokens = PreRouter.MAX_TOKENS,
@@ -1216,14 +1257,13 @@ class OneShotTurn(
             put("role", "user")
             put("content", buildString {
                 append("APP CONTEXT (what is already saved):\n").append(digest).append('\n')
-                if (earlier.isNotEmpty()) append("EARLIER MESSAGES:\n").append(earlier.joinToString("\n") { "- " + it.take(200) }).append('\n')
+                if (earlier.isNotEmpty()) append(SAID_HEADER).append(earlier.joinToString("\n") { "- $it" }).append('\n')
                 append("USER SAYS:\n").append(text)
             })
         })
     }
 
     companion object {
-        private const val RECENT = 3
         /** U6: max wait for analyzeWithContext before falling back to incomplete context. */
         private const val ENGINE_ANALYSIS_TIMEOUT_MS = 2_500L
         /** E7: rolling window of strategy labels observed per project, keyed by project id. */
@@ -1231,12 +1271,13 @@ class OneShotTurn(
         /** Benign and hardball delivery moves together (Power Mode, STEPS PM4.1). */
         private const val MAX_DELIVERY_TACTICS = 3
         private const val RETRY_PAUSE_MS = 1_500L
-        private const val THREAD_USER_MESSAGES = 3
+        /** Everything the person said earlier in a thread goes to the coach in full, newest kept first up to this total; older still is in the summary. */
+        private const val THREAD_USER_BUDGET = 10_000
+        const val SAID_HEADER = "EVERYTHING THEY SAID EARLIER IN THIS CONVERSATION (oldest first, in their words):\n"
         private const val THREAD_PREVIOUS_CHARS = 600
         private const val THREAD_MOVES_WINDOW = 8
         private const val THREAD_MOVE_CHARS = 140
         private const val THREAD_SUMMARY_CHARS = 2_400
-        private const val THREAD_USER_CHARS = 900
         private const val BACKGROUND_ENTRIES = 2
         private const val BACKGROUND_TOPICS = 2
         private const val BACKGROUND_LINE_CHARS = 200
@@ -1273,6 +1314,30 @@ class OneShotTurn(
             return "$top\n… part of the file is not shown here …\n$bottom"
         }
 
+        /**
+         * The person's message whole. Only a paste past [MAX_USER_CHARS] is shortened, and then its start and its end are kept:
+         * a pasted chat runs oldest to newest, so the end holds what was settled last.
+         */
+        internal fun whole(text: String, max: Int = MAX_USER_CHARS): String {
+            if (text.length <= max) return text
+            val top = text.take(max / 5).substringBeforeLast('\n')
+            val bottom = text.takeLast(max - max / 5 - 80).substringAfter('\n')
+            return "$top\n… (the middle of this long message is not shown) …\n$bottom"
+        }
+
+        /** Every earlier message, in full and oldest first; when they pass [budget] in total, the oldest ones go first. */
+        internal fun everythingSaid(texts: List<String>, budget: Int = THREAD_USER_BUDGET): List<String> {
+            val kept = ArrayList<String>()
+            var used = 0
+            for (t in texts.asReversed()) {
+                val w = t.trim().takeIf { it.isNotEmpty() } ?: continue
+                if (kept.isNotEmpty() && used + w.length > budget) break
+                val piece = whole(w, budget)
+                kept += piece; used += piece.length
+            }
+            return kept.asReversed()
+        }
+
         internal fun newestPart(summary: String, max: Int): String {
             if (summary.length <= max) return summary
             // The summarizer's FACTS section (players, goal, hard limits; never rewritten) leads the summary and is always kept;
@@ -1302,7 +1367,8 @@ class OneShotTurn(
         // Task 6: arc-state extraction hints injected into Call 1 for ACTED and OUTCOME_KNOWN states.
         private const val ARC_STATE_ACTED_HEADER = "The person has just taken an action. Focus extraction on what changed: the action they took, any reaction observed, and any new information about the other side's position. Skip re-extracting what hasn't changed."
         private const val ARC_STATE_OUTCOME_HEADER = "The person is reporting an outcome. Extract only the final result: what actually happened, how the other side responded, and what was learned. This is a retrospective — focus on outcome facts, not future options."
-        private const val MAX_USER_CHARS = 1_500
+        /** A guard against an absurd paste only: every real message, a long pasted chat included, goes to the model whole. */
+        internal const val MAX_USER_CHARS = 60_000
         private const val MIN_COACH_CHARS = 40
         // Phase G.2/G.3 (clarification router + ask-first).
         private const val MAX_PRIOR_CHARS = 1_200

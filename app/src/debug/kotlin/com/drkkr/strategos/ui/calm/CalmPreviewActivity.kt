@@ -176,8 +176,13 @@ private fun ProjectFlowPreview(name: String, power: Boolean) {
             "What to say: \"I can't co-sign, but I can give you a fixed amount towards it.\"\n" +
             "Do this:\n• Say your limit once, kindly.\n" +
             "Don't do this:\n• Don't co-sign just to keep the peace.\n" +
-            "Tell me how he takes it.")
-    ) + sent.mapIndexed { i, t -> com.drkkr.strategos.agent.ChatItem.UserText("s$i", t) })
+            "Your options are to offer a fixed amount, or to wait a week before answering.\n\n" +
+            "One thing would change my advice: when you push on something like this, does Brother usually engage or dig in?")
+    ) + previewCards(answered = sent.isNotEmpty()) + sent.flatMapIndexed { i, t ->
+        // A shared conversation shows its timeline under the message, as it does in the real chat.
+        listOf<com.drkkr.strategos.agent.ChatItem>(com.drkkr.strategos.agent.ChatItem.UserText("s$i", t)) +
+            listOfNotNull(com.drkkr.strategos.domain.files.FileBlock.files(t).firstOrNull()?.let(com.drkkr.strategos.domain.a2ui.TurnCards::timeline)?.let { previewCard("tl$i", it, false) })
+    })
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().background(com.drkkr.strategos.ui.calm.theme.Calm.colors.ground))
     com.drkkr.strategos.ui.calm.talk.TalkScreen(
         com.drkkr.strategos.ui.calm.talk.TalkUiState(
@@ -187,6 +192,7 @@ private fun ProjectFlowPreview(name: String, power: Boolean) {
         ),
         com.drkkr.strategos.ui.calm.talk.TalkActions(onOpenOverview = { overview.value = true }, onSaveCheckIn = { _, _ -> answered.value = true },
             onAttach = picked.open, onRemoveAttachment = picked.clear,
+            onCardAction = { a -> if (a.isReply) sent += a.text else if (a.name == com.drkkr.strategos.domain.a2ui.A2ui.OPEN_OVERVIEW) overview.value = true },
             onSend = { text -> sent += picked.take()?.let { com.drkkr.strategos.domain.files.FileBlock.compose(text, it) } ?: text })
     )
     if (overview.value) androidx.compose.material3.ModalBottomSheet(
@@ -195,4 +201,23 @@ private fun ProjectFlowPreview(name: String, power: Boolean) {
         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = com.drkkr.strategos.ui.calm.theme.Calm.colors.ground
     ) { OverviewScreen(CalmPreviewActivity.SAMPLE_OVERVIEW, OverviewActions(), modifier = androidx.compose.ui.Modifier.fillMaxHeight(0.92f), embedded = true) }
+}
+
+/** The cards the app builds on its own, with sample data, so they can be seen and tapped without an AI key. */
+private fun previewCard(id: String, card: com.drkkr.strategos.domain.a2ui.TurnCard, answered: Boolean): com.drkkr.strategos.agent.ChatItem? =
+    com.drkkr.strategos.domain.a2ui.SurfaceCodec.decode(com.drkkr.strategos.domain.a2ui.SurfaceCodec.encode(card.messages))
+        ?.let { com.drkkr.strategos.agent.ChatItem.Surface(id, it, answered) }
+
+private fun previewCards(answered: Boolean): List<com.drkkr.strategos.agent.ChatItem> {
+    val cards = com.drkkr.strategos.domain.a2ui.TurnCards
+    val ask = com.drkkr.strategos.domain.intent.NextQuestion(com.drkkr.strategos.domain.intent.IdentifyGaps.THEIR_REPLY, "")
+    val top = listOf(
+        com.drkkr.strategos.domain.intent.TopOption(com.drkkr.strategos.domain.intent.TopOptions.BEST, "Offer a fixed amount you can afford to lose", ""),
+        com.drkkr.strategos.domain.intent.TopOption(com.drkkr.strategos.domain.intent.TopOptions.INSURANCE, "Wait a week before answering", "")
+    )
+    return listOfNotNull(
+        cards.quickAnswers(ask, "Brother")?.let { previewCard("c1", it, answered) },
+        cards.options(top)?.let { previewCard("c2", it, answered) },
+        cards.pickedUp(listOf("Brother: makes a choice that matters here", "Wife: involved", "Your options: Co-sign, Offer a fixed amount, Wait a week"))?.let { previewCard("c3", it, answered) }
+    )
 }

@@ -156,7 +156,7 @@ class HumanFlowTest {
         controller.bindScenario("raise").join()
         controller.send("I want to ask my manager Priya for a raise.")!!.join(); controller.awaitIdle()
         assertEquals("tried twice, then gave up", 2, llm.requests.count { it.purpose == "COACH" })
-        val reply = conversations.messages(controller.state.value.conversationId!!).last().text
+        val reply = conversations.messages(controller.state.value.conversationId!!).last { it.role == MessageRole.ASSISTANT.name }.text  // the reply; a card may follow it
         assertFalse(reply, reply.contains("Law 31"))
         assertTrue("falls back to the engine's own text: $reply", reply.contains("Options to consider"))
     }

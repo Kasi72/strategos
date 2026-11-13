@@ -56,7 +56,9 @@ class HumanPromptTest {
         // not taken (rule 4 asks for labels).
         // FinCorp polish (8 Nov, asked for by the user): rule 2 copies the user's figures, durations and terms word for word
         // (+152 chars), so the limit is 6,359.
-        assertTrue("prompt grew by $growth chars", growth in 1..6359)
+        // Looping thread (13 Nov, from the user's own test): rule 23 says rehearsing a coming step is standard, not
+        // plan_ahead (+152 chars), so the limit is 6,511.
+        assertTrue("prompt grew by $growth chars", growth in 1..6511)
     }
 
     @Test

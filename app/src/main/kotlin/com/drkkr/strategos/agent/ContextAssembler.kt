@@ -63,7 +63,7 @@ class ContextAssembler(
     /**
      * Argon order, most static first so the provider's prefix cache keeps hitting:
      * 1 system prompt, 2 project + trajectory + journal notes + sibling threads, 3 rolling summary + last turns, 4 newest message.
-     * Stays within [AgentConfig.MAX_REQUEST_TOKEN_BUDGET] by dropping the oldest history first, then the summary, then siblings.
+     * Stays within [AgentConfig.MAX_REQUEST_TOKEN_BUDGET] plus the newest message (always whole) by dropping the oldest history first, then the summary, then siblings.
      */
     private suspend fun buildLayered(conversationId: String, scenarioId: String, traj: TrajectoryRepository): JsonArray {
         val conversation = conversations.get(conversationId)
@@ -100,7 +100,10 @@ class ContextAssembler(
         }
         fun tokens(a: JsonArray) = a.sumOf { TokenEstimator.estimate(content(it)) }
         var out = assemble()
-        while (tokens(out) > AgentConfig.MAX_REQUEST_TOKEN_BUDGET) {
+        // The person's newest message always goes whole and never counts against the budget, so a long paste can't push
+        // out what they said before it; the budget is for everything around it.
+        val budget = AgentConfig.MAX_REQUEST_TOKEN_BUDGET + (newest?.let { toInput(it) }?.let { TokenEstimator.estimate(content(it)) } ?: 0)
+        while (tokens(out) > budget) {
             when {
                 turns.isNotEmpty() -> turns = turns.drop(1)
                 summary != null -> summary = null

@@ -110,7 +110,7 @@ internal fun cellColor(score: Int): Color {
     return if (x <= 50f) androidx.compose.ui.graphics.lerp(lo, mid, (x - 20f) / 30f) else androidx.compose.ui.graphics.lerp(mid, hi, (x - 50f) / 30f)
 }
 
-/** From this height up, the header is pinned as well as the slider and only the slide scrolls. */
+/** A tall upright phone. Laid out like [SNUG] today: the header scrolls with the slide and only the slider bar is pinned. */
 private val ROOMY = 560.dp
 /** Below this (landscape, a split-screen sliver) nothing is pinned: header, slide and slider share one scroll. */
 private val SNUG = 380.dp
@@ -118,14 +118,14 @@ private val SNUG = 380.dp
 private const val SHEET_FILL = .94f
 
 /**
- * The X-ray sheet (board 07): a fixed header with the move and its verdict, two slides (Arena: who is in
+ * The X-ray sheet (board 07): a header with the move and its verdict, two slides (Arena: who is in
  * the game; Board: how each move scores), and the what-if slider pinned to the bottom so the board and the
  * slider are on screen together.
  *
- * Layout is built for upright phones of any size. The slider is pinned to the bottom on every one of them.
- * On a tall window the header is pinned too and only the slide scrolls; on a short one (small phone, large
- * font) the header scrolls away with the slide to leave the board room. Only a sliver of a window (landscape,
- * split screen) drops the pinning, so nothing is ever cut off.
+ * Layout is built for upright phones of any size. Only the slider bar is pinned to the bottom, and it is kept slim
+ * (one status line, the two replies side by side, the track), so the header, tabs and slide scroll as one page in
+ * everything above it. Only a sliver of a window (landscape, split screen) drops the pinning, so nothing is ever
+ * cut off.
  */
 @Composable
 fun XRayContent(ui: XRayUiState, onOdds: (Float) -> Unit, onKeep: () -> Unit, onReset: () -> Unit, onReadMore: (String) -> Unit, onClose: () -> Unit) {
@@ -229,14 +229,9 @@ private fun Deck(
     val dock: @Composable () -> Unit = { Dock(ui, g, onOdds, onKeep, onReset, stop) }
 
     when (fit) {
-        // Tall: header and slider are pinned, the slide scrolls between them.
-        Fit.ROOMY -> Column(Modifier.fillMaxWidth().height(tallest)) {
-            header(); tabs()
-            Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) { slide() }
-            dock()
-        }
-        // Short: the slider stays pinned; the header scrolls away with the slide to give the board room.
-        Fit.SNUG -> Column(Modifier.fillMaxWidth().height(tallest)) {
+        // An upright phone: only the slim slider bar is pinned. The header and tabs scroll away with the slide, so
+        // nearly the whole sheet is reading room; the bar itself names the best move while the header is out of view.
+        Fit.ROOMY, Fit.SNUG -> Column(Modifier.fillMaxWidth().height(tallest)) {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) { header(); tabs(); slide() }
             dock()
         }
@@ -265,7 +260,8 @@ private fun Header(ui: XRayUiState, g: XRayGrid, onClose: () -> Unit, stop: Modi
         }
         Column(Modifier.padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             AnimatedContent(g.best.label, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) }, label = "move") { label ->
-                Text(label, style = Calm.type.title, color = XR.ink, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().semantics { heading() })
+                // The whole move, never cut: a long one drops to the smaller heading size so it still fits a phone screen.
+                Text(label, style = if (label.length > LONG_MOVE) Calm.type.subtitle else Calm.type.title, color = XR.ink, modifier = Modifier.fillMaxWidth().semantics { heading() })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (robust) "ROBUST" else "FRAGILE", style = Calm.type.pill.copy(fontFamily = MONO, fontWeight = FontWeight.SemiBold), color = badge, maxLines = 1,
@@ -279,7 +275,7 @@ private fun Header(ui: XRayUiState, g: XRayGrid, onClose: () -> Unit, stop: Modi
                     ui.changed -> "Same move as the coach · at $pct%"
                     else -> "At the coach's odds · $pct%"
                 },
-                style = Calm.type.pill.copy(fontFamily = MONO), color = if (ui.flipped) XR.amber else XR.ink3, maxLines = 2, overflow = TextOverflow.Ellipsis
+                style = Calm.type.pill.copy(fontFamily = MONO), color = if (ui.flipped) XR.amber else XR.ink3
             )
         }
     }
@@ -361,7 +357,7 @@ private fun BoardSlide(
 private fun Legend(key: String, text: String, color: Color) {
     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(key, style = Calm.type.pill.copy(fontFamily = MONO, fontWeight = FontWeight.SemiBold), color = color)
-        Text(text, style = Calm.type.pill.copy(fontFamily = MONO), color = XR.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, style = Calm.type.pill.copy(fontFamily = MONO), color = XR.ink3)
     }
 }
 
@@ -385,7 +381,7 @@ private fun MoveRow(i: Int, r: XRayRow, g: XRayGrid, pct: Int, isCoach: Boolean,
         Row(Modifier.heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(('A' + i).toString(), style = Calm.type.caption.copy(fontFamily = MONO), color = if (isBest) XR.amber else XR.ink3)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(r.label, style = Calm.type.caption.copy(fontWeight = FontWeight.SemiBold), color = XR.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(r.label, style = Calm.type.caption.copy(fontWeight = FontWeight.SemiBold), color = XR.ink)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(kindWord(kind), style = Calm.type.pill, color = tone, maxLines = 1)
                     if (isCoach) Text("Coach's move", style = Calm.type.pill.copy(fontWeight = FontWeight.SemiBold), color = XR.amber, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -412,7 +408,7 @@ private fun MoveRow(i: Int, r: XRayRow, g: XRayGrid, pct: Int, isCoach: Boolean,
 private fun Outcome(label: String, score: Int, color: Color) {
     val fill by animateFloatAsState(score / 100f, tween(320), label = "bar")
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = Calm.type.pill, color = XR.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(label, style = Calm.type.pill, color = XR.ink2, modifier = Modifier.weight(1.4f))
         Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(Color.White.copy(alpha = .07f))) {
             Box(Modifier.fillMaxWidth(fill).fillMaxHeight().clip(CircleShape).background(color))
         }
@@ -427,22 +423,23 @@ private fun Dock(ui: XRayUiState, g: XRayGrid, onOdds: (Float) -> Unit, onKeep: 
     Column(
         Modifier.fillMaxWidth().then(stop).background(XR.dock.copy(alpha = .97f))
             .drawBehind { drawLine(XR.line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
-            .padding(start = Calm.dimens.gutter, end = Calm.dimens.gutter, top = 10.dp, bottom = 6.dp)
+            .padding(start = Calm.dimens.gutter, end = Calm.dimens.gutter, top = 8.dp, bottom = 4.dp)
     ) {
-        Text("DRAG THE ODDS · ${ui.oddsLabel.uppercase()}", style = Calm.type.pill.copy(fontFamily = MONO), color = XR.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(bottom = 6.dp))
         OddsSlider(
             value = ui.odds, coach = ui.coachOdds, flips = ui.flips, wellLabel = g.wellLabel, badLabel = g.badLabel,
             spoken = "Chance ${ui.oddsLabel}. Best move: ${g.best.label}." + if (ui.flipped) " Changed from the coach's move." else "",
-            onChange = onOdds
+            onChange = onOdds,
+            // Once the odds move, the line above the track says which move wins now: the header may be scrolled out of view.
+            status = if (ui.flipped) "Flipped. Best now: ${g.best.label}" else if (ui.changed) "Still best: ${g.best.label}" else null,
+            statusColor = if (ui.flipped) XR.amber else XR.ink2
         )
         AnimatedVisibility(ui.changed, enter = expandVertically(tween(200)) + fadeIn(tween(200)), exit = shrinkVertically(tween(160)) + fadeOut(tween(120))) {
             Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                Text("Reset", style = Calm.type.subtitle, color = XR.irisSoft, maxLines = 1,
+                Text("Reset", style = Calm.type.body.copy(fontWeight = FontWeight.SemiBold), color = XR.irisSoft, maxLines = 1,
                     modifier = Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp)).clickable(role = Role.Button, onClick = onReset).padding(horizontal = 12.dp, vertical = 12.dp))
-                Text("Keep as my estimate", style = Calm.type.subtitle, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Text("Keep as my estimate", style = Calm.type.body.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false).clip(RoundedCornerShape(24.dp)).background(XR.irisFill)
-                        .clickable(role = Role.Button, onClickLabel = "Keep $pct percent as my estimate", onClick = onKeep).heightIn(min = 48.dp).padding(horizontal = 20.dp, vertical = 12.dp))
+                        .clickable(role = Role.Button, onClickLabel = "Keep $pct percent as my estimate", onClick = onKeep).heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp))
             }
         }
     }
@@ -462,7 +459,7 @@ private fun PayoffGrid(rows: List<XRayRow>, best: Int, wellLabel: String, badLab
                 Modifier.fillMaxWidth().then(if (i == best) Modifier.border(2.dp, XR.amber, RoundedCornerShape(12.dp)) else Modifier).padding(2.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(r.label, style = Calm.type.caption.copy(fontWeight = FontWeight.SemiBold), color = XR.ink, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f).padding(start = 4.dp))
+                Text(r.label, style = Calm.type.caption.copy(fontWeight = FontWeight.SemiBold), color = XR.ink, modifier = Modifier.weight(1.5f).padding(start = 4.dp))
                 Cell(r.well, Modifier.weight(1f)); Cell(r.bad, Modifier.weight(1f))
                 Text("${r.expected}", style = Calm.type.subtitle.copy(fontFamily = MONO), color = XR.ink, modifier = Modifier.weight(0.8f))
             }
@@ -478,3 +475,6 @@ private fun Cell(score: Int, modifier: Modifier) {
         Text("$score", style = Calm.type.subtitle.copy(fontFamily = MONO), color = XR.ink)
     }
 }
+
+/** Past this many characters the move under the header uses the smaller heading size. */
+private const val LONG_MOVE = 60

@@ -23,6 +23,7 @@ import com.drkkr.strategos.data.repo.RevealMath
 import com.drkkr.strategos.data.repo.ThreadSummary
 import com.drkkr.strategos.ui.StrategosViewModel
 import com.drkkr.strategos.ui.calm.projects.ProjectsUi
+import com.drkkr.strategos.domain.a2ui.A2ui
 import com.drkkr.strategos.domain.files.FileBlock
 import com.drkkr.strategos.domain.files.FileBrief
 import kotlinx.coroutines.launch
@@ -142,6 +143,13 @@ fun TalkRoute(
         onSend = { text ->
             val full = picked.take()?.let { FileBlock.compose(text, it) } ?: text
             if (full.isNotBlank()) { if (!online) queued += full else counsel?.send(full) }
+        },
+        // A card's reply goes out exactly like a typed message; its other taps open a place in the app.
+        onCardAction = { a ->
+            when (a.name) {
+                A2ui.REPLY -> if (a.text.isNotBlank()) { if (!online) queued += a.text else counsel?.send(a.text) }
+                A2ui.OPEN_OVERVIEW -> onOpenOverview()
+            }
         },
         onAttach = picked.open,
         onRemoveAttachment = picked.clear,
