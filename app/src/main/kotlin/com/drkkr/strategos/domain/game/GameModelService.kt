@@ -321,9 +321,11 @@ object GameModelService {
         // F1: synthesize commitment path for normal-form games from focal pure Nash equilibrium action labels
         val syntheticLadderPath: List<String>? = if (biResult?.equilibriumPath.orEmpty().isEmpty()) {
             val focalForLadder = focalSelection?.equilibrium ?: equilibria.firstOrNull()
-            focalForLadder?.pureProfile?.mapIndexed { playerIdx, actionIdx ->
-                ir.actionIds.getOrNull(playerIdx)?.getOrNull(actionIdx) ?: "action_$actionIdx"
-            }
+            // The coach reads these, so they are the moves' labels, never their ids (a raw id reached the directive, 20 Nov).
+            focalForLadder?.pureProfile?.mapIndexedNotNull { playerIdx, actionIdx ->
+                val id = ir.actionIds.getOrNull(playerIdx)?.getOrNull(actionIdx)
+                scenario.actions.firstOrNull { it.id == id }?.label
+            }?.takeIf { it.isNotEmpty() }
         } else null
         val commitmentLadder = CommitmentLadderAnalyzer.analyze(biResult?.equilibriumPath.orEmpty(), syntheticLadderPath)
 

@@ -1,0 +1,66 @@
+# Strategos v4 local stack. `docker compose up -d` starts the memory layer (Graphiti + FalkorDB; embeddings from Voyage AI);
+# then run the server with `./gradlew :server:run`. On a VPS, `docker compose --profile server up -d` also runs the server.
+# Fill in .env first (see .env.example).
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports: ["6379:6379", "3000:3000"]          # 3000 is FalkorDB's graph browser
+    volumes: [falkordb:/data]
+    restart: unless-stopped
+
+  # Optional local embeddings instead of Voyage: `docker compose --profile local-embeddings up -d` and EMBEDDING_PROVIDER=ollama.
+  ollama:
+    profiles: ["local-embeddings"]
+    image: ollama/ollama:latest
+    volumes: [ollama:/root/.ollama]
+    restart: unless-stopped
+
+  # Pulls the embedding model once, then exits.
+  ollama-pull:
+    profiles: ["local-embeddings"]
+    image: ollama/ollama:latest
+    depends_on: [ollama]
+    environment: [OLLAMA_HOST=ollama:11434]
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull nomic-embed-text"]
+    restart: "no"
+
+  graphiti:
+    build: ./graphiti-service
+    depends_on: [falkordb]
+    ports: ["8000:8000"]
+    environment:
+      LLM_API_KEY: ${DEEPSEEK_API_KEY:?set DEEPSEEK_API_KEY in .env}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-voyage}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-voyage-4-lite}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-http://ollama:11434/v1}
+      FALKORDB_HOST: falkordb
+      GRAPHITI_TELEMETRY_ENABLED: "false"
+    restart: unless-stopped
+
+  strategos:
+    profiles: ["server"]
+    build: { context: ., dockerfile: server/Dockerfile }
+    depends_on: [graphiti]
+    ports: ["8080:8080"]
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      DATABASE_URL: ${DATABASE_URL_SERVER:-jdbc:sqlite:/data/strategos.db}
+      GRAPHITI_URL: http://graphiti:8000
+      STRATEGOS_AUTH_TOKEN: ${STRATEGOS_AUTH_TOKEN:-}   # required: the server refuses to listen on 0.0.0.0 without it
+      JOURNAL_ENCRYPTION_KEY: ${JOURNAL_ENCRYPTION_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      HOST: 0.0.0.0
+      WEB_DIR: /app/web
+    volumes: [strategos:/data]
+    restart: unless-stopped
+
+volumes:
+  falkordb:
+  ollama:
+  strategos:
