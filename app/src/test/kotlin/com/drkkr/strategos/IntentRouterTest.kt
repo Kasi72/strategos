@@ -38,7 +38,8 @@ class IntentRouterTest {
         for (i in Intent.entries) {
             val r = Recorder()
             IntentRouter(r).route(RouteInput(i, Fx.loanFamily()))
-            if (i == Intent.STANDARD) assertEquals(emptyList<String>(), r.calls) else assertEquals(listOf(i.word), r.calls)
+            // `script` only changes the reply's shape (the words for today's move), so like `standard` it runs no handler.
+            if (i == Intent.STANDARD || i == Intent.SCRIPT) assertEquals(emptyList<String>(), r.calls) else assertEquals(listOf(i.word), r.calls)
         }
         // the app's handlers answer None without what they need (no hypothetical, no moves named) or before their step;
         // top_options (ID3.3) needs nothing more than the view, so it answers

@@ -58,7 +58,9 @@ class HumanPromptTest {
         // (+152 chars), so the limit is 6,359.
         // Looping thread (13 Nov, from the user's own test): rule 23 says rehearsing a coming step is standard, not
         // plan_ahead (+152 chars), so the limit is 6,511.
-        assertTrue("prompt grew by $growth chars", growth in 1..6511)
+        // Opt-in words (21 Nov, asked for by the user): rule 23's `script` intent for "what should I say?" (+143 chars), so the
+        // limit is 6,654.
+        assertTrue("prompt grew by $growth chars", growth in 1..6654)
     }
 
     @Test

@@ -30,8 +30,16 @@ class ScriptedLlm(
             "COACH" -> {
                 val user = request.messages.last().content
                 if (!user.contains("ENGINE DIRECTIVE:\n")) return ChatResult.Ok("Here is what I'd do next, based on what you said before.")
-                val directive = Json.parseToJsonElement(user.substringAfter("ENGINE DIRECTIVE:\n")).jsonObject
+                val directive = Json.parseToJsonElement(user.substringAfter("ENGINE DIRECTIVE:\n").substringBefore("\n\n" + com.drkkr.strategos.server.pipeline.BriefPrompt.TABLE_HEADER)).jsonObject
                 val move = directive["move_to_implement"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                if (request.messages.any { it.role == "system" && it.content == com.drkkr.strategos.server.pipeline.BriefPrompt.ANSWER })
+                    return ChatResult.Ok(buildJsonObject {
+                        put("engine_move", move)
+                        put("answer", "If she shuts down, it costs you more than if she opens up, but the move still holds.")
+                        put("bottom_line", "Still do this: $move")
+                        put("follow_up", "Tell me how she reacts.")
+                    }.toString())
+                if (user.contains(com.drkkr.strategos.server.pipeline.BriefPrompt.TABLE_HEADER)) return ChatResult.Ok(brief(move, user))
                 ChatResult.Ok(buildJsonObject {
                     put("engine_move", move)
                     put("what_happened", "You've been carrying this for a while.")
@@ -48,6 +56,23 @@ class ScriptedLlm(
     }
 
     fun coachRequests() = requests.filter { it.purpose == "COACH" }
+
+    /** A brief (strategy mode) for every move on the table, carrying out the engine's [move]. Words only: no numbers. */
+    private fun brief(move: String, user: String): String {
+        val moves = Regex("""^- "(.+)": \d+ / \d+ / \d+""", RegexOption.MULTILINE).findAll(user.substringAfter(com.drkkr.strategos.server.pipeline.BriefPrompt.TABLE_HEADER)).map { it.groupValues[1] }.toList()
+        return buildJsonObject {
+            put("engine_move", move)
+            put("read", "You've been carrying this for a while.")
+            putJsonArray("options") { moves.forEach { m -> addJsonObject { put("move", m); putJsonArray("pros") { add("Keeps things moving") }; putJsonArray("cons") { add("Could land badly") } } } }
+            put("recommendation", "Do this: $move")
+            put("why", "It holds up whichever way they react.")
+            putJsonArray("plan") { add("Pick a calm moment"); add("Keep it short") }
+            putJsonArray("if_then") { addJsonObject { put("if", "Maya goes quiet"); put("then", "give it a day") } }
+            putJsonArray("avoid") { add("Don't chase") }
+            put("exact_words", "I'd like to sort this out with you.")
+            put("follow_up", "Tell me how it goes.")
+        }.toString()
+    }
 }
 
 object Fixtures {

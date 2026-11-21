@@ -23,7 +23,7 @@ class IntentFieldsTest {
     private fun intentOf(raw: String?) = SketchParser.parse("""{${raw?.let { "\"intent\":$it" } ?: ""}}""")!!.intentKind
 
     @Test fun TC_ID_INT_01_theIntentIsAClosedWordAndAnythingElseIsStandard() {
-        assertEquals(setOf("standard", "what_if", "compare", "top_options", "their_reaction", "plan_ahead"), HumanVocab.INTENTS)
+        assertEquals(setOf("standard", "what_if", "compare", "top_options", "their_reaction", "plan_ahead", "script"), HumanVocab.INTENTS)
         for (i in Intent.entries) assertEquals(i, intentOf("\"${i.word}\""))
         assertEquals(Intent.WHAT_IF, intentOf("\"WHAT_IF\""))
         assertEquals(Intent.TOP_OPTIONS, intentOf("\"Top options\""))

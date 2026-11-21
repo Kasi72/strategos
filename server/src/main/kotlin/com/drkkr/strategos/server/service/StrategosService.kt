@@ -57,6 +57,10 @@ data class QuickCheckResult(val priorsBefore: Priors?, val priorsAfter: Priors?,
 @Serializable
 data class JournalSaved(val id: String, val message: String)
 
+/** One conversation in the sidebar: a project with its thread, as ChatGPT lists chats. */
+@Serializable
+data class ChatSummary(val projectId: String, val threadId: String?, val title: String, val domainType: DomainType, val updatedAt: Long, val turns: Int)
+
 @Serializable
 data class Health(val ok: Boolean, val engine: Boolean, val database: Boolean, val memory: String, val memoryHealthy: Boolean, val llmProvider: String, val llmModel: String)
 
@@ -108,6 +112,20 @@ class StrategosService(
         )
     }
 
+    // ── chats (the web UI's single-thread view) ──
+    fun listChats(): List<ChatSummary> = projects.list().map { p ->
+        val t = threads.list(p.id).firstOrNull()
+        ChatSummary(p.id, t?.id, p.title, p.domainType, maxOf(p.updatedAt, t?.lastActiveAt ?: 0L), t?.turnCount ?: 0)
+    }.sortedByDescending { it.updatedAt }
+
+    /** A new chat from its first message: a project titled from the message, one thread, and the first turn. */
+    suspend fun startChat(message: String, domainType: DomainType = DomainType.GENERAL): TurnResponse {
+        require(message.isNotBlank()) { "message is empty" }
+        val p = projects.create(chatTitle(message), domainType)
+        val t = threads.create(p.id, "Main")
+        return pipeline.run(t.id, message)
+    }
+
     // ── threads ──
     fun listThreads(projectId: String) = threads.list(projectId)
     fun createThread(projectId: String, title: String): TopicThread? = projects.get(projectId)?.let { threads.create(it.id, title.trim().ifEmpty { "Main" }) }
@@ -124,6 +142,7 @@ class StrategosService(
 
     // ── turns ──
     suspend fun sendMessage(threadId: String, message: String): TurnResponse = pipeline.run(threadId, message)
+    suspend fun draftWords(threadId: String): TurnResponse = pipeline.draftWords(threadId)
     suspend fun awaitBackground(threadId: String) = pipeline.awaitBackground(threadId)
 
     /** MCP: a real-world event or message, analysed and remembered like any turn (on the given thread, or the project's first). */
@@ -207,6 +226,13 @@ class StrategosService(
     private fun summary(p: Project) = ProjectSummary(p.id, p.title, p.domainType, p.trust, p.tension, p.createdAt, p.updatedAt, p.archived)
 
     companion object {
+        /** The first sentence, cut on a word near 48 characters: the chat's name until the person renames it. */
+        fun chatTitle(message: String): String {
+            val first = message.trim().lineSequence().first { it.isNotBlank() }.split(Regex("(?<=[.!?])\\s")).first().trim()
+            if (first.length <= 48) return first.trimEnd('.', '!', ' ')
+            return first.take(48).substringBeforeLast(' ').trimEnd(',', ';', ':', ' ') + "…"
+        }
+
         const val RECORDED = "Recorded privately."
 
         /** The words BayesianUpdater knows: "softened", "withdrew_or_escalated", "none". */

@@ -8,7 +8,9 @@ import com.drkkr.strategos.domain.human.HumanVocab
  */
 enum class Intent(val word: String) {
     STANDARD("standard"), WHAT_IF("what_if"), COMPARE("compare"), TOP_OPTIONS("top_options"),
-    THEIR_REACTION("their_reaction"), PLAN_AHEAD("plan_ahead");
+    THEIR_REACTION("their_reaction"), PLAN_AHEAD("plan_ahead"),
+    /** They want the words for the move ("what should I say?", "draft the text"): the engine runs as for [STANDARD]. */
+    SCRIPT("script");
 
     companion object {
         /** Case-insensitive; anything unknown or missing is [STANDARD]. */

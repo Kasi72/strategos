@@ -19,12 +19,26 @@ import kotlinx.serialization.json.*
 @Serializable data class SendMessage(val message: String)
 @Serializable data class QuickCheck(val triedMove: String, val counterpartReaction: String, val userState: String? = null)
 @Serializable data class SaveJournal(val content: String, val projectId: String? = null)
+@Serializable data class StartChat(val message: String, val domainType: DomainType = DomainType.GENERAL)
+@Serializable data class KeepOdds(val odds: Double)
 @Serializable data class LlmSettings(val provider: String = "deepseek", val model: String? = null, val baseUrl: String? = null, val apiKey: String? = null)
 @Serializable data class LlmSettingsView(val provider: String, val model: String, val baseUrl: String?, val hasKey: Boolean)
 
-fun Route.strategosApi(service: StrategosService, settings: SettingsRepository) {
+fun Route.strategosApi(service: StrategosService, settings: SettingsRepository, xray: com.drkkr.strategos.server.service.XRayService) {
     route("/api") {
         get("/health") { call.respond(service.health()) }
+
+        get("/chats") { call.respond(service.listChats()) }
+        post("/chats") {
+            val b = call.receive<StartChat>()
+            call.respond(HttpStatusCode.Created, service.startChat(b.message, b.domainType))
+        }
+        get("/projects/{id}/xray") { call.respond(xray.of(call.id()) ?: throw NoSuchElementException("project")) }
+        post("/projects/{id}/xray/keep") {
+            val odds = call.receive<KeepOdds>().odds
+            require(odds in 0.0..1.0) { "odds must be between 0 and 1" }
+            call.respond(xray.keep(call.id(), odds) ?: throw NoSuchElementException("project"))
+        }
 
         get("/projects") { call.respond(service.listProjects(call.parameters["archived"] == "true")) }
         post("/projects") {
@@ -49,6 +63,8 @@ fun Route.strategosApi(service: StrategosService, settings: SettingsRepository) 
         post("/threads/{threadId}/messages") {
             call.respond(service.sendMessage(call.parameters["threadId"]!!, call.receive<SendMessage>().message))
         }
+        // "Draft exact words": the words for the engine's current move, from the saved situation (no new extraction).
+        post("/threads/{threadId}/script") { call.respond(service.draftWords(call.parameters["threadId"]!!)) }
         get("/threads/{threadId}/context") {
             call.respond(service.openThreadContext(call.parameters["threadId"]!!, call.parameters["q"]) ?: throw NoSuchElementException("thread"))
         }

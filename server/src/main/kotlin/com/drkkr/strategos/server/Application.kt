@@ -56,6 +56,7 @@ class AppContainer(
     val service = StrategosService(db, projects, threads, turns, journal, memory, router, pipeline, screener, background)
         .also { it.userIdValue = config.userId }
     val mcp = StrategosMcpServer(service)
+    val xray = com.drkkr.strategos.server.service.XRayService(projects, threads, turns)
 
     override fun close() = db.close()
 }
@@ -93,7 +94,7 @@ fun Application.strategos(app: AppContainer) {
         }
     }
     routing {
-        strategosApi(app.service, app.settings)
+        strategosApi(app.service, app.settings, app.xray)
         mcpHttp(app.mcp)
         val web = File(app.config.webDir)
         if (web.isDirectory) singlePageApplication { filesPath = web.absolutePath; defaultPage = "index.html" }

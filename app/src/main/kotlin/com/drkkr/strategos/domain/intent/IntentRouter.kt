@@ -68,7 +68,7 @@ class IntentRouter(private val handlers: IntentHandlers = EngineTools.handlers) 
     suspend fun route(input: RouteInput): IntentResult {
         if (input.support) return IntentResult.None
         return when (input.intent) {
-            Intent.STANDARD -> IntentResult.None
+            Intent.STANDARD, Intent.SCRIPT -> IntentResult.None
             Intent.WHAT_IF -> handlers.whatIf(input)
             Intent.COMPARE -> handlers.compare(input)
             Intent.TOP_OPTIONS -> handlers.topOptions(input)

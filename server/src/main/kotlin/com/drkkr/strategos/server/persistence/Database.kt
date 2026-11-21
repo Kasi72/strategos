@@ -17,6 +17,8 @@ class Database(url: String) : AutoCloseable {
     init {
         if (isSqlite) conn.createStatement().use { it.execute("PRAGMA foreign_keys = ON") }
         SCHEMA.forEach { sql -> conn.createStatement().use { it.execute(sql) } }
+        // Columns added after the first release: added in place, ignored when already there.
+        MIGRATIONS.forEach { sql -> runCatching { conn.createStatement().use { it.execute(sql) } } }
     }
 
     @Synchronized
@@ -54,6 +56,7 @@ class Database(url: String) : AutoCloseable {
     }
 
     companion object {
+        val MIGRATIONS = listOf("ALTER TABLE turns ADD COLUMN cards_json TEXT")
         val SCHEMA = listOf(
             """CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY, title TEXT NOT NULL, domain_type TEXT NOT NULL, scenario_json TEXT NOT NULL,

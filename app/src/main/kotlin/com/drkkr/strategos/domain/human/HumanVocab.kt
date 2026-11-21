@@ -55,7 +55,7 @@ object HumanVocab {
 
     /** Power Mode: the manipulative help a user may ask for. Never planned; each gets a fixed decline note (`DeclineNotes`). */
     /** Intent Dispatch ID2.1: what the user asks for this turn (BLUEPRINT §4.1). */
-    val INTENTS = setOf("standard", "what_if", "compare", "top_options", "their_reaction", "plan_ahead")
+    val INTENTS = setOf("standard", "what_if", "compare", "top_options", "their_reaction", "plan_ahead", "script")
     val USER_ASKS_FOR = setOf("none", "false_facts", "exploit_weakness", "isolate", "make_dependent", "fake_friend", "scapegoat")
 
     /** Smoothed-state scale: 0 = calm … 3 = furious. */

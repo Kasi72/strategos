@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="14 14 80 80">
+  <style>
+    :root{--bg:#FFFFFF;--p:#1B2027;--a:#97704A;--o:#957451;--g:#9DA2A7}
+    @media (prefers-color-scheme:dark){:root{--bg:#090A0F;--p:#E5E9EA;--a:#CAA06A;--o:#B99772;--g:#69747B}}
+  </style>
+  <rect x="14" y="14" width="80" height="80" rx="18" fill="var(--bg)"/>
+  <g fill="none" stroke-width="1.6">
+    <path d="M54 24C70.57 24 84 37.43 84 54S70.57 84 54 84 24 70.57 24 54 37.43 24 54 24Z" stroke="var(--o)"/>
+    <path d="M24 54H84M54 24V84" stroke="var(--g)" stroke-width="1.4"/>
+    <path d="M54 39V32C66.5 34.2 77 43.3 84 54" stroke="var(--o)"/>
+    <path d="M24 54C33 62.1 44.7 68 54 69.4V84" stroke="var(--o)"/>
+  </g>
+  <path d="M44 26C33 30.3 31.2 40 41.7 49.1 48.2 54.8 60.2 57.1 66.3 65 72.4 72.9 66.2 80.3 55.3 82.7 69 82.1 75.7 71.5 69.4 61.5 64.8 53.8 54.1 49 46.3 43.6 39.4 38.9 39.4 31.3 44 26Z" fill="var(--p)"/>
+  <path d="M61 56.3C63.1 58 64.9 60 66.3 62.7 71 71.2 66.3 79 55.3 82.7 69 82.1 75.7 71.5 69.4 61.5 67.7 58.8 65.1 56.2 61 53.8Z" fill="var(--a)"/>
+  <circle cx="24" cy="54" r="2.4" fill="var(--p)"/><circle cx="84" cy="54" r="2.4" fill="var(--p)"/>
+  <circle cx="54" cy="24" r="2.4" fill="var(--a)"/><circle cx="54" cy="84" r="2.4" fill="var(--a)"/>
+</svg>

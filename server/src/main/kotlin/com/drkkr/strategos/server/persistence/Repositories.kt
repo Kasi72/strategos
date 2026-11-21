@@ -25,6 +25,8 @@ data class TurnRecord(
     val id: String, val threadId: String, val projectId: String, val turnIndex: Int, val userMessage: String,
     val extractedSketchJson: String?, val engineDirectiveJson: String?, val assistantReply: String,
     val trustScore: Double, val tensionScore: Double, val timestamp: Long,
+    /** The cards under the reply (quick answers, options), as JSON. */
+    val cardsJson: String? = null,
 )
 
 @Serializable
@@ -109,8 +111,9 @@ class ThreadRepository(private val db: Database, private val clock: () -> Long =
 
 class TurnRepository(private val db: Database) {
     fun append(t: TurnRecord) {
-        db.update("INSERT INTO turns VALUES (?,?,?,?,?,?,?,?,?,?,?)", t.id, t.threadId, t.projectId, t.turnIndex, t.userMessage,
-            t.extractedSketchJson, t.engineDirectiveJson, t.assistantReply, t.trustScore, t.tensionScore, t.timestamp)
+        db.update("INSERT INTO turns (id, thread_id, project_id, turn_index, user_message, sketch_json, directive_json, assistant_reply, trust, tension, ts, cards_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            t.id, t.threadId, t.projectId, t.turnIndex, t.userMessage,
+            t.extractedSketchJson, t.engineDirectiveJson, t.assistantReply, t.trustScore, t.tensionScore, t.timestamp, t.cardsJson)
     }
 
     fun forThread(threadId: String): List<TurnRecord> =
@@ -124,7 +127,7 @@ class TurnRepository(private val db: Database) {
     private fun row(rs: java.sql.ResultSet) = TurnRecord(
         rs.getString("id"), rs.getString("thread_id"), rs.getString("project_id"), rs.getInt("turn_index"), rs.getString("user_message"),
         rs.getString("sketch_json"), rs.getString("directive_json"), rs.getString("assistant_reply"),
-        rs.getDouble("trust"), rs.getDouble("tension"), rs.getLong("ts"),
+        rs.getDouble("trust"), rs.getDouble("tension"), rs.getLong("ts"), rs.getString("cards_json"),
     )
 }
 

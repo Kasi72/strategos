@@ -17,6 +17,7 @@ import com.drkkr.strategos.domain.agent.SketchConverter
 import com.drkkr.strategos.domain.agent.SketchParser
 import com.drkkr.strategos.domain.intent.Intent
 import com.drkkr.strategos.domain.intent.PlanAheadGuard
+import com.drkkr.strategos.domain.intent.ReplyMode
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.domain.negotiation.DealFrame
 import com.drkkr.strategos.server.llm.ChatMessage
@@ -31,6 +32,7 @@ import com.drkkr.strategos.server.memory.MemoryService
 import com.drkkr.strategos.server.persistence.JournalRepository
 import com.drkkr.strategos.server.persistence.Project
 import com.drkkr.strategos.server.persistence.ProjectRepository
+import com.drkkr.strategos.server.persistence.StoreJson
 import com.drkkr.strategos.server.persistence.ThreadRepository
 import com.drkkr.strategos.server.persistence.TopicThread
 import com.drkkr.strategos.server.persistence.TurnRecord
@@ -71,6 +73,9 @@ data class TurnResponse(
     val memoryBackend: String,
     val coachUsed: Boolean = false,
     val savedChanges: Int = 0,
+    val cards: ReplyCards = ReplyCards(),
+    val projectId: String = "",
+    val threadId: String = "",
 )
 
 class TurnFailed(message: String, val retryable: Boolean) : Exception(message)
@@ -132,7 +137,8 @@ class TurnPipeline(
         if (sketch.messageKind == "followup_question" && sketch.intentKind == Intent.STANDARD && !priorReply.isNullOrBlank()) {
             val deal = DealFrame.build(loaded.negotiationContext, loaded.humanContext, text, recent = recent)
             coach.answerFollowUp(text, priorReply, thread.lastReportJson, ctx, deal)?.let { answer ->
-                return finish(project, thread, turnIndex, text, sketch, null, answer, project.trust, project.tension, mem, coachUsed = true, saved = 0, preview = preview)
+                return finish(project, thread, turnIndex, text, sketch, null, answer, project.trust, project.tension, mem, coachUsed = true, saved = 0, preview = preview,
+                    mode = ReplyMode.ANSWER)
             }
         }
 
@@ -183,10 +189,39 @@ class TurnPipeline(
         val digest = outcome.savedResult.report?.let { ReportDigest.build(outcome.savedResult, current).toString() }
 
         // ── Stage 3: the memory-aware companion ──
-        val result = coach.reply(current, outcome, text, understood, ctx)
+        val result = coach.reply(current, outcome, text, understood, ctx, ReplyMode.of(sketch.intentKind, sketch.messageKind))
         val reply = if (converted.ask != null && !result.usedCoach) "${result.text}\n\n${converted.ask}" else result.text
         return finish(project, thread, turnIndex, text, sketch, outcome, reply, trust, tension, mem,
-            coachUsed = result.usedCoach, saved = turnOps.size, reportJson = digest, preview = preview)
+            coachUsed = result.usedCoach, saved = turnOps.size, reportJson = digest, preview = preview, brief = result.brief,
+            answer = result.answer, mode = result.mode.takeIf { result.usedCoach })
+    }
+
+    /**
+     * "Draft exact words": the classic card (the move, what to say, do and don't) for the engine's current move. No extraction:
+     * the engine re-runs on the saved situation and only the wording call is made. Saved as a turn, so the chat shows the ask
+     * and the words, and memory sees them like any other turn.
+     */
+    suspend fun draftWords(threadId: String): TurnResponse {
+        val thread = threads.get(threadId) ?: throw NoSuchElementException("thread $threadId")
+        return locks.getOrPut(thread.projectId) { Mutex() }.withLock {
+            val project = projects.get(thread.projectId) ?: throw NoSuchElementException("project ${thread.projectId}")
+            val s = project.scenario
+            require(s.actions.isNotEmpty()) { "there is no move to put into words yet" }
+            val history = turns.forThread(thread.id)
+            val turnIndex = (history.lastOrNull()?.turnIndex ?: -1) + 1
+            val lastSaid = history.lastOrNull()?.userMessage.orEmpty()
+            val text = if (lastSaid.isBlank()) DRAFT_WORDS else "$DRAFT_WORDS\n\nWhat I said last: $lastSaid"
+            val mem = runCatching { memory.retrieveContext(listOf(MemoryGroups.project(project.id)), lastSaid.ifBlank { DRAFT_WORDS }, s.stakeholders.map { it.name }) }
+                .getOrDefault(MemoryContext(backend = memory.backend))
+            val ctx = CoachContext(mem.render(), thread.rollingSummary, everythingSaid(history.map { it.userMessage }))
+            val recent = history.takeLast(5).joinToString("\n") { it.userMessage }
+            val outcome = EngineStage.run(saved = s, trust = project.trust, tension = project.tension, text = lastSaid, recentUserText = recent,
+                previousReportJson = thread.lastReportJson, earlierReplies = history.map { it.assistantReply })
+            val result = coach.reply(s, outcome, text, emptyList(), ctx, ReplyMode.SCRIPT)
+            val sketch = ModelSketch(intent = Intent.SCRIPT.word)
+            finish(project, thread, turnIndex, DRAFT_WORDS, sketch, outcome, result.text, project.trust, project.tension, mem,
+                coachUsed = result.usedCoach, saved = 0, mode = ReplyMode.SCRIPT.takeIf { result.usedCoach })
+        }
     }
 
     private suspend fun extract(project: Project, thread: TopicThread, history: List<TurnRecord>, text: String, mem: MemoryContext): ModelSketch? {
@@ -236,12 +271,16 @@ class TurnPipeline(
     private fun finish(
         project: Project, thread: TopicThread, turnIndex: Int, text: String, sketch: ModelSketch, outcome: EngineOutcome?,
         reply: String, trust: Double, tension: Double, mem: MemoryContext, coachUsed: Boolean = false, saved: Int,
-        reportJson: String? = null, preview: Boolean = false,
+        reportJson: String? = null, preview: Boolean = false, brief: StrategyBrief? = null,
+        answer: AnswerCard? = null, mode: ReplyMode? = null,
     ): TurnResponse {
         val now = clock()
         val d = outcome?.directive
         val directiveJson = d?.toJson()
-        if (!preview) persist(project, thread, turnIndex, text, sketch, d?.moveToImplement, directiveJson, reply, trust, tension, now, reportJson)
+        val other = project.scenario.players().firstOrNull { it.id != IntakeChecklist.self(project.scenario)?.id }?.name
+            ?: sketch.people.firstOrNull { !it.name.equals("You", true) }?.name
+        val cards = ReplyCards.of(reply, d, other, brief, answer, mode?.name?.lowercase().orEmpty())
+        if (!preview) persist(project, thread, turnIndex, text, sketch, d?.moveToImplement, directiveJson, reply, trust, tension, now, reportJson, cards)
         return TurnResponse(
             turnIndex = turnIndex, reply = reply, intent = sketch.intentKind.word,
             directive = d?.let {
@@ -250,15 +289,17 @@ class TurnPipeline(
             },
             directiveJson = directiveJson, trustScore = trust, tensionScore = tension, memoryBackend = mem.backend,
             coachUsed = coachUsed, savedChanges = if (preview) 0 else saved,
+            cards = cards, projectId = project.id, threadId = thread.id,
         )
     }
 
     private fun persist(
         project: Project, thread: TopicThread, turnIndex: Int, text: String, sketch: ModelSketch, advised: String?,
-        directiveJson: JsonObject?, reply: String, trust: Double, tension: Double, now: Long, reportJson: String?,
+        directiveJson: JsonObject?, reply: String, trust: Double, tension: Double, now: Long, reportJson: String?, cards: ReplyCards,
     ) {
         turns.append(TurnRecord(UUID.randomUUID().toString(), thread.id, project.id, turnIndex, text,
-            runCatching { SketchJson.encodeToString(ModelSketch.serializer(), sketch) }.getOrNull(), directiveJson?.toString(), reply, trust, tension, now))
+            runCatching { SketchJson.encodeToString(ModelSketch.serializer(), sketch) }.getOrNull(), directiveJson?.toString(), reply, trust, tension, now,
+            cards.takeIf { !it.isEmpty }?.let { StoreJson.encodeToString(ReplyCards.serializer(), it) }))
         threads.touch(thread.id, turnIndex + 1, reportJson)
         val episode = Episode(
             groupId = MemoryGroups.project(project.id),
@@ -279,6 +320,8 @@ class TurnPipeline(
 
     companion object {
         const val RECENT_TURNS = 4
+        /** The message a "Draft exact words" tap stands for, shown in the chat as the person's turn. */
+        const val DRAFT_WORDS = "Draft the exact words for this move."
         const val SAID_BUDGET = 10_000
         const val CONTEXT_HEADER = "STRATEGOS APP CONTEXT (generated by the app, authoritative, not written by the user)"
         const val COULD_NOT_READ = "I couldn't turn that into options. Try telling me who is involved and what you could do."

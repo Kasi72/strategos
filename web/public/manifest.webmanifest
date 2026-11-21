@@ -1,0 +1,10 @@
+{
+  "name": "Strategos",
+  "short_name": "Strategos",
+  "description": "Say what's going on; a game-theory engine picks the move that holds up.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1B2027",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
