@@ -29,7 +29,8 @@ data class ReplyCards(
     companion object {
         fun of(shownReply: String, d: EngineDirective?, otherName: String?, brief: StrategyBrief? = null,
                answer: AnswerCard? = null, mode: String = ""): ReplyCards {
-            if (d == null) return ReplyCards(mode = mode)
+            // No engine run this turn (a follow-up answered from the last reply): only the answer, no quick answers.
+            if (d == null) return ReplyCards(answer = answer, mode = mode)
             // A brief lays out the options itself, and its follow-up is the closing question.
             if (brief != null) return of(brief.followUp, d, otherName).copy(options = emptyList(), brief = brief, mode = mode)
             if (answer != null) return of(answer.followUp, d, otherName).copy(options = emptyList(), answer = answer, mode = mode)

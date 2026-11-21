@@ -33,6 +33,7 @@ import com.drkkr.strategos.server.persistence.JournalRepository
 import com.drkkr.strategos.server.persistence.Project
 import com.drkkr.strategos.server.persistence.ProjectRepository
 import com.drkkr.strategos.server.persistence.StoreJson
+import com.drkkr.strategos.domain.negotiation.WalkAwayMask
 import com.drkkr.strategos.server.persistence.ThreadRepository
 import com.drkkr.strategos.server.persistence.TopicThread
 import com.drkkr.strategos.server.persistence.TurnRecord
@@ -136,9 +137,15 @@ class TurnPipeline(
         val recent = (history.takeLast(5).map { it.userMessage } + text).joinToString("\n")
         if (sketch.messageKind == "followup_question" && sketch.intentKind == Intent.STANDARD && !priorReply.isNullOrBlank()) {
             val deal = DealFrame.build(loaded.negotiationContext, loaded.humanContext, text, recent = recent)
-            coach.answerFollowUp(text, priorReply, thread.lastReportJson, ctx, deal)?.let { answer ->
-                return finish(project, thread, turnIndex, text, sketch, null, answer, project.trust, project.tension, mem, coachUsed = true, saved = 0, preview = preview,
-                    mode = ReplyMode.ANSWER)
+            coach.answerFollowUp(text, priorReply, thread.lastReportJson, ctx, deal)?.let { words ->
+                // Shown as an answer card like the full ANSWER path: their question answered, and the move the engine advised
+                // last turn as the bottom line (the engine's words, never the model's), so the direction stays in view.
+                val advised = history.asReversed().firstNotNullOfOrNull { t ->
+                    t.engineDirectiveJson?.let { runCatching { Json.parseToJsonElement(it).jsonObject["move_to_implement"]?.jsonPrimitive?.contentOrNull }.getOrNull() }
+                }?.takeIf { it.isNotBlank() }?.let { WalkAwayMask.text(it, deal) }.orEmpty()
+                val card = AnswerCard(words.trim(), advised, move = advised)
+                return finish(project, thread, turnIndex, text, sketch, null, BriefAssembler.text(card), project.trust, project.tension, mem, coachUsed = true, saved = 0,
+                    preview = preview, answer = card, mode = ReplyMode.ANSWER)
             }
         }
 

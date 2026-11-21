@@ -202,4 +202,26 @@ class WebContractTest {
         }
         app.close()
     }
+
+    @Test
+    fun `a follow-up question comes back as an answer card with the engine's last move as the bottom line`() {
+        val followUp = Fixtures.personal().replaceFirst("{", "{\"message_kind\":\"followup_question\",")
+        val app = Fixtures.container(ScriptedLlm(listOf(Fixtures.personal(), followUp)))
+        testApplication {
+            application { strategos(app) }
+            val threadId = json(client.startChat("Maya and I fought last night and she went quiet.").bodyAsText()).jsonObject["threadId"]!!.jsonPrimitive.content
+            assertEquals(HttpStatusCode.OK, client.say(threadId, "How much leverage do I actually have here?").status)
+            val turns = json(client.get("/api/threads/$threadId/messages").bodyAsText()).jsonArray.map { it.jsonObject }
+            val advised = json(turns[0]["engineDirectiveJson"]!!.jsonPrimitive.content).jsonObject["move_to_implement"]!!.jsonPrimitive.content
+            val last = turns[1]
+            assertTurnShape(last)
+            val cards = json(last["cardsJson"]!!.jsonPrimitive.content).jsonObject
+            assertEquals("answer", cards["mode"]!!.jsonPrimitive.content)
+            val answer = cards["answer"]?.jsonObject ?: error("no answer card: $cards / reply: ${last["assistantReply"]}")
+            assertTrue("the answer is the coach's words", answer["answer"]!!.jsonPrimitive.content.isNotBlank())
+            assertEquals("the bottom line is the engine's move, not the model's", advised, answer["bottomLine"]!!.jsonPrimitive.content)
+            assertTrue("the plain-text reply carries the bottom line too", last["assistantReply"]!!.jsonPrimitive.content.contains("Bottom line: $advised"))
+        }
+        app.close()
+    }
 }

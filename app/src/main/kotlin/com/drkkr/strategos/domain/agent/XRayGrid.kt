@@ -61,7 +61,8 @@ data class XRayGrid(
 /**
  * Builds the grid from the saved scenario's own payoffs: no model call, no new ranking engine.
  * "Takes it well" is the counterpart reply that is best for you on average, "badly" the worst; scores are
- * your weighted payoffs scaled to 0..100 across the whole scenario. Null means not enough input yet
+ * your weighted payoffs scaled to 0..100 across the whole scenario, signed like [MultiPayoff.weighted]: COST
+ * (`higherIsBetter = false`) counts against you, so paying more never scores as a better outcome. Null means not enough input yet
  * (use [XRayNotEnough]).
  */
 object XRayGridBuilder {
@@ -82,7 +83,7 @@ object XRayGridBuilder {
 
         fun raw(myId: String, hisId: String): Double? =
             s.payoffs.firstOrNull { it.stakeholderId == me.id && it.actionProfile[me.id] == myId && it.actionProfile[him.id] == hisId }
-                ?.payoff?.values?.entries?.sumOf { (dim, v) -> v * (s.weights[dim] ?: 1.0) }
+                ?.payoff?.values?.entries?.sumOf { (dim, v) -> (if (dim.higherIsBetter) v else -v) * (s.weights[dim] ?: 1.0) }
 
         val cells = mine.associate { a -> a.id to his.associate { b -> b.id to raw(a.id, b.id) } }
         val all = cells.values.flatMap { it.values }.filterNotNull()

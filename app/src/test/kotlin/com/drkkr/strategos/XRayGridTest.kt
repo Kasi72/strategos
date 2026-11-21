@@ -2,6 +2,7 @@ package com.drkkr.strategos
 
 import com.drkkr.strategos.domain.agent.MoveKind
 import com.drkkr.strategos.domain.agent.XRayGridBuilder
+import com.drkkr.strategos.domain.model.PayoffDimension
 import com.drkkr.strategos.domain.model.Scenario
 import com.drkkr.strategos.fixtures.Fx
 import org.junit.Assert.*
@@ -94,5 +95,38 @@ class XRayGridTest {
     @Test fun TC_GRID_13_moveKindIsReadOffTheTwoCells() {
         val g = grid(78 to 60, 90 to 34, 48 to 22)
         assertEquals(listOf(MoveKind.HOLDS_UP, MoveKind.GAMBLE, MoveKind.BACKFIRES), g.rows.map { it.kind })
+    }
+
+    // ── cost counts against you (regression: a rent rise scored as the better outcome) ──────────
+
+    /** The landlord case: if he holds firm at 15% you pay more (COST up), so that column must score lower. */
+    private fun rent(): Scenario {
+        fun you(cost: Double, rel: Double, ltv: Double) = com.drkkr.strategos.domain.model.MultiPayoff(mapOf(PayoffDimension.COST to cost, PayoffDimension.RELATIONSHIPS to rel, PayoffDimension.LONG_TERM_VALUE to ltv))
+        fun e(me: String, him: String, p: com.drkkr.strategos.domain.model.MultiPayoff) = com.drkkr.strategos.domain.model.PayoffEntry("you", mapOf("you" to me, "ll" to him), p)
+        return Scenario(
+            id = "rent", title = "Rent rise",
+            stakeholders = listOf(com.drkkr.strategos.domain.model.Stakeholder(id = "you", name = "You"), com.drkkr.strategos.domain.model.Stakeholder(id = "ll", name = "Landlord")),
+            actions = listOf(
+                com.drkkr.strategos.domain.model.Action(id = "counter", stakeholderId = "you", label = "Counter-offer"),
+                com.drkkr.strategos.domain.model.Action(id = "agree", stakeholderId = "you", label = "Agree to 15%"),
+                com.drkkr.strategos.domain.model.Action(id = "neg", stakeholderId = "ll", label = "Negotiate a smaller rise"),
+                com.drkkr.strategos.domain.model.Action(id = "firm", stakeholderId = "ll", label = "Hold firm at 15%"),
+            ),
+            payoffs = listOf(
+                e("counter", "neg", you(1.0, 6.0, 6.0)), e("counter", "firm", you(9.0, 5.0, 5.0)),
+                e("agree", "neg", you(9.0, 2.0, 1.5)), e("agree", "firm", you(9.0, 2.0, 1.5)),
+            ),
+            weights = mapOf(PayoffDimension.COST to 1.0, PayoffDimension.RELATIONSHIPS to 1.5, PayoffDimension.LONG_TERM_VALUE to 2.0),
+        )
+    }
+
+    @Test fun TC_GRID_15_costCountsAgainstYou_soPayingMoreIsNeverTheBetterCell() {
+        val g = XRayGridBuilder.build(rent(), 0.5)!!
+        assertEquals("Negotiate a smaller rise", g.wellLabel)
+        assertEquals("Hold firm at 15%", g.badLabel)
+        val counter = g.rows.single { it.label == "Counter-offer" }
+        assertTrue("a rise you pay for scores below a smaller one: $counter", counter.well > counter.bad)
+        val agree = g.rows.single { it.label == "Agree to 15%" }
+        assertTrue("paying the full rise is the worst move: $agree", agree.expected < counter.expected)
     }
 }
