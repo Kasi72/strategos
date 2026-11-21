@@ -40,3 +40,9 @@ app/src/main.zip
 # JVM crash/replay logs
 hs_err_pid*.log
 replay_pid*.log
+
+# Local Strategos server data (chats, memory): never commit
+strategos.db
+strategos.db-*
+server/strategos.db
+server/strategos.db-*

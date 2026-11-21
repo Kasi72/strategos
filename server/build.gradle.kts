@@ -16,6 +16,10 @@ application {
     mainClass.set("com.drkkr.strategos.server.ApplicationKt")
 }
 
+// `./gradlew :server:run` starts in the repo root, like the installed server and Docker, so the defaults
+// (WEB_DIR=web/dist, DATABASE_URL=jdbc:sqlite:./strategos.db) and any relative paths in .env mean the same thing everywhere.
+tasks.named<JavaExec>("run") { workingDir = rootProject.projectDir }
+
 val ktor = "2.3.12"
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:$ktor")
