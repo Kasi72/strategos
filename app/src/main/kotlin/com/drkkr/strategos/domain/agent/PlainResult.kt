@@ -52,7 +52,9 @@ object PlainResult {
                 open.filter { it.label != "Recommended" && it.label != "Safe Fallback" }
             if (noOutcomes) {
                 val mine = ownerOf(s)?.let { o -> s.actionsFor(o.id).map { it.label } }.orEmpty()
-                if (mine.isNotEmpty()) appendLine("Your options so far: ${mine.joinToString(", ")}.")
+                // Not when "What I understood" just listed them (seen live, 21 Nov: the same options twice in one reply).
+                val listed = understood.take(MAX_UNDERSTOOD).any { it.startsWith("Your options:") }
+                if (mine.isNotEmpty() && !listed) appendLine("Your options so far: ${mine.joinToString(", ")}.")
             } else if (ordered.isNotEmpty()) {
                 appendLine("Options to consider")
                 ordered.take(MAX_OPTIONS).forEachIndexed { i, p ->

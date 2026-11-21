@@ -156,7 +156,9 @@ class OneShotFlowTest {
         val reply = conversations.messages(cid()).last().text
         assertTrue(reply, reply.contains("I can't compare your options yet"))
         assertFalse(reply.contains("best fit"))
-        assertTrue(reply.contains("Your options so far: Co-sign, Wait"))
+        // The options appear once: "What I understood" lists them, so "Your options so far" no longer repeats them (21 Nov).
+        assertTrue(reply, reply.contains("Your options: Co-sign, Wait"))
+        assertFalse(reply, reply.contains("Your options so far"))
         assertEquals(null, controller.state.value.error)                          // the first part was saved; no error shown
         assertEquals(3, scenario().stakeholders.size)
     }

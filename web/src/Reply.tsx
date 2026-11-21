@@ -159,15 +159,16 @@ export default function Reply({ text, pill, cards, animate, onXRay, onSend, onDr
         </div>
       )}
 
-      {pill && (
-        <div {...step()} className={`pill-row ${animate ? 'rise' : ''}`}>
+      {/* The X-ray opens from every reply; the engine's pill joins it when this turn named a move. */}
+      <div {...step()} className={`pill-row ${animate ? 'rise' : ''}`}>
+        {pill && (
           <button className="engine-pill" onClick={onXRay} title="Open the X-ray">
             <i />
             <span>{[pill.move, pill.pattern, pill.robust ? 'Robust' : 'Fragile'].filter(Boolean).join(' · ')}</span>
           </button>
-          <button className="xray-open" onClick={onXRay}>X-ray</button>
-        </div>
-      )}
+        )}
+        <button className="xray-open" onClick={onXRay}>X-ray</button>
+      </div>
       {showChips && (
         <div {...step()} className={`chips-row next-row ${animate ? 'rise' : ''}`} aria-label="Next">
           {chips.draft && onDraft && <button className="chip-btn primary-chip" disabled={busy} onClick={onDraft}>Draft exact words</button>}

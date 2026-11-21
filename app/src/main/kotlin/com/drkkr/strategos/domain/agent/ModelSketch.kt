@@ -341,6 +341,22 @@ object SketchConverter {
         )
     }
 
+    /**
+     * With pair-form outcomes and more than two players in play, the (normalised) name of the person whose options fill the
+     * rows' second slot; null when the rows are not all pairs, or there are at most two players, or no one's options match.
+     */
+    internal fun pairCounterpart(sketch: ModelSketch, s: Scenario): String? {
+        if (sketch.outcomes.isEmpty() || sketch.outcomes.any { it.whenPicks.size != 2 || it.picks.isNotEmpty() }) return null
+        val names = (s.players().map { norm(it.name) } + sketch.people.filter { it.role.equals("PLAYER", ignoreCase = true) }.map { norm(it.name) } + "you").toSet()
+        if (names.size <= 2) return null
+        val labels = (sketch.options.map { norm(it.owner) to norm(it.label) } +
+            s.actions.mapNotNull { a -> s.stakeholders.firstOrNull { it.id == a.stakeholderId }?.let { norm(it.name) to norm(a.label) } })
+            .filter { it.first != "you" && it.second.isNotEmpty() }
+        fun matches(own: String, pick: String) = own == pick || (minOf(own.length, pick.length) >= NEAR_DUPLICATE_MIN && (own.contains(pick) || pick.contains(own)))
+        val hits = sketch.outcomes.mapNotNull { o -> norm(o.whenPicks[1]).let { pick -> labels.firstOrNull { matches(it.second, pick) }?.first } }
+        return hits.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+    }
+
     /** The one clarifying question, unless the model echoed the prompt's instruction instead of asking (seen live). */
     private fun askOf(sketch: ModelSketch): String? =
         clean(sketch.ask)?.takeUnless { norm(it).startsWith("only if") || norm(it).contains("too thin") }
@@ -384,6 +400,18 @@ object SketchConverter {
 
         fun youExists() = s.stakeholders.any { key(it.name) == "you" } || sketch.people.any { key(it.name) == "you" }
         val people = if (youExists()) sketch.people else listOf(SketchPerson("You", "PLAYER")) + sketch.people
+        // Pair-form outcomes ("when": [your option, their option]) describe two players. A third "player" leaves every row one
+        // pick short, so no payoff is saved and the engine has nothing to solve (seen live, 21 Nov: a co-founder deadlock with two
+        // co-founders came back BLOCKED on every turn, with no move and no X-ray). §7.4 says two players whenever possible: the
+        // second player is the one whose options the rows name; anyone else stays on the board as an influencer, without options.
+        val counterpart = pairCounterpart(sketch, s)
+        if (counterpart != null && PayoffCoverage.of(s).filled == 0) for (p in s.players()) {
+            val k = key(p.name)
+            if (k == "you" || k == counterpart) continue
+            ops += ChangeOp(OpType.UPDATE_STAKEHOLDER, targetId = p.id, gameRole = GameRole.INFLUENCER, rationale = RATIONALE)
+            s.actionsFor(p.id).forEach { ops += ChangeOp(OpType.REMOVE_ACTION, targetId = it.id, rationale = RATIONALE) }
+            players -= p.id
+        }
         // Human Layer: what the model read about power, status quo and state (closed vocabularies only; AI_INFERRED).
         val reported = sketch.counterpartObservedReaction in setOf("softened", "stayed_neutral", "withdrew_or_escalated")
         // They have reported how the held move went: stop asking "did you send it?".
@@ -440,7 +468,8 @@ object SketchConverter {
             }
             if (k in idByName) continue                                    // repeated within the sketch
             val wantsPlayer = k == "you" || p.role.equals("PLAYER", ignoreCase = true)
-            val role = if (wantsPlayer && players.size < MAX_PLAYERS) GameRole.PLAYER else GameRole.INFLUENCER
+            val pairsAllow = counterpart == null || k == "you" || k == counterpart
+            val role = if (wantsPlayer && pairsAllow && players.size < MAX_PLAYERS) GameRole.PLAYER else GameRole.INFLUENCER
             val r = ref(name)
             idByName[k] = r
             if (role == GameRole.PLAYER) players += r
