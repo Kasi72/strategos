@@ -9,17 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -48,6 +45,10 @@ data class CalmColors(
     val ground: Color,
     val card: Color,
     val cardBorder: Color,
+    /** Neumorphic light shadow (top-left highlight). */
+    val neuLight: Color,
+    /** Neumorphic dark shadow (bottom-right depth). */
+    val neuDark: Color,
     val ink: Color,
     val ink2: Color,
     val ink3: Color,
@@ -77,66 +78,71 @@ data class CalmColors(
     val isDark: Boolean
 )
 
-// Redesign palette: warm-neutral grouped canvas, a single iris accent, muted pastel semantics.
+// Neumorphic palette — "Pearl Iris" (light) / "Deep Cosmic" (dark).
+// card == ground: the neumorphic elevation comes entirely from the two-shadow technique in NeuMorphic.kt.
 private val Light = CalmColors(
-    ground = Color(0xFFEFEDF3),
-    card = Color(0xFFFFFFFF),
-    cardBorder = Color(0xFF000000).copy(alpha = 0.06f),
-    ink = Color(0xFF17171C),
-    ink2 = Color(0xFF6B6B75),
-    ink3 = Color(0xFF9A9AA6),
-    line = Color(0xFF3C3C43).copy(alpha = 0.10f),
-    action = Color(0xFF5B57E0),
+    ground = Color(0xFFEBE8F3),          // soft lavender-pearl
+    card   = Color(0xFFEBE8F3),          // same as ground — neumorphic!
+    cardBorder = Color.Transparent,      // no border; shadows define edges
+    neuLight = Color(0xFFFFFFFF),        // bright top-left highlight
+    neuDark  = Color(0xFFC3BFDA),        // muted bottom-right depth
+    ink  = Color(0xFF1C1836),
+    ink2 = Color(0xFF6B6882),
+    ink3 = Color(0xFF9B99B0),
+    line = Color(0xFF6B6882).copy(alpha = 0.14f),
+    action     = Color(0xFF6B5FCC),      // rich amethyst
     actionText = Color(0xFFFFFFFF),
-    onAction = Color(0xFF4B47C9),
-    selected = Color(0xFF5B57E0).copy(alpha = 0.12f),
-    selectedText = Color(0xFF4B47C9),
-    selectedBorder = Color(0xFF5B57E0).copy(alpha = 0.30f),
-    coach = Color(0xFFFFFFFF),
-    coachInk = Color(0xFF17171C),
-    trust = Color(0xFF2E7D53),
-    tension = Color(0xFFD1453B),
-    rigor = Color(0xFF9A6713),
+    onAction   = Color(0xFF5A4FC0),
+    selected      = Color(0xFF6B5FCC).copy(alpha = 0.14f),
+    selectedText  = Color(0xFF5A4FC0),
+    selectedBorder= Color(0xFF6B5FCC).copy(alpha = 0.28f),
+    coach    = Color(0xFFEBE8F3),
+    coachInk = Color(0xFF1C1836),
+    trust   = Color(0xFF3A8C5F),
+    tension = Color(0xFFD44C46),
+    rigor        = Color(0xFF9A6713),
     rigorGraphic = Color(0xFFE0A23C),
-    paper = Color(0xFFEFEDF3),
-    paper2 = Color(0xFFFFFFFF),
-    coachSkeleton = Color(0xFFDAD8F2),
-    yoursBg = Color(0xFFE6E5FB),
-    inferredBg = Color(0xFFE0A23C).copy(alpha = 0.18f),
-    inferredFg = Color(0xFF9A6713),
-    error = Color(0xFFD1453B),
-    errorBg = Color(0xFFFBE9E7),
+    paper  = Color(0xFFEBE8F3),
+    paper2 = Color(0xFFF4F2FA),          // slightly lighter chip surface
+    coachSkeleton = Color(0xFFD8D5EC),
+    yoursBg     = Color(0xFFE4E1F8),
+    inferredBg  = Color(0xFFE0A23C).copy(alpha = 0.16f),
+    inferredFg  = Color(0xFF9A6713),
+    error    = Color(0xFFD44C46),
+    errorBg  = Color(0xFFFBE9E7),
     isDark = false
 )
 
 private val Dark = CalmColors(
-    ground = Color(0xFF09090C),
-    card = Color(0xFF1A1A1E),
-    cardBorder = Color(0xFFFFFFFF).copy(alpha = 0.07f),
-    ink = Color(0xFFF7F7FA),
-    ink2 = Color(0xFFB4B4C0),
-    ink3 = Color(0xFF8A8A96),
-    line = Color(0xFF8A8A96).copy(alpha = 0.22f),
-    action = Color(0xFF8A86FF),
+    ground = Color(0xFF1A1830),          // deep cosmic indigo
+    card   = Color(0xFF1A1830),          // same as ground — neumorphic!
+    cardBorder = Color.Transparent,
+    neuLight = Color(0xFF2C2A48),        // raised-edge highlight
+    neuDark  = Color(0xFF0C0A1C),        // deep shadow
+    ink  = Color(0xFFEEECF8),
+    ink2 = Color(0xFFB0AECE),
+    ink3 = Color(0xFF7C7A98),
+    line = Color(0xFFB0AECE).copy(alpha = 0.18f),
+    action     = Color(0xFF9D90FF),      // bright soft lavender
     actionText = Color(0xFFFFFFFF),
-    onAction = Color(0xFF9D99FF),
-    selected = Color(0xFF8A86FF).copy(alpha = 0.20f),
-    selectedText = Color(0xFFBFBCFF),
-    selectedBorder = Color(0xFF8A86FF).copy(alpha = 0.40f),
-    coach = Color(0xFF1A1A1E),
-    coachInk = Color(0xFFF7F7FA),
-    trust = Color(0xFF67C495),
-    tension = Color(0xFFFF6B63),
-    rigor = Color(0xFFF0B64E),
+    onAction   = Color(0xFFADA2FF),
+    selected      = Color(0xFF9D90FF).copy(alpha = 0.22f),
+    selectedText  = Color(0xFFBDB4FF),
+    selectedBorder= Color(0xFF9D90FF).copy(alpha = 0.42f),
+    coach    = Color(0xFF1A1830),
+    coachInk = Color(0xFFEEECF8),
+    trust   = Color(0xFF64C490),
+    tension = Color(0xFFFF6B65),
+    rigor        = Color(0xFFF0B64E),
     rigorGraphic = Color(0xFFF0B64E),
-    paper = Color(0xFF09090C),
-    paper2 = Color(0xFF1A1A1E),
-    coachSkeleton = Color(0xFF2E2E3A),
-    yoursBg = Color(0xFF2A2A44),
-    inferredBg = Color(0xFFF0B64E).copy(alpha = 0.18f),
-    inferredFg = Color(0xFFF0B64E),
-    error = Color(0xFFFF6B63),
-    errorBg = Color(0xFF3A1F1C),
+    paper  = Color(0xFF1A1830),
+    paper2 = Color(0xFF242240),          // slightly lifted chip surface
+    coachSkeleton = Color(0xFF2E2C4A),
+    yoursBg     = Color(0xFF2A2848),
+    inferredBg  = Color(0xFFF0B64E).copy(alpha = 0.18f),
+    inferredFg  = Color(0xFFF0B64E),
+    error    = Color(0xFFFF6B65),
+    errorBg  = Color(0xFF3A1F1C),
     isDark = true
 )
 
@@ -145,13 +151,9 @@ val CalmColors.link: Color get() = if (isDark) onAction else action
 
 private val LocalCalmColors = staticCompositionLocalOf { Light }
 
-/** The sky gradient drawn once in the scaffold as the app background (DESIGN.md §2 "ground"). */
+/** Flat ground fill — neumorphic: shadows define depth, not color gradient. */
 val CalmColors.groundBrush: Brush
-    get() = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF09090C), Color(0xFF09090C)))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEFEDF3), Color(0xFFEFEDF3)))
-    }
+    get() = Brush.linearGradient(listOf(ground, ground))
 
 /** Type ramp from DESIGN.md §2. Coach styles are serif; everything else is the UI sans. */
 @Immutable
@@ -183,13 +185,12 @@ private val LocalCalmType = staticCompositionLocalOf { Type }
 val CalmType.wordmark: TextStyle get() = title.copy(fontFamily = CalmFonts.Serif)
 
 /**
- * The lifted glass card: a soft cool-blue shadow, the glass fill, and a bright 1dp border
- * (DESIGN.md §2 "card"). Use everywhere a card, composer or dock surface is drawn.
+ * Neumorphic card: raised two-shadow effect + flat fill at ground color.
+ * card == ground so the surface appears extruded from the background.
  */
 fun Modifier.calmCard(colors: CalmColors, shape: Shape = SquircleShape(CalmDimens.cardRadius)): Modifier =
-    this.shadow(elevation = 1.5.dp, shape = shape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
-        .background(colors.card.compositeOver(colors.ground), shape)
-        .border(0.5.dp, colors.cardBorder, shape)
+    this.neuRaised(colors.neuLight, colors.neuDark, elevation = 8.dp, cornerRadius = CalmDimens.cardRadius)
+        .background(colors.card, shape)
 
 /**
  * iOS-style continuous-corner squircle (true superellipse, n≈5) as a Compose [Shape].
